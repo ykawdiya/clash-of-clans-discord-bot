@@ -224,5 +224,30 @@ process.on('unhandledRejection', (error) => {
     console.error('Unhandled Rejection:', error);
 });
 
+// Add this near your other app.get routes
+app.get('/ip', (req, res) => {
+    // Get the information about the server's connection
+    const networkInfo = {
+        // What IP does Railway show to external services
+        outboundIP: null,
+        // What Railway sees as your IP
+        requestIP: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+        // All request headers for debugging
+        headers: req.headers
+    };
+
+    // Try to fetch an external service to see what IP we're showing
+    fetch('https://api.ipify.org?format=json')
+        .then(response => response.json())
+        .then(data => {
+            networkInfo.outboundIP = data.ip;
+            res.json(networkInfo);
+        })
+        .catch(error => {
+            networkInfo.error = error.message;
+            res.json(networkInfo);
+        });
+});
+
 // Start the bot
 init();

@@ -45,10 +45,23 @@ class ClashApiService {
                 ? encodeURIComponent(clanTag)
                 : encodeURIComponent(`#${clanTag}`);
 
+            console.log(`Attempting to fetch clan data for tag: ${formattedTag}`);
+            console.log(`Using API key: ${this.apiKey ? this.apiKey.substring(0, 5) + '...' : 'undefined'}`);
+
             const response = await this.client.get(`/clans/${formattedTag}`);
             return response.data;
         } catch (error) {
             console.error('Error fetching clan data:', error.response?.data || error.message);
+            console.error('Full error object:', JSON.stringify(error.response?.data || {}, null, 2));
+            console.error('Status code:', error.response?.status);
+
+            // Enhanced error handling
+            if (error.response?.status === 403) {
+                throw new Error('API access forbidden. This is likely an IP whitelisting issue with the Clash of Clans API.');
+            } else if (error.response?.status === 401) {
+                throw new Error('API authentication failed. The API key might be invalid.');
+            }
+
             throw error;
         }
     }
