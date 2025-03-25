@@ -24,8 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - name: Install Railway CLI
+        run: npm i -g @railway/cli
+
       - name: Deploy to Railway
-        uses: devtomio/action-railway@v1.1.4
-        with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          service: "acceptable-vibrancy1"
+        run: railway up --service acceptable-vibrancy1
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
