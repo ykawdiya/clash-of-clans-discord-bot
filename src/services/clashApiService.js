@@ -6,6 +6,7 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 class ClashApiService {
     constructor() {
         this.baseUrl = 'https://api.clashofclans.com/v1';
+        this.retryCount = 3; // Number of retries for failed requests
     }
 
     /**
@@ -26,18 +27,18 @@ class ClashApiService {
         const proxyUser = process.env.PROXY_USERNAME;
         const proxyPass = process.env.PROXY_PASSWORD;
 
-        // Create configuration for axios
+        // Create configuration for axios with MUCH longer timeouts
         const config = {
             baseURL: this.baseUrl,
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Accept': 'application/json'
             },
-            timeout: 15000, // 15 second timeout
+            timeout: 45000, // 45 second timeout (increased from 15s)
             // Custom HTTPS agent with longer timeout
             httpsAgent: new https.Agent({
                 keepAlive: true,
-                timeout: 20000
+                timeout: 60000 // 60 second timeout (increased from 20s)
             })
         };
 
@@ -53,7 +54,7 @@ class ClashApiService {
                     host: proxyHost,
                     port: proxyPort,
                     auth: `${proxyUser}:${proxyPass}`,
-                    timeout: 15000,
+                    timeout: 45000, // 45 seconds timeout (increased from 15s)
                     rejectUnauthorized: false // Try disabling SSL verification if needed
                 });
 
@@ -90,8 +91,89 @@ class ClashApiService {
                 'Authorization': `Bearer ${apiKey}`,
                 'Accept': 'application/json'
             },
-            timeout: 10000
+            timeout: 30000, // 30 second timeout (increased from 10s)
+            httpsAgent: new https.Agent({
+                keepAlive: true,
+                timeout: 40000 // 40 second timeout for the agent
+            })
         });
+    }
+
+    /**
+     * Execute a request with retry logic
+     * @param {string} endpoint - API endpoint
+     * @param {Object} options - Request options
+     * @returns {Promise<Object>} Response data
+     */
+    async executeRequest(endpoint, options = {}) {
+        // Try proxy client first with retries
+        let error;
+        for (let attempt = 0; attempt < this.retryCount; attempt++) {
+            try {
+                console.log(`Proxy attempt ${attempt + 1}/${this.retryCount} for ${endpoint}`);
+                const client = this.getClient();
+                const response = await client.request({
+                    url: endpoint,
+                    method: options.method || 'get',
+                    params: options.params,
+                    data: options.data
+                });
+                console.log(`Request successful on proxy attempt ${attempt + 1}`);
+                return response.data;
+            } catch (err) {
+                console.error(`Proxy attempt ${attempt + 1} failed: ${err.message}`);
+                error = err;
+
+                // Only retry if it's a timeout or connection error
+                if (err.response || (err.code !== 'ECONNABORTED' &&
+                    err.code !== 'ETIMEDOUT' &&
+                    err.code !== 'ECONNRESET' &&
+                    !err.message.includes('timeout'))) {
+                    break; // Don't retry if it's not a timeout/connection issue
+                }
+
+                // Wait before retry (exponential backoff)
+                const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s, etc.
+                console.log(`Waiting ${delay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        // If proxy failed completely, try direct client with retries
+        for (let attempt = 0; attempt < this.retryCount; attempt++) {
+            try {
+                console.log(`Direct attempt ${attempt + 1}/${this.retryCount} for ${endpoint}`);
+                const directClient = this.getDirectClient();
+                const response = await directClient.request({
+                    url: endpoint,
+                    method: options.method || 'get',
+                    params: options.params,
+                    data: options.data
+                });
+                console.log(`Request successful on direct attempt ${attempt + 1}`);
+                return response.data;
+            } catch (err) {
+                console.error(`Direct attempt ${attempt + 1} failed: ${err.message}`);
+                error = err;
+
+                // Only retry if it's a timeout or connection error
+                if (err.response || (err.code !== 'ECONNABORTED' &&
+                    err.code !== 'ETIMEDOUT' &&
+                    err.code !== 'ECONNRESET' &&
+                    !err.message.includes('timeout'))) {
+                    break; // Don't retry if it's not a timeout/connection issue
+                }
+
+                // Wait before retry (exponential backoff)
+                const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s, etc.
+                console.log(`Waiting ${delay}ms before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        // If we get here, all attempts failed
+        this.logError(`all attempts for ${endpoint}`, error);
+        this.handleApiError(endpoint, error);
     }
 
     /**
@@ -108,32 +190,9 @@ class ClashApiService {
         console.log(`Fetching clan data for tag: ${formattedTag}`);
 
         try {
-            // First try with proxy client
-            const client = this.getClient();
-            const response = await client.get(`/clans/${formattedTag}`);
-            return response.data;
+            return await this.executeRequest(`/clans/${formattedTag}`);
         } catch (error) {
-            // Log the initial error
-            console.error(`Proxy request failed: ${error.message}`);
-
-            // If no response was received, try direct connection as fallback
-            if (error.request && !error.response) {
-                console.log('No response from proxy, trying direct connection as fallback...');
-                try {
-                    // Create a direct client without proxy
-                    const directClient = this.getDirectClient();
-                    const directResponse = await directClient.get(`/clans/${formattedTag}`);
-                    console.log('Direct connection succeeded!');
-                    return directResponse.data;
-                } catch (directError) {
-                    console.error(`Direct connection also failed: ${directError.message}`);
-                    this.logError('clan data (direct)', directError);
-                    throw directError;
-                }
-            }
-
-            // For other types of errors, just log and rethrow
-            this.logError('clan data', error);
+            // The executeRequest method will handle most errors, but just in case
             throw error;
         }
     }
@@ -152,32 +211,9 @@ class ClashApiService {
         console.log(`Fetching player data for tag: ${formattedTag}`);
 
         try {
-            // First try with proxy client
-            const client = this.getClient();
-            const response = await client.get(`/players/${formattedTag}`);
-            return response.data;
+            return await this.executeRequest(`/players/${formattedTag}`);
         } catch (error) {
-            // Log the initial error
-            console.error(`Proxy request failed: ${error.message}`);
-
-            // If no response was received, try direct connection as fallback
-            if (error.request && !error.response) {
-                console.log('No response from proxy, trying direct connection as fallback...');
-                try {
-                    // Create a direct client without proxy
-                    const directClient = this.getDirectClient();
-                    const directResponse = await directClient.get(`/players/${formattedTag}`);
-                    console.log('Direct connection succeeded!');
-                    return directResponse.data;
-                } catch (directError) {
-                    console.error(`Direct connection also failed: ${directError.message}`);
-                    this.logError('player data (direct)', directError);
-                    throw directError;
-                }
-            }
-
-            // For other types of errors, just log and rethrow
-            this.logError('player data', error);
+            // The executeRequest method will handle most errors, but just in case
             throw error;
         }
     }
@@ -189,32 +225,9 @@ class ClashApiService {
      */
     async searchClans(params = {}) {
         try {
-            // First try with proxy client
-            const client = this.getClient();
-            const response = await client.get('/clans', { params });
-            return response.data;
+            return await this.executeRequest('/clans', { params });
         } catch (error) {
-            // Log the initial error
-            console.error(`Proxy request failed: ${error.message}`);
-
-            // If no response was received, try direct connection as fallback
-            if (error.request && !error.response) {
-                console.log('No response from proxy, trying direct connection as fallback...');
-                try {
-                    // Create a direct client without proxy
-                    const directClient = this.getDirectClient();
-                    const directResponse = await directClient.get('/clans', { params });
-                    console.log('Direct connection succeeded!');
-                    return directResponse.data;
-                } catch (directError) {
-                    console.error(`Direct connection also failed: ${directError.message}`);
-                    this.logError('clan search (direct)', directError);
-                    throw directError;
-                }
-            }
-
-            // For other types of errors, just log and rethrow
-            this.logError('clan search', error);
+            // The executeRequest method will handle most errors, but just in case
             throw error;
         }
     }
@@ -231,26 +244,9 @@ class ClashApiService {
             : encodeURIComponent(`#${clanTag}`);
 
         try {
-            // First try with proxy client
-            const client = this.getClient();
-            const response = await client.get(`/clans/${formattedTag}/currentwar`);
-            return response.data;
+            return await this.executeRequest(`/clans/${formattedTag}/currentwar`);
         } catch (error) {
-            // If no response was received, try direct connection as fallback
-            if (error.request && !error.response) {
-                console.log('No response from proxy, trying direct connection as fallback...');
-                try {
-                    // Create a direct client without proxy
-                    const directClient = this.getDirectClient();
-                    const directResponse = await directClient.get(`/clans/${formattedTag}/currentwar`);
-                    return directResponse.data;
-                } catch (directError) {
-                    this.logError('current war data (direct)', directError);
-                    throw directError;
-                }
-            }
-
-            this.logError('current war data', error);
+            // The executeRequest method will handle most errors, but just in case
             throw error;
         }
     }
@@ -267,26 +263,9 @@ class ClashApiService {
             : encodeURIComponent(`#${clanTag}`);
 
         try {
-            // First try with proxy client
-            const client = this.getClient();
-            const response = await client.get(`/clans/${formattedTag}/currentwar/leaguegroup`);
-            return response.data;
+            return await this.executeRequest(`/clans/${formattedTag}/currentwar/leaguegroup`);
         } catch (error) {
-            // If no response was received, try direct connection as fallback
-            if (error.request && !error.response) {
-                console.log('No response from proxy, trying direct connection as fallback...');
-                try {
-                    // Create a direct client without proxy
-                    const directClient = this.getDirectClient();
-                    const directResponse = await directClient.get(`/clans/${formattedTag}/currentwar/leaguegroup`);
-                    return directResponse.data;
-                } catch (directError) {
-                    this.logError('CWL data (direct)', directError);
-                    throw directError;
-                }
-            }
-
-            this.logError('CWL data', error);
+            // The executeRequest method will handle most errors, but just in case
             throw error;
         }
     }
@@ -337,6 +316,73 @@ class ClashApiService {
     }
 
     /**
+     * Comprehensive error recovery with better logging
+     * @param {string} endpoint - The API endpoint being accessed
+     * @param {Error} error - The error that occurred
+     * @throws {Error} - Rethrows error with more context
+     */
+    handleApiError(endpoint, error) {
+        // Log detailed error info
+        console.error(`API Error accessing ${endpoint}:`, error.message);
+
+        // Extract useful information for debugging
+        const errorDetails = {
+            timestamp: new Date().toISOString(),
+            endpoint,
+            message: error.message,
+            code: error.code,
+            statusCode: error.response?.status,
+            responseData: error.response?.data,
+            isNetworkError: !error.response && error.request,
+            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+        };
+
+        // Create a user-friendly error object
+        let userFriendlyError;
+
+        // Handle different error types
+        if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT' ||
+            error.message.includes('timeout')) {
+            // Timeout errors
+            userFriendlyError = new Error("Request Timeout: The Clash of Clans API is taking too long to respond. Please try again later.");
+            userFriendlyError.code = "REQUEST_TIMEOUT";
+        } else if (error.code === 'ECONNRESET') {
+            // Connection reset errors
+            userFriendlyError = new Error("Connection Reset: The connection to the Clash of Clans API was reset. Please try again later.");
+            userFriendlyError.code = "CONNECTION_RESET";
+        } else if (error.response) {
+            // HTTP response errors
+            if (error.response.status === 404) {
+                userFriendlyError = new Error("Not Found: The requested clan or player could not be found. Please check the tag and try again.");
+                userFriendlyError.code = "NOT_FOUND";
+            } else if (error.response.status === 403) {
+                userFriendlyError = new Error("Access Denied: Unable to access the Clash of Clans API. The IP address may not be whitelisted.");
+                userFriendlyError.code = "ACCESS_DENIED";
+            } else if (error.response.status === 429) {
+                userFriendlyError = new Error("Rate Limited: Too many requests to the Clash of Clans API. Please try again later.");
+                userFriendlyError.code = "RATE_LIMITED";
+            } else {
+                userFriendlyError = new Error(`API Error (${error.response.status}): An error occurred while communicating with the Clash of Clans API.`);
+                userFriendlyError.code = "API_ERROR";
+            }
+        } else {
+            // Generic network errors
+            userFriendlyError = new Error("Network Error: Could not connect to the Clash of Clans API. Please check your internet connection and try again.");
+            userFriendlyError.code = "NETWORK_ERROR";
+        }
+
+        // Copy over the error details
+        userFriendlyError.details = errorDetails;
+        userFriendlyError.originalError = error;
+
+        // Log structured error details for easier debugging
+        console.error('Full error details:', JSON.stringify(errorDetails, null, 2));
+
+        // Throw the user-friendly error
+        throw userFriendlyError;
+    }
+
+    /**
      * Test the proxy connection
      * @returns {Promise<Object>} Test result
      */
@@ -378,54 +424,6 @@ class ClashApiService {
                 };
             }
         }
-    }
-
-    /**
-     * Comprehensive error recovery with better logging
-     * @param {string} endpoint - The API endpoint being accessed
-     * @param {Error} error - The error that occurred
-     * @throws {Error} - Rethrows error with more context
-     */
-    handleApiError(endpoint, error) {
-        // Log detailed error info
-        console.error(`API Error accessing ${endpoint}:`, error.message);
-
-        // Extract useful information for debugging
-        const errorDetails = {
-            timestamp: new Date().toISOString(),
-            endpoint,
-            message: error.message,
-            code: error.code,
-            statusCode: error.response?.status,
-            responseData: error.response?.data,
-            isNetworkError: !error.response && error.request,
-            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
-        };
-
-        // Enhanced logging for common issues
-        if (error.response) {
-            if (error.response.status === 403) {
-                console.error('ERROR: IP NOT WHITELISTED or API KEY INVALID');
-                console.error('1. Check that your proxy IP is whitelisted in Clash of Clans developer portal');
-                console.error('2. Verify your API key is correct');
-                console.error(`Current proxy host: ${process.env.PROXY_HOST || 'Not configured'}`);
-            } else if (error.response.status === 429) {
-                console.error('ERROR: RATE LIMIT EXCEEDED');
-                console.error('Reduce the frequency of requests to the CoC API');
-            }
-        } else if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
-            console.error('ERROR: PROXY CONNECTION ISSUE');
-            console.error('1. Check proxy credentials');
-            console.error('2. Verify proxy service is active');
-            console.error('3. Try a different proxy if available');
-        }
-
-        // Log structured error details for easier debugging
-        console.error('Full error details:', JSON.stringify(errorDetails, null, 2));
-
-        // Enhance the error with more context before rethrowing
-        error.details = errorDetails;
-        throw error;
     }
 }
 
