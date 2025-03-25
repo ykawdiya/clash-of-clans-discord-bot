@@ -39,7 +39,6 @@ function loadCommands() {
             for (const file of files) {
                 const filePath = path.join(folderPath, file);
                 try {
-                    delete require.cache[require.resolve(filePath)]; // Clear cache before loading
                     const command = require(filePath);
 
                     // Check if command has required properties
@@ -67,7 +66,7 @@ function loadCommands() {
 /**
  * Register slash commands with Discord API
  */
-async function registerCommands(clientId, guildIds = []) {
+async function registerCommands(clientId, guildId = null) {
     const { commands } = loadCommands();
 
     if (commands.length === 0) {
@@ -80,17 +79,17 @@ async function registerCommands(clientId, guildIds = []) {
     try {
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
-        let data = [];
-        if (guildIds.length > 0) {
-            for (const guildId of guildIds) {
-                const guildData = await rest.put(
-                    Routes.applicationGuildCommands(clientId, guildId),
-                    { body: commands }
-                );
-                console.log(`Successfully reloaded ${guildData.length} commands for guild ${guildId}.`);
-                data.push(...guildData);
-            }
+        let data;
+
+        if (guildId) {
+            // Guild commands - for testing, updates instantly
+            data = await rest.put(
+                Routes.applicationGuildCommands(clientId, guildId),
+                { body: commands },
+            );
+            console.log(`Successfully reloaded ${data.length} guild (/) commands.`);
         } else {
+            // Global commands - for production, can take up to an hour to update
             data = await rest.put(
                 Routes.applicationCommands(clientId),
                 { body: commands },
@@ -101,10 +100,6 @@ async function registerCommands(clientId, guildIds = []) {
         return data;
     } catch (error) {
         console.error('Error registering commands:', error);
-        if (error.response) {
-            console.error('Response data:', error.response.data);
-            console.error('Response status:', error.response.status);
-        }
         return [];
     }
 }

@@ -6,11 +6,7 @@ const clanSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        trim: true,
-        validate: {
-            validator: tag => tag.length > 0,
-            message: 'Clan tag cannot be empty.'
-        }
+        trim: true
     },
 
     // Clan name
@@ -30,14 +26,23 @@ const clanSchema = new mongoose.Schema({
 
     // Clan settings for the bot
     settings: {
+        // Channels for different notifications
         channels: {
-            type: Object,
-            default: {}
+            warAnnouncements: String,
+            raidWeekend: String,
+            clanGames: String,
+            general: String
         },
+
+        // Role IDs for mentions
         roles: {
-            type: Object,
-            default: {}
+            everyone: String,
+            elder: String,
+            coLeader: String,
+            leader: String
         },
+
+        // Automatic notifications
         notifications: {
             warStart: {
                 type: Boolean,
@@ -94,12 +99,6 @@ const clanSchema = new mongoose.Schema({
 // Update the updatedAt timestamp before saving
 clanSchema.pre('save', function(next) {
     this.updatedAt = Date.now();
-    next();
-});
-
-// Update the updatedAt timestamp on findOneAndUpdate
-clanSchema.pre('findOneAndUpdate', function(next) {
-    this.set({ updatedAt: Date.now() });
     next();
 });
 

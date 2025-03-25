@@ -2,13 +2,6 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const clashApiService = require('../../services/clashApiService');
 const User = require('../../models/User');
 
-async function fetchWithTimeout(apiCall, timeout = 5000) {
-    return Promise.race([
-        apiCall,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), timeout))
-    ]);
-}
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('link')
@@ -19,12 +12,7 @@ module.exports = {
                 .setRequired(true)),
 
     async execute(interaction) {
-        try {
-            await interaction.deferReply({ ephemeral: true });
-        } catch (error) {
-            console.error('Failed to defer reply:', error);
-            return interaction.reply({ content: 'I don’t have permission to reply.', ephemeral: true });
-        }
+        await interaction.deferReply({ ephemeral: true });
 
         try {
             // Get player tag from options
@@ -38,11 +26,8 @@ module.exports = {
             // Check if player exists
             let playerData;
             try {
-                playerData = await fetchWithTimeout(clashApiService.getPlayer(playerTag));
+                playerData = await clashApiService.getPlayer(playerTag);
             } catch (error) {
-                if (error.message === 'Request timeout') {
-                    return interaction.editReply('The Clash of Clans API took too long to respond. Please try again later.');
-                }
                 if (error.response?.status === 404) {
                     return interaction.editReply('Player not found. Please check your tag and try again.');
                 }
@@ -64,7 +49,7 @@ module.exports = {
                     isVerified: true, // For now, we're auto-verifying. Could implement a verification process later
                     updatedAt: Date.now()
                 },
-                { upsert: true, new: true, setDefaultsOnInsert: true }
+                { upsert: true, new: true }
             );
 
             // Create success embed
@@ -82,7 +67,7 @@ module.exports = {
 
             return interaction.editReply({ embeds: [embed], ephemeral: true });
         } catch (error) {
-            console.error(`Error in link command for user ${interaction.user.id}:`, error);
+            console.error('Error in link command:', error);
             return interaction.editReply('An error occurred while linking your account. Please try again later.');
         }
     },

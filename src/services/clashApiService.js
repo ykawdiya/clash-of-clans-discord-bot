@@ -53,7 +53,7 @@ class ClashApiService {
                 const httpsAgent = new HttpsProxyAgent({
                     host: proxyHost,
                     port: proxyPort,
-                    auth: { username: proxyUser, password: proxyPass },
+                    auth: `${proxyUser}:${proxyPass}`,
                     timeout: 45000, // 45 seconds timeout (increased from 15s)
                     rejectUnauthorized: false // Try disabling SSL verification if needed
                 });
@@ -118,12 +118,6 @@ class ClashApiService {
                     params: options.params,
                     data: options.data
                 });
-                if (response.headers['x-ratelimit-remaining'] !== undefined) {
-                    console.log(`Rate Limit Remaining: ${response.headers['x-ratelimit-remaining']}`);
-                }
-                if (response.headers['x-ratelimit-reset']) {
-                    console.log(`Rate Limit Resets At: ${new Date(response.headers['x-ratelimit-reset'] * 1000).toLocaleTimeString()}`);
-                }
                 console.log(`Request successful on proxy attempt ${attempt + 1}`);
                 return response.data;
             } catch (err) {
@@ -156,12 +150,6 @@ class ClashApiService {
                     params: options.params,
                     data: options.data
                 });
-                if (response.headers['x-ratelimit-remaining'] !== undefined) {
-                    console.log(`Rate Limit Remaining: ${response.headers['x-ratelimit-remaining']}`);
-                }
-                if (response.headers['x-ratelimit-reset']) {
-                    console.log(`Rate Limit Resets At: ${new Date(response.headers['x-ratelimit-reset'] * 1000).toLocaleTimeString()}`);
-                }
                 console.log(`Request successful on direct attempt ${attempt + 1}`);
                 return response.data;
             } catch (err) {
@@ -183,14 +171,7 @@ class ClashApiService {
             }
         }
 
-        // If we get here, all attempts failed - log detailed error info safely
-        if (error.response) {
-            console.error(`API Error [${error.response.status}] - ${error.response.data?.message || 'No message provided'}`);
-        } else if (error.request) {
-            console.error('No response received from API.');
-        } else {
-            console.error('Unexpected error:', error.message);
-        }
+        // If we get here, all attempts failed
         this.logError(`all attempts for ${endpoint}`, error);
         this.handleApiError(endpoint, error);
     }

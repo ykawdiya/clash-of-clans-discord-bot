@@ -4,7 +4,6 @@ class DatabaseService {
     constructor() {
         this.isConnected = false;
         this.connection = null;
-        this.connectingPromise = null;
     }
 
     /**
@@ -12,33 +11,28 @@ class DatabaseService {
      * @returns {Promise<mongoose.Connection>} MongoDB connection
      */
     async connect() {
-        if (this.isConnected) {
-            console.log('Using existing database connection');
-            return this.connection;
-        }
-
-        if (this.connectingPromise) {
-            console.log('Database connection in progress, waiting...');
-            return this.connectingPromise;
-        }
-
-        console.log('Creating new database connection...');
-        this.connectingPromise = mongoose.connect(process.env.MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
-
         try {
-            this.connection = await this.connectingPromise;
+            if (this.isConnected) {
+                console.log('Using existing database connection');
+                return this.connection;
+            }
+
+            console.log('Creating new database connection...');
+
+            // Connect to MongoDB
+            const connection = await mongoose.connect(process.env.MONGODB_URI, {
+                useNewUrlParser: true,
+                useUnifiedTopology: true
+            });
+
+            this.connection = connection;
             this.isConnected = true;
+
             console.log('Database connection established successfully');
             return this.connection;
         } catch (error) {
             console.error('Database connection error:', error);
-            this.isConnected = false;
             throw error;
-        } finally {
-            this.connectingPromise = null;
         }
     }
 
@@ -64,8 +58,4 @@ class DatabaseService {
 
 // Create and export a singleton instance
 const databaseService = new DatabaseService();
-mongoose.connection.on('disconnected', () => {
-    console.warn('MongoDB disconnected! Reconnecting...');
-    databaseService.connect().catch(err => console.error('Reconnection failed:', err));
-});
 module.exports = databaseService;

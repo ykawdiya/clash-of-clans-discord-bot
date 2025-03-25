@@ -106,10 +106,7 @@ async function showGeneralHelp(interaction) {
     // Create an embed
     const embed = new EmbedBuilder()
         .setTitle('Clash of Clans Bot Commands')
-        .setDescription(
-            'Here are all the available commands:\n\n' +
-            'Use `/help command:name` to get detailed help for a specific command.'
-        )
+        .setDescription('Here are all the available commands. Use `/help command:name` to get detailed help for a specific command.')
         .setColor('#3498db')
         .setThumbnail('https://cdn.pixabay.com/photo/2016/08/26/09/19/clash-of-clans-1621176_960_720.jpg');
 

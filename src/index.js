@@ -1,9 +1,9 @@
 // Import required packages
-require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config();
 
 // Add this after your initial require statements
 console.log('Starting CoC Discord Bot - Version 1.0.1');
@@ -12,12 +12,6 @@ console.log('Environment:', {
     apiKeyConfigured: process.env.COC_API_KEY ? 'Yes' : 'No',
     port: process.env.PORT || 3000
 });
-
-// Check for DISCORD_TOKEN
-if (!process.env.DISCORD_TOKEN) {
-    console.error('FATAL: DISCORD_TOKEN is not set in environment variables.');
-    process.exit(1);
-}
 
 // Import handlers
 const { loadCommands } = require('./handlers/commandHandler');
@@ -47,15 +41,6 @@ app.get('/', (req, res) => {
 // Start Express server for health checks
 app.listen(PORT, () => {
     console.log(`Health check server running on port ${PORT}`);
-});
-
-// Ensure Express server stops when bot exits
-process.on('SIGINT', () => {
-    console.log('Shutting down...');
-    app.close(() => {
-        console.log('Express server closed.');
-        process.exit(0);
-    });
 });
 
 // Create necessary directories if they don't exist
@@ -236,8 +221,7 @@ const init = async () => {
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
-    console.error('Uncaught Exception:', error.message);
-    console.error(error.stack);
+    console.error('Uncaught Exception:', error);
 });
 
 process.on('unhandledRejection', (error) => {
