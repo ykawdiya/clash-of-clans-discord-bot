@@ -1,0 +1,33 @@
+{
+  "name": "clash-of-clans-discord-bot",
+  "version": "1.0.0",
+  "description": "A Discord bot for Clash of Clans clan management and statistics",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "clash-of-clans",
+    "coc"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.9.0",
+    "axios": "^1.3.4",
+    "dotenv": "^16.0.3",
+    "mongoose": "^7.0.3",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22",
+    "eslint": "^8.37.0"
+  },
+  "engines": {
+    "node": ">=16.9.0"
+  }
+}
