@@ -1,4 +1,5 @@
 const axios = require('axios');
+const https = require('https');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
 class ClashApiService {
@@ -24,52 +25,72 @@ class ClashApiService {
         const proxyUser = process.env.PROXY_USERNAME;
         const proxyPass = process.env.PROXY_PASSWORD;
 
-        if (!proxyHost || !proxyPort || !proxyUser || !proxyPass) {
-            console.error('WebShare proxy configuration is incomplete');
-            throw new Error('Missing proxy configuration. Check your environment variables.');
+        // Create configuration for axios
+        const config = {
+            baseURL: this.baseUrl,
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Accept': 'application/json'
+            },
+            timeout: 15000, // 15 second timeout
+            // Custom HTTPS agent with longer timeout
+            httpsAgent: new https.Agent({
+                keepAlive: true,
+                timeout: 20000
+            })
+        };
+
+        // Add proxy if all proxy details are provided
+        if (proxyHost && proxyPort && proxyUser && proxyPass) {
+            try {
+                // Build proxy URL
+                const proxyUrl = `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`;
+                console.log(`Setting up proxy with host: ${proxyHost}`);
+
+                // Create proxy agent with increased timeout
+                const httpsAgent = new HttpsProxyAgent({
+                    host: proxyHost,
+                    port: proxyPort,
+                    auth: `${proxyUser}:${proxyPass}`,
+                    timeout: 15000,
+                    rejectUnauthorized: false // Try disabling SSL verification if needed
+                });
+
+                // Use the proxy agent
+                config.httpsAgent = httpsAgent;
+                config.proxy = false; // Tell axios to use httpsAgent instead
+            } catch (error) {
+                console.error('Error setting up proxy agent:', error.message);
+                // Continue without proxy if setup fails
+            }
+        } else {
+            console.warn('Proxy configuration incomplete, using direct connection');
         }
 
-        // Build proxy URL
-        const proxyUrl = `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`;
-        console.log(`Setting up proxy with host: ${proxyHost}`);
+        // Create and return axios client
+        return axios.create(config);
+    }
 
-        // Create proxy agent
-        const httpsAgent = new HttpsProxyAgent(proxyUrl);
+    /**
+     * Get a direct client without proxy (fallback)
+     * @returns {axios.AxiosInstance}
+     */
+    getDirectClient() {
+        const apiKey = process.env.COC_API_KEY;
 
-        // Create and return axios client with proxy configuration
+        if (!apiKey) {
+            console.error('COC_API_KEY environment variable is not set');
+            throw new Error('Clash of Clans API key is not configured');
+        }
+
         return axios.create({
             baseURL: this.baseUrl,
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Accept': 'application/json'
             },
-            httpsAgent,
-            proxy: false // This tells axios to use the httpsAgent instead of its built-in proxy handling
+            timeout: 10000
         });
-    }
-
-    /**
-     * Get player information by tag
-     * @param {string} playerTag - Player tag without # or with URL encoded #
-     * @returns {Promise<Object>} Player data
-     */
-    async getPlayer(playerTag) {
-        try {
-            // Create a fresh client for each request
-            const client = this.getClient();
-
-            // Ensure the tag is properly formatted (remove # if present)
-            const formattedTag = playerTag.startsWith('#')
-                ? encodeURIComponent(playerTag)
-                : encodeURIComponent(`#${playerTag}`);
-
-            console.log(`Fetching player data for tag: ${formattedTag}`);
-            const response = await client.get(`/players/${formattedTag}`);
-            return response.data;
-        } catch (error) {
-            this.logError('player data', error);
-            throw error;
-        }
     }
 
     /**
@@ -78,64 +99,84 @@ class ClashApiService {
      * @returns {Promise<Object>} Clan data
      */
     async getClan(clanTag) {
+        // Ensure the tag is properly formatted
+        const formattedTag = clanTag.startsWith('#')
+            ? encodeURIComponent(clanTag)
+            : encodeURIComponent(`#${clanTag}`);
+
+        console.log(`Fetching clan data for tag: ${formattedTag}`);
+
         try {
-            // Create a fresh client for each request
+            // First try with proxy client
             const client = this.getClient();
-
-            // Ensure the tag is properly formatted (remove # if present)
-            const formattedTag = clanTag.startsWith('#')
-                ? encodeURIComponent(clanTag)
-                : encodeURIComponent(`#${clanTag}`);
-
-            console.log(`Fetching clan data for tag: ${formattedTag}`);
             const response = await client.get(`/clans/${formattedTag}`);
             return response.data;
         } catch (error) {
+            // Log the initial error
+            console.error(`Proxy request failed: ${error.message}`);
+
+            // If no response was received, try direct connection as fallback
+            if (error.request && !error.response) {
+                console.log('No response from proxy, trying direct connection as fallback...');
+                try {
+                    // Create a direct client without proxy
+                    const directClient = this.getDirectClient();
+                    const directResponse = await directClient.get(`/clans/${formattedTag}`);
+                    console.log('Direct connection succeeded!');
+                    return directResponse.data;
+                } catch (directError) {
+                    console.error(`Direct connection also failed: ${directError.message}`);
+                    this.logError('clan data (direct)', directError);
+                    throw directError;
+                }
+            }
+
+            // For other types of errors, just log and rethrow
             this.logError('clan data', error);
             throw error;
         }
     }
 
     /**
-     * Get clan's current war information
-     * @param {string} clanTag - Clan tag
-     * @returns {Promise<Object>} Current war data
+     * Get player information by tag
+     * @param {string} playerTag - Player tag without # or with URL encoded #
+     * @returns {Promise<Object>} Player data
      */
-    async getCurrentWar(clanTag) {
+    async getPlayer(playerTag) {
+        // Ensure the tag is properly formatted
+        const formattedTag = playerTag.startsWith('#')
+            ? encodeURIComponent(playerTag)
+            : encodeURIComponent(`#${playerTag}`);
+
+        console.log(`Fetching player data for tag: ${formattedTag}`);
+
         try {
-            // Create a fresh client for each request
+            // First try with proxy client
             const client = this.getClient();
-
-            const formattedTag = clanTag.startsWith('#')
-                ? encodeURIComponent(clanTag)
-                : encodeURIComponent(`#${clanTag}`);
-
-            const response = await client.get(`/clans/${formattedTag}/currentwar`);
+            const response = await client.get(`/players/${formattedTag}`);
             return response.data;
         } catch (error) {
-            this.logError('current war data', error);
-            throw error;
-        }
-    }
+            // Log the initial error
+            console.error(`Proxy request failed: ${error.message}`);
 
-    /**
-     * Get clan war league information
-     * @param {string} clanTag - Clan tag
-     * @returns {Promise<Object>} CWL data
-     */
-    async getClanWarLeagueGroup(clanTag) {
-        try {
-            // Create a fresh client for each request
-            const client = this.getClient();
+            // If no response was received, try direct connection as fallback
+            if (error.request && !error.response) {
+                console.log('No response from proxy, trying direct connection as fallback...');
+                try {
+                    // Create a direct client without proxy
+                    const directClient = this.getDirectClient();
+                    const directResponse = await directClient.get(`/players/${formattedTag}`);
+                    console.log('Direct connection succeeded!');
+                    return directResponse.data;
+                } catch (directError) {
+                    console.error(`Direct connection also failed: ${directError.message}`);
+                    this.logError('player data (direct)', directError);
+                    throw directError;
+                }
+            }
 
-            const formattedTag = clanTag.startsWith('#')
-                ? encodeURIComponent(clanTag)
-                : encodeURIComponent(`#${clanTag}`);
-
-            const response = await client.get(`/clans/${formattedTag}/currentwar/leaguegroup`);
-            return response.data;
-        } catch (error) {
-            this.logError('CWL data', error);
+            // For other types of errors, just log and rethrow
+            this.logError('player data', error);
             throw error;
         }
     }
@@ -147,13 +188,104 @@ class ClashApiService {
      */
     async searchClans(params = {}) {
         try {
-            // Create a fresh client for each request
+            // First try with proxy client
             const client = this.getClient();
-
             const response = await client.get('/clans', { params });
             return response.data;
         } catch (error) {
+            // Log the initial error
+            console.error(`Proxy request failed: ${error.message}`);
+
+            // If no response was received, try direct connection as fallback
+            if (error.request && !error.response) {
+                console.log('No response from proxy, trying direct connection as fallback...');
+                try {
+                    // Create a direct client without proxy
+                    const directClient = this.getDirectClient();
+                    const directResponse = await directClient.get('/clans', { params });
+                    console.log('Direct connection succeeded!');
+                    return directResponse.data;
+                } catch (directError) {
+                    console.error(`Direct connection also failed: ${directError.message}`);
+                    this.logError('clan search (direct)', directError);
+                    throw directError;
+                }
+            }
+
+            // For other types of errors, just log and rethrow
             this.logError('clan search', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get clan's current war information
+     * @param {string} clanTag - Clan tag
+     * @returns {Promise<Object>} Current war data
+     */
+    async getCurrentWar(clanTag) {
+        // Ensure the tag is properly formatted
+        const formattedTag = clanTag.startsWith('#')
+            ? encodeURIComponent(clanTag)
+            : encodeURIComponent(`#${clanTag}`);
+
+        try {
+            // First try with proxy client
+            const client = this.getClient();
+            const response = await client.get(`/clans/${formattedTag}/currentwar`);
+            return response.data;
+        } catch (error) {
+            // If no response was received, try direct connection as fallback
+            if (error.request && !error.response) {
+                console.log('No response from proxy, trying direct connection as fallback...');
+                try {
+                    // Create a direct client without proxy
+                    const directClient = this.getDirectClient();
+                    const directResponse = await directClient.get(`/clans/${formattedTag}/currentwar`);
+                    return directResponse.data;
+                } catch (directError) {
+                    this.logError('current war data (direct)', directError);
+                    throw directError;
+                }
+            }
+
+            this.logError('current war data', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get clan war league information
+     * @param {string} clanTag - Clan tag
+     * @returns {Promise<Object>} CWL data
+     */
+    async getClanWarLeagueGroup(clanTag) {
+        // Ensure the tag is properly formatted
+        const formattedTag = clanTag.startsWith('#')
+            ? encodeURIComponent(clanTag)
+            : encodeURIComponent(`#${clanTag}`);
+
+        try {
+            // First try with proxy client
+            const client = this.getClient();
+            const response = await client.get(`/clans/${formattedTag}/currentwar/leaguegroup`);
+            return response.data;
+        } catch (error) {
+            // If no response was received, try direct connection as fallback
+            if (error.request && !error.response) {
+                console.log('No response from proxy, trying direct connection as fallback...');
+                try {
+                    // Create a direct client without proxy
+                    const directClient = this.getDirectClient();
+                    const directResponse = await directClient.get(`/clans/${formattedTag}/currentwar/leaguegroup`);
+                    return directResponse.data;
+                } catch (directError) {
+                    this.logError('CWL data (direct)', directError);
+                    throw directError;
+                }
+            }
+
+            this.logError('CWL data', error);
             throw error;
         }
     }
@@ -175,7 +307,7 @@ class ClashApiService {
 
             if (error.response.status === 403) {
                 console.error('\nAPI ACCESS DENIED: There may be an issue with the proxy or API key');
-                console.error('Check if the proxy IP is whitelisted in Clash of Clans API');
+                console.error('Check if the IP is whitelisted in Clash of Clans API');
             } else if (error.response.status === 401) {
                 console.error('\nAPI KEY INVALID: Check your COC_API_KEY environment variable');
             } else if (error.response.status === 429) {
@@ -184,11 +316,22 @@ class ClashApiService {
         } else if (error.request) {
             // The request was made but no response was received
             console.error('No response received from API');
-            console.error('WebShare proxy configuration may be incorrect');
-            console.error('Check if your proxy is online and credentials are correct');
+            console.error('This could be due to:');
+            console.error('1. Network connectivity issues');
+            console.error('2. Proxy authentication failure');
+            console.error('3. SSL/TLS issues');
+            console.error('4. Request timeout');
+
+            // Log additional error properties that might help diagnose
+            if (error.code) console.error('Error code:', error.code);
+            if (error.syscall) console.error('System call:', error.syscall);
+            if (error.address) console.error('Address:', error.address);
+            if (error.port) console.error('Port:', error.port);
+            if (error.config && error.config.timeout) console.error('Timeout setting:', error.config.timeout);
         } else {
             // Something happened in setting up the request that triggered an Error
             console.error('Error setting up request:', error.message);
+            if (error.stack) console.error('Stack trace:', error.stack);
         }
     }
 
@@ -212,11 +355,27 @@ class ClashApiService {
         } catch (error) {
             console.error('Proxy connection test failed:', error.message);
 
-            return {
-                success: false,
-                error: error.message,
-                message: 'Proxy connection test failed'
-            };
+            // Try direct connection to see if that works
+            try {
+                const directClient = this.getDirectClient();
+                const directResponse = await directClient.get('https://api.ipify.org?format=json');
+
+                return {
+                    success: false,
+                    directSuccess: true,
+                    proxyError: error.message,
+                    directIP: directResponse.data.ip,
+                    message: 'Proxy failed but direct connection works'
+                };
+            } catch (directError) {
+                return {
+                    success: false,
+                    directSuccess: false,
+                    proxyError: error.message,
+                    directError: directError.message,
+                    message: 'Both proxy and direct connections failed'
+                };
+            }
         }
     }
 }
