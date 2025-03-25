@@ -5,6 +5,14 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+// Add this after your initial require statements
+console.log('Starting CoC Discord Bot - Version 1.0.1');
+console.log('Environment:', {
+    nodeEnv: process.env.NODE_ENV || 'development',
+    apiKeyConfigured: process.env.COC_API_KEY ? 'Yes' : 'No',
+    port: process.env.PORT || 3000
+});
+
 // Import handlers
 const { loadCommands } = require('./handlers/commandHandler');
 const { loadEvents } = require('./handlers/eventHandler');
