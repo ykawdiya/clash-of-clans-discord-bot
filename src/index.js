@@ -287,5 +287,63 @@ app.get('/ip', async (req, res) => {
     }
 });
 
+// Add this to your src/index.js file
+
+// Test proxy configuration
+app.get('/proxy-test', async (req, res) => {
+    try {
+        const clashApiService = require('./services/clashApiService');
+
+        // Test the proxy connection
+        const proxyTest = await clashApiService.testProxyConnection();
+
+        // If proxy test is successful, try to make a simple Clash API request
+        let cocApiTest = { success: false, message: 'Not tested' };
+        if (proxyTest.success) {
+            try {
+                // Try to search for a clan (simple API request)
+                const searchResults = await clashApiService.searchClans({ name: 'Clash', limit: 1 });
+                cocApiTest = {
+                    success: true,
+                    message: 'Successfully connected to Clash of Clans API',
+                    sampleData: {
+                        totalResults: searchResults.items?.length || 0,
+                        firstClan: searchResults.items?.[0]?.name || 'None found'
+                    }
+                };
+            } catch (error) {
+                cocApiTest = {
+                    success: false,
+                    message: 'Failed to connect to Clash of Clans API',
+                    error: error.message,
+                    statusCode: error.response?.status,
+                    errorData: error.response?.data
+                };
+            }
+        }
+
+        // Prepare response with test results
+        const testResults = {
+            timestamp: new Date().toISOString(),
+            proxyTest,
+            cocApiTest,
+            environment: {
+                proxyConfigured: !!(process.env.PROXY_HOST && process.env.PROXY_PORT &&
+                    process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD),
+                apiKeyConfigured: !!process.env.COC_API_KEY,
+                nodeEnv: process.env.NODE_ENV || 'development'
+            }
+        };
+
+        res.json(testResults);
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: 'Error running proxy test',
+            error: error.message
+        });
+    }
+});
+
 // Start the bot
 init();

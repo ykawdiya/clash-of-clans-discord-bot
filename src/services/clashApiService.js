@@ -1,13 +1,13 @@
 const axios = require('axios');
+const { HttpsProxyAgent } = require('https-proxy-agent');
 
 class ClashApiService {
     constructor() {
         this.baseUrl = 'https://api.clashofclans.com/v1';
-        // We won't set this.client in the constructor
     }
 
     /**
-     * Create a fresh client with the latest API key
+     * Create a fresh client with the latest API key and WebShare proxy
      * @returns {axios.AxiosInstance}
      */
     getClient() {
@@ -18,12 +18,33 @@ class ClashApiService {
             throw new Error('Clash of Clans API key is not configured');
         }
 
+        // WebShare proxy configuration
+        const proxyHost = process.env.PROXY_HOST;
+        const proxyPort = process.env.PROXY_PORT;
+        const proxyUser = process.env.PROXY_USERNAME;
+        const proxyPass = process.env.PROXY_PASSWORD;
+
+        if (!proxyHost || !proxyPort || !proxyUser || !proxyPass) {
+            console.error('WebShare proxy configuration is incomplete');
+            throw new Error('Missing proxy configuration. Check your environment variables.');
+        }
+
+        // Build proxy URL
+        const proxyUrl = `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`;
+        console.log(`Setting up proxy with host: ${proxyHost}`);
+
+        // Create proxy agent
+        const httpsAgent = new HttpsProxyAgent(proxyUrl);
+
+        // Create and return axios client with proxy configuration
         return axios.create({
             baseURL: this.baseUrl,
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
                 'Accept': 'application/json'
-            }
+            },
+            httpsAgent,
+            proxy: false // This tells axios to use the httpsAgent instead of its built-in proxy handling
         });
     }
 
@@ -153,8 +174,8 @@ class ClashApiService {
             console.error('Data:', JSON.stringify(error.response.data, null, 2));
 
             if (error.response.status === 403) {
-                console.error('\nAPI ACCESS DENIED: Your IP address is probably not whitelisted in the Clash of Clans API');
-                console.error('Please go to https://developer.clashofclans.com and add your server IP to the whitelist');
+                console.error('\nAPI ACCESS DENIED: There may be an issue with the proxy or API key');
+                console.error('Check if the proxy IP is whitelisted in Clash of Clans API');
             } else if (error.response.status === 401) {
                 console.error('\nAPI KEY INVALID: Check your COC_API_KEY environment variable');
             } else if (error.response.status === 429) {
@@ -163,9 +184,39 @@ class ClashApiService {
         } else if (error.request) {
             // The request was made but no response was received
             console.error('No response received from API');
+            console.error('WebShare proxy configuration may be incorrect');
+            console.error('Check if your proxy is online and credentials are correct');
         } else {
             // Something happened in setting up the request that triggered an Error
             console.error('Error setting up request:', error.message);
+        }
+    }
+
+    /**
+     * Test the proxy connection
+     * @returns {Promise<Object>} Test result
+     */
+    async testProxyConnection() {
+        try {
+            // Create a client with the proxy
+            const client = this.getClient();
+
+            // Test with a public IP echo service
+            const response = await client.get('https://api.ipify.org?format=json');
+
+            return {
+                success: true,
+                proxyIP: response.data.ip,
+                message: 'Proxy connection successful'
+            };
+        } catch (error) {
+            console.error('Proxy connection test failed:', error.message);
+
+            return {
+                success: false,
+                error: error.message,
+                message: 'Proxy connection test failed'
+            };
         }
     }
 }
