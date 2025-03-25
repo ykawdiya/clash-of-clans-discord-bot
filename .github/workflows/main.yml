@@ -27,7 +27,28 @@ jobs:
       - name: Install Railway CLI
         run: npm i -g @railway/cli
 
-      - name: List available services
-        run: railway list
+      - name: Deploy to Railway
+        run: railway up
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Verify Deployment
+        run: |
+          echo "Waiting for deployment to complete..."
+          sleep 30
+          railway status
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deployment Notification
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const { issue, repo } = context;
+            github.rest.issues.createComment({
+              owner: repo.owner,
+              repo: repo.repo,
+              issue_number: issue.number,
+              body: '🚀 Deployment to Railway completed!'
+            })
+        if: github.event_name == 'pull_request'

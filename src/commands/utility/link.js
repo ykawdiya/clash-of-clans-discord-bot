@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const clashApiService = require('../../services/clashApiService');
 const User = require('../../models/User');
+const { validateTag } = require('../../utils/validators'); // Import the tag validator
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -18,10 +19,13 @@ module.exports = {
             // Get player tag from options
             let playerTag = interaction.options.getString('tag');
 
-            // Format the tag (add # if missing)
-            if (!playerTag.startsWith('#')) {
-                playerTag = `#${playerTag}`;
+            // Validate tag format using the validator utility
+            const validation = validateTag(playerTag);
+            if (!validation.valid) {
+                return interaction.editReply(validation.message);
             }
+
+            playerTag = validation.formattedTag;
 
             // Check if player exists
             let playerData;
@@ -31,7 +35,8 @@ module.exports = {
                 if (error.response?.status === 404) {
                     return interaction.editReply('Player not found. Please check your tag and try again.');
                 }
-                throw error;
+                console.error('Error fetching player data:', error);
+                return interaction.editReply('An error occurred while checking your player tag. Please try again later.');
             }
 
             // Check if this tag is already linked to another user

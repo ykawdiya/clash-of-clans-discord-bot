@@ -95,15 +95,35 @@ class ErrorHandler {
         // Log the original error for debugging
         console.error('Database error:', error);
 
+        // Check for specific MongoDB error codes
         if (error.name === 'MongoNetworkError') {
             return 'Could not connect to the database. Please try again later.';
         } else if (error.name === 'ValidationError') {
-            return 'There was an issue with the data format. Please check your input.';
+            // Handle validation errors with field-specific messages
+            const fieldErrors = Object.keys(error.errors || {})
+                .map(field => `${field}: ${error.errors[field].message}`)
+                .join(', ');
+
+            return `Data validation failed: ${fieldErrors || 'Please check your input'}`;
         } else if (error.code === 11000) {
-            return 'This record already exists.';
-        } else {
-            return 'A database error occurred. Please try again later.';
+            // Handle duplicate key errors
+            const field = Object.keys(error.keyPattern || {})[0] || 'field';
+            return `This ${field} already exists in the database.`;
+        } else if (error.name === 'CastError') {
+            // Handle type casting errors
+            return `Invalid format for ${error.path || 'a field'}.`;
+        } else if (error.name === 'MongoServerError') {
+            if (error.code === 13) {
+                return 'Database authentication failed. Please contact an administrator.';
+            } else if (error.code === 16 || error.code === 17) {
+                return 'Database permission error. Please contact an administrator.';
+            }
+        } else if (error.name === 'MongooseServerSelectionError') {
+            return 'Unable to reach the database server. Please try again later.';
         }
+
+        // Generic fallback message
+        return 'A database error occurred. Please try again later.';
     }
 
     /**

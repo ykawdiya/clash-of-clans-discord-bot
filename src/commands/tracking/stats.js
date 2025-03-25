@@ -358,22 +358,44 @@ async function compareStats(interaction) {
 
         // Compare hero levels if present
         if (ownPlayerData.heroes && comparePlayerData.heroes) {
-            // Create a map for quicker lookup
+            // Create maps for quicker lookup
             const ownHeroMap = new Map();
-            ownPlayerData.heroes.forEach(hero => {
-                ownHeroMap.set(hero.name, hero.level);
-            });
+            if (Array.isArray(ownPlayerData.heroes)) {
+                ownPlayerData.heroes.forEach(hero => {
+                    if (hero && hero.name) {
+                        ownHeroMap.set(hero.name, hero.level);
+                    }
+                });
+            }
 
-            const heroComparison = comparePlayerData.heroes.map(hero => {
-                const ownLevel = ownHeroMap.get(hero.name) || 0;
-                const diff = ownLevel - hero.level;
-                const diffText = diff === 0 ? 'Equal' : (diff > 0 ? `+${diff}` : String(diff));
+            const compareHeroMap = new Map();
+            if (Array.isArray(comparePlayerData.heroes)) {
+                comparePlayerData.heroes.forEach(hero => {
+                    if (hero && hero.name) {
+                        compareHeroMap.set(hero.name, hero.level);
+                    }
+                });
+            }
 
-                return `${hero.name}: ${ownLevel} vs ${hero.level} (${diffText})`;
-            }).join('\n');
+            // Get all unique hero names
+            const allHeroNames = [...new Set([
+                ...Array.from(ownHeroMap.keys()),
+                ...Array.from(compareHeroMap.keys())
+            ])];
 
-            if (heroComparison) {
-                embed.addFields({ name: 'Hero Comparison', value: heroComparison });
+            if (allHeroNames.length > 0) {
+                const heroComparison = allHeroNames.map(heroName => {
+                    const ownLevel = ownHeroMap.get(heroName) || 0;
+                    const compareLevel = compareHeroMap.get(heroName) || 0;
+                    const diff = ownLevel - compareLevel;
+                    const diffText = diff === 0 ? 'Equal' : (diff > 0 ? `+${diff}` : String(diff));
+
+                    return `${heroName}: ${ownLevel} vs ${compareLevel} (${diffText})`;
+                }).join('\n');
+
+                if (heroComparison) {
+                    embed.addFields({ name: 'Hero Comparison', value: heroComparison });
+                }
             }
         }
 

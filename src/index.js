@@ -5,6 +5,9 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
+// Import database service first to avoid reference error
+const databaseService = require('./services/databaseService');
+
 // Add this after your initial require statements
 console.log('Starting CoC Discord Bot - Version 1.0.1');
 console.log('Environment:', {
@@ -192,16 +195,20 @@ const init = async () => {
             console.warn('MONGODB_URI not set. Database features will not work.');
         }
 
-        // Rest of the init function remains the same...
+        // Create necessary infrastructure
         createDirectories();
         createTestCommand();
         createReadyEvent();
         createInteractionEvent();
+
+        // Load commands
         const { commandFiles } = loadCommands();
         commandFiles.forEach((command, name) => {
             client.commands.set(name, command);
         });
         console.log(`Loaded ${client.commands.size} commands to client collection`);
+
+        // Load events
         try {
             loadEvents(client);
         } catch (error) {
@@ -211,6 +218,7 @@ const init = async () => {
                 client.user.setActivity('Clash of Clans', { type: 0 });
             });
         }
+
         console.log('Connecting to Discord...');
         await client.login(process.env.DISCORD_TOKEN);
     } catch (error) {
@@ -228,7 +236,7 @@ process.on('unhandledRejection', (error) => {
     console.error('Unhandled Rejection:', error);
 });
 
-// Replace your current /ip endpoint with this enhanced version
+// Add proper error handling for the /ip endpoint
 app.get('/ip', async (req, res) => {
     try {
         // Get IP information from various sources
@@ -241,14 +249,15 @@ app.get('/ip', async (req, res) => {
             env: {
                 COC_API_KEY_SET: process.env.COC_API_KEY ? 'Yes (starts with ' + process.env.COC_API_KEY.substring(0, 3) + '...)' : 'No',
                 DISCORD_TOKEN_SET: process.env.DISCORD_TOKEN ? 'Yes' : 'No',
-                MONGODB_URI_SET: process.env.MONGODB_URI ? 'Yes' : 'No'
+                MONGODB_URI_SET: process.env.MONGODB_URI ? 'Yes' : 'No',
+                PROXY_CONFIG_SET: (process.env.PROXY_HOST && process.env.PROXY_PORT) ? 'Yes' : 'No'
             }
         };
 
         // Try to fetch an external service to see what IP we're showing
         try {
             const axios = require('axios');
-            const ipResponse = await axios.get('https://api.ipify.org?format=json');
+            const ipResponse = await axios.get('https://api.ipify.org?format=json', { timeout: 5000 });
             networkInfo.outboundIP = ipResponse.data.ip;
         } catch (error) {
             networkInfo.ipFetchError = error.message;
@@ -259,7 +268,7 @@ app.get('/ip', async (req, res) => {
             // Import API service
             const clashApiService = require('./services/clashApiService');
 
-            // Try a simple API call to check connection
+            // Try a simple API call to check connection with a short timeout
             const clans = await clashApiService.searchClans({ name: 'Clash', limit: 1 });
             networkInfo.cocApiStatus = 'Working! The API is accessible.';
             networkInfo.cocApiSample = {
@@ -279,26 +288,40 @@ app.get('/ip', async (req, res) => {
         console.log('IP Information:', JSON.stringify(networkInfo, null, 2));
         res.json(networkInfo);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('Error in /ip endpoint:', error);
+        res.status(500).json({
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
     }
 });
 
-// Add this to your src/index.js file
-
-// Test proxy configuration
+// Add proper error handling for the /proxy-test endpoint
 app.get('/proxy-test', async (req, res) => {
     try {
         const clashApiService = require('./services/clashApiService');
 
-        // Test the proxy connection
-        const proxyTest = await clashApiService.testProxyConnection();
+        // Test the proxy connection with proper timeout
+        const proxyTest = await Promise.race([
+            clashApiService.testProxyConnection(),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('Proxy test timed out after 10 seconds')), 10000)
+            )
+        ]);
 
         // If proxy test is successful, try to make a simple Clash API request
         let cocApiTest = { success: false, message: 'Not tested' };
         if (proxyTest.success) {
             try {
-                // Try to search for a clan (simple API request)
-                const searchResults = await clashApiService.searchClans({ name: 'Clash', limit: 1 });
+                // Try to search for a clan (simple API request) with timeout
+                const searchPromise = clashApiService.searchClans({ name: 'Clash', limit: 1 });
+                const searchResults = await Promise.race([
+                    searchPromise,
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('API request timed out after 10 seconds')), 10000)
+                    )
+                ]);
+
                 cocApiTest = {
                     success: true,
                     message: 'Successfully connected to Clash of Clans API',
@@ -333,15 +356,35 @@ app.get('/proxy-test', async (req, res) => {
 
         res.json(testResults);
     } catch (error) {
+        console.error('Error in /proxy-test endpoint:', error);
         res.status(500).json({
             success: false,
             message: 'Error running proxy test',
-            error: error.message
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
         });
     }
 });
 
-const databaseService = require('./services/databaseService');
+// Add graceful shutdown handling
+process.on('SIGTERM', async () => {
+    console.log('SIGTERM received. Shutting down gracefully...');
+    try {
+        // Close database connection
+        if (databaseService.isConnected) {
+            await databaseService.disconnect();
+        }
+
+        // Destroy Discord client
+        client.destroy();
+
+        // Exit process
+        process.exit(0);
+    } catch (error) {
+        console.error('Error during graceful shutdown:', error);
+        process.exit(1);
+    }
+});
 
 // Start the bot
 init();

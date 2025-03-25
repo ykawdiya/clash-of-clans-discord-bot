@@ -193,10 +193,12 @@ function formatTimeRemaining(endTime) {
     const now = new Date();
     const diff = endTime - now;
 
+    // Handle cases where the end time has already passed
     if (diff <= 0) {
         return 'Ended';
     }
 
+    // Calculate hours and minutes
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
