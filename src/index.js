@@ -224,29 +224,59 @@ process.on('unhandledRejection', (error) => {
     console.error('Unhandled Rejection:', error);
 });
 
-// Add this near your other app.get routes
-app.get('/ip', (req, res) => {
-    // Get the information about the server's connection
-    const networkInfo = {
-        // What IP does Railway show to external services
-        outboundIP: null,
-        // What Railway sees as your IP
-        requestIP: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
-        // All request headers for debugging
-        headers: req.headers
-    };
+// Replace your current /ip endpoint with this enhanced version
+app.get('/ip', async (req, res) => {
+    try {
+        // Get IP information from various sources
+        const networkInfo = {
+            // What Railway sees as your request IP
+            requestIP: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+            // All headers for debugging
+            headers: req.headers,
+            // Environment variables (sanitized)
+            env: {
+                COC_API_KEY_SET: process.env.COC_API_KEY ? 'Yes (starts with ' + process.env.COC_API_KEY.substring(0, 3) + '...)' : 'No',
+                DISCORD_TOKEN_SET: process.env.DISCORD_TOKEN ? 'Yes' : 'No',
+                MONGODB_URI_SET: process.env.MONGODB_URI ? 'Yes' : 'No'
+            }
+        };
 
-    // Try to fetch an external service to see what IP we're showing
-    fetch('https://api.ipify.org?format=json')
-        .then(response => response.json())
-        .then(data => {
-            networkInfo.outboundIP = data.ip;
-            res.json(networkInfo);
-        })
-        .catch(error => {
-            networkInfo.error = error.message;
-            res.json(networkInfo);
-        });
+        // Try to fetch an external service to see what IP we're showing
+        try {
+            const axios = require('axios');
+            const ipResponse = await axios.get('https://api.ipify.org?format=json');
+            networkInfo.outboundIP = ipResponse.data.ip;
+        } catch (error) {
+            networkInfo.ipFetchError = error.message;
+        }
+
+        // Test the Clash of Clans API
+        try {
+            // Import API service
+            const clashApiService = require('./services/clashApiService');
+
+            // Try a simple API call to check connection
+            const clans = await clashApiService.searchClans({ name: 'Clash', limit: 1 });
+            networkInfo.cocApiStatus = 'Working! The API is accessible.';
+            networkInfo.cocApiSample = {
+                itemCount: clans.items?.length || 0,
+                firstItem: clans.items?.[0]?.name || 'None found'
+            };
+        } catch (error) {
+            networkInfo.cocApiStatus = 'Error connecting to Clash of Clans API';
+            networkInfo.cocApiError = error.message;
+
+            if (error.response) {
+                networkInfo.cocApiStatusCode = error.response.status;
+                networkInfo.cocApiErrorData = error.response.data;
+            }
+        }
+
+        console.log('IP Information:', JSON.stringify(networkInfo, null, 2));
+        res.json(networkInfo);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Start the bot

@@ -78,11 +78,39 @@ module.exports = {
         } catch (error) {
             console.error('Error in clan command:', error);
 
-            if (error.response?.status === 404) {
-                return interaction.editReply('Clan not found. Please check the tag and try again.');
+            // Create a user-friendly error message based on the error
+            let errorMessage = 'An error occurred while fetching clan data.';
+
+            if (error.response) {
+                // API returned an error response
+                if (error.response.status === 404) {
+                    errorMessage = 'Clan not found. Please check the tag and try again.';
+                } else if (error.response.status === 403) {
+                    errorMessage = 'API access denied. The bot\'s IP address is not whitelisted in the Clash of Clans API.';
+                } else if (error.response.status === 401) {
+                    errorMessage = 'API authentication failed. Please check the API key configuration.';
+                } else if (error.response.status === 429) {
+                    errorMessage = 'Too many requests to the Clash of Clans API. Please try again later.';
+                } else {
+                    errorMessage = `API error: ${error.response.status} - Please try again later.`;
+                }
+            } else if (error.request) {
+                // No response received
+                errorMessage = 'No response received from the Clash of Clans API. The service might be down.';
+            } else if (error.message && error.message.includes('API key is not configured')) {
+                errorMessage = 'The Clash of Clans API key is not properly configured.';
+            } else if (error.message && error.message.includes('IP whitelisting issue')) {
+                errorMessage = 'API access denied. The bot server\'s IP needs to be whitelisted in the CoC developer portal.';
             }
 
-            return interaction.editReply('An error occurred while fetching clan data. Please try again later.');
+            // Add debugging information for admins
+            console.error('Detailed error:', error);
+            if (error.response) {
+                console.error('Response status:', error.response.status);
+                console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+            }
+
+            return interaction.editReply(errorMessage);
         }
     },
 };

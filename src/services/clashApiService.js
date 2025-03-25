@@ -2,12 +2,26 @@ const axios = require('axios');
 
 class ClashApiService {
     constructor() {
-        this.apiKey = process.env.COC_API_KEY;
         this.baseUrl = 'https://api.clashofclans.com/v1';
-        this.client = axios.create({
+        // We won't set this.client in the constructor
+    }
+
+    /**
+     * Create a fresh client with the latest API key
+     * @returns {axios.AxiosInstance}
+     */
+    getClient() {
+        const apiKey = process.env.COC_API_KEY;
+
+        if (!apiKey) {
+            console.error('COC_API_KEY environment variable is not set');
+            throw new Error('Clash of Clans API key is not configured');
+        }
+
+        return axios.create({
             baseURL: this.baseUrl,
             headers: {
-                'Authorization': `Bearer ${this.apiKey}`,
+                'Authorization': `Bearer ${apiKey}`,
                 'Accept': 'application/json'
             }
         });
@@ -20,15 +34,19 @@ class ClashApiService {
      */
     async getPlayer(playerTag) {
         try {
+            // Create a fresh client for each request
+            const client = this.getClient();
+
             // Ensure the tag is properly formatted (remove # if present)
             const formattedTag = playerTag.startsWith('#')
                 ? encodeURIComponent(playerTag)
                 : encodeURIComponent(`#${playerTag}`);
 
-            const response = await this.client.get(`/players/${formattedTag}`);
+            console.log(`Fetching player data for tag: ${formattedTag}`);
+            const response = await client.get(`/players/${formattedTag}`);
             return response.data;
         } catch (error) {
-            console.error('Error fetching player data:', error.response?.data || error.message);
+            this.logError('player data', error);
             throw error;
         }
     }
@@ -40,28 +58,19 @@ class ClashApiService {
      */
     async getClan(clanTag) {
         try {
+            // Create a fresh client for each request
+            const client = this.getClient();
+
             // Ensure the tag is properly formatted (remove # if present)
             const formattedTag = clanTag.startsWith('#')
                 ? encodeURIComponent(clanTag)
                 : encodeURIComponent(`#${clanTag}`);
 
-            console.log(`Attempting to fetch clan data for tag: ${formattedTag}`);
-            console.log(`Using API key: ${this.apiKey ? this.apiKey.substring(0, 5) + '...' : 'undefined'}`);
-
-            const response = await this.client.get(`/clans/${formattedTag}`);
+            console.log(`Fetching clan data for tag: ${formattedTag}`);
+            const response = await client.get(`/clans/${formattedTag}`);
             return response.data;
         } catch (error) {
-            console.error('Error fetching clan data:', error.response?.data || error.message);
-            console.error('Full error object:', JSON.stringify(error.response?.data || {}, null, 2));
-            console.error('Status code:', error.response?.status);
-
-            // Enhanced error handling
-            if (error.response?.status === 403) {
-                throw new Error('API access forbidden. This is likely an IP whitelisting issue with the Clash of Clans API.');
-            } else if (error.response?.status === 401) {
-                throw new Error('API authentication failed. The API key might be invalid.');
-            }
-
+            this.logError('clan data', error);
             throw error;
         }
     }
@@ -73,14 +82,17 @@ class ClashApiService {
      */
     async getCurrentWar(clanTag) {
         try {
+            // Create a fresh client for each request
+            const client = this.getClient();
+
             const formattedTag = clanTag.startsWith('#')
                 ? encodeURIComponent(clanTag)
                 : encodeURIComponent(`#${clanTag}`);
 
-            const response = await this.client.get(`/clans/${formattedTag}/currentwar`);
+            const response = await client.get(`/clans/${formattedTag}/currentwar`);
             return response.data;
         } catch (error) {
-            console.error('Error fetching current war data:', error.response?.data || error.message);
+            this.logError('current war data', error);
             throw error;
         }
     }
@@ -92,14 +104,17 @@ class ClashApiService {
      */
     async getClanWarLeagueGroup(clanTag) {
         try {
+            // Create a fresh client for each request
+            const client = this.getClient();
+
             const formattedTag = clanTag.startsWith('#')
                 ? encodeURIComponent(clanTag)
                 : encodeURIComponent(`#${clanTag}`);
 
-            const response = await this.client.get(`/clans/${formattedTag}/currentwar/leaguegroup`);
+            const response = await client.get(`/clans/${formattedTag}/currentwar/leaguegroup`);
             return response.data;
         } catch (error) {
-            console.error('Error fetching CWL data:', error.response?.data || error.message);
+            this.logError('CWL data', error);
             throw error;
         }
     }
@@ -111,11 +126,46 @@ class ClashApiService {
      */
     async searchClans(params = {}) {
         try {
-            const response = await this.client.get('/clans', { params });
+            // Create a fresh client for each request
+            const client = this.getClient();
+
+            const response = await client.get('/clans', { params });
             return response.data;
         } catch (error) {
-            console.error('Error searching clans:', error.response?.data || error.message);
+            this.logError('clan search', error);
             throw error;
+        }
+    }
+
+    /**
+     * Log detailed error information
+     * @param {string} context - Context of the error
+     * @param {Error} error - Error object
+     */
+    logError(context, error) {
+        console.error(`Error fetching ${context}:`, error.message);
+
+        if (error.response) {
+            // The request was made and the server responded with a status code
+            // that falls out of the range of 2xx
+            console.error('Status:', error.response.status);
+            console.error('Headers:', JSON.stringify(error.response.headers, null, 2));
+            console.error('Data:', JSON.stringify(error.response.data, null, 2));
+
+            if (error.response.status === 403) {
+                console.error('\nAPI ACCESS DENIED: Your IP address is probably not whitelisted in the Clash of Clans API');
+                console.error('Please go to https://developer.clashofclans.com and add your server IP to the whitelist');
+            } else if (error.response.status === 401) {
+                console.error('\nAPI KEY INVALID: Check your COC_API_KEY environment variable');
+            } else if (error.response.status === 429) {
+                console.error('\nRATE LIMIT EXCEEDED: Too many requests to the CoC API');
+            }
+        } else if (error.request) {
+            // The request was made but no response was received
+            console.error('No response received from API');
+        } else {
+            // Something happened in setting up the request that triggered an Error
+            console.error('Error setting up request:', error.message);
         }
     }
 }
