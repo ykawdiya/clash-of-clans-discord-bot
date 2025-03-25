@@ -178,43 +178,39 @@ module.exports = {
     }
 };
 
-// Main initialization function
 const init = async () => {
     try {
         console.log('Starting bot initialization...');
 
-        // Create necessary directories
-        createDirectories();
+        // Initialize database connection
+        if (process.env.MONGODB_URI) {
+            console.log('Connecting to database...');
+            await databaseService.connect()
+                .then(() => console.log('Database connected successfully'))
+                .catch(err => console.error('Database connection error:', err));
+        } else {
+            console.warn('MONGODB_URI not set. Database features will not work.');
+        }
 
-        // Create test command and basic events for initial testing
+        // Rest of the init function remains the same...
+        createDirectories();
         createTestCommand();
         createReadyEvent();
         createInteractionEvent();
-
-        // Load commands
         const { commandFiles } = loadCommands();
-
-        // Set commands to client.commands Collection
         commandFiles.forEach((command, name) => {
             client.commands.set(name, command);
         });
-
         console.log(`Loaded ${client.commands.size} commands to client collection`);
-
-        // Load events
         try {
             loadEvents(client);
         } catch (error) {
             console.error('Error loading events, creating minimal events handler', error);
-
-            // Set up minimal event handlers if the event loader fails
             client.once('ready', async () => {
                 console.log(`Ready! Logged in as ${client.user.tag}`);
                 client.user.setActivity('Clash of Clans', { type: 0 });
             });
         }
-
-        // Login to Discord
         console.log('Connecting to Discord...');
         await client.login(process.env.DISCORD_TOKEN);
     } catch (error) {
@@ -344,6 +340,8 @@ app.get('/proxy-test', async (req, res) => {
         });
     }
 });
+
+const databaseService = require('./services/databaseService');
 
 // Start the bot
 init();

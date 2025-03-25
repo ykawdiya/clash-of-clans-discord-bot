@@ -15,16 +15,19 @@ function validateTag(tag) {
         };
     }
 
-    // Remove # if present
-    const formattedTag = tag.startsWith('#') ? tag.substring(1) : tag;
+    // Trim whitespace that might be present in the input
+    const trimmedTag = tag.trim();
 
-    // CoC tags only use certain characters (O, 0-9, A-Z except O, I)
+    // Remove # if present
+    const formattedTag = trimmedTag.startsWith('#') ? trimmedTag.substring(1) : trimmedTag;
+
+    // CoC tags only use certain characters (0-9, PYLQGRJCUV)
     const validTagPattern = /^[0289PYLQGRJCUV]+$/i;
 
     if (!validTagPattern.test(formattedTag)) {
         return {
             valid: false,
-            message: 'Invalid tag format. Clash of Clans tags only use certain letters and numbers.'
+            message: 'Invalid tag format. Clash of Clans tags only use certain letters and numbers (0-9, PYLQGRJCUV).'
         };
     }
 
@@ -38,7 +41,8 @@ function validateTag(tag) {
 
     return {
         valid: true,
-        formattedTag: '#' + formattedTag.toUpperCase()
+        formattedTag: '#' + formattedTag.toUpperCase(),
+        rawTag: formattedTag.toUpperCase()  // Also return the raw tag without #
     };
 }
 

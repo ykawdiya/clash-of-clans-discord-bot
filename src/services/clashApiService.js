@@ -1,3 +1,4 @@
+// src/services/clashApiService.js
 const axios = require('axios');
 const https = require('https');
 const { HttpsProxyAgent } = require('https-proxy-agent');
@@ -377,6 +378,54 @@ class ClashApiService {
                 };
             }
         }
+    }
+
+    /**
+     * Comprehensive error recovery with better logging
+     * @param {string} endpoint - The API endpoint being accessed
+     * @param {Error} error - The error that occurred
+     * @throws {Error} - Rethrows error with more context
+     */
+    handleApiError(endpoint, error) {
+        // Log detailed error info
+        console.error(`API Error accessing ${endpoint}:`, error.message);
+
+        // Extract useful information for debugging
+        const errorDetails = {
+            timestamp: new Date().toISOString(),
+            endpoint,
+            message: error.message,
+            code: error.code,
+            statusCode: error.response?.status,
+            responseData: error.response?.data,
+            isNetworkError: !error.response && error.request,
+            stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
+        };
+
+        // Enhanced logging for common issues
+        if (error.response) {
+            if (error.response.status === 403) {
+                console.error('ERROR: IP NOT WHITELISTED or API KEY INVALID');
+                console.error('1. Check that your proxy IP is whitelisted in Clash of Clans developer portal');
+                console.error('2. Verify your API key is correct');
+                console.error(`Current proxy host: ${process.env.PROXY_HOST || 'Not configured'}`);
+            } else if (error.response.status === 429) {
+                console.error('ERROR: RATE LIMIT EXCEEDED');
+                console.error('Reduce the frequency of requests to the CoC API');
+            }
+        } else if (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT') {
+            console.error('ERROR: PROXY CONNECTION ISSUE');
+            console.error('1. Check proxy credentials');
+            console.error('2. Verify proxy service is active');
+            console.error('3. Try a different proxy if available');
+        }
+
+        // Log structured error details for easier debugging
+        console.error('Full error details:', JSON.stringify(errorDetails, null, 2));
+
+        // Enhance the error with more context before rethrowing
+        error.details = errorDetails;
+        throw error;
     }
 }
 
