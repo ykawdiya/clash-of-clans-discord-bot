@@ -11,7 +11,11 @@ const userSchema = new mongoose.Schema({
     // Clash of Clans player tag
     playerTag: {
         type: String,
-        trim: true
+        trim: true,
+        validate: {
+            validator: tag => tag.length > 0,
+            message: 'Player tag cannot be empty.'
+        }
     },
 
     // Is the user verified (linked their CoC account)
@@ -38,8 +42,16 @@ const userSchema = new mongoose.Schema({
 
     // Additional tracked player tags (e.g. alt accounts)
     additionalTags: [{
-        playerTag: String,
-        nickname: String
+        playerTag: {
+            type: String,
+            required: true,
+            trim: true
+        },
+        nickname: {
+            type: String,
+            required: true,
+            trim: true
+        }
     }],
 
     // When the user was registered
@@ -58,6 +70,12 @@ const userSchema = new mongoose.Schema({
 // Update the updatedAt timestamp before saving
 userSchema.pre('save', function(next) {
     this.updatedAt = Date.now();
+    next();
+});
+
+// Update the updatedAt timestamp before findOneAndUpdate
+userSchema.pre('findOneAndUpdate', function(next) {
+    this.set({ updatedAt: Date.now() });
     next();
 });
 

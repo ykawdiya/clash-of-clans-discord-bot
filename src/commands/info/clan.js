@@ -90,7 +90,10 @@ module.exports = {
                 } else if (error.response.status === 401) {
                     errorMessage = 'API authentication failed. Please check the API key configuration.';
                 } else if (error.response.status === 429) {
-                    errorMessage = 'Too many requests to the Clash of Clans API. Please try again later.';
+                    const retryAfter = error.response.headers['retry-after'];
+                    errorMessage = retryAfter
+                        ? `Too many requests. Try again in ${retryAfter} seconds.`
+                        : 'Too many requests. Please try again later.';
                 } else {
                     errorMessage = `API error: ${error.response.status} - Please try again later.`;
                 }
@@ -117,7 +120,7 @@ module.exports = {
 
 /**
  * Send clan information as an embed
- * @param {Interaction} interaction
+ * @param {Object} interaction
  * @param {Object} clanData
  */
 async function sendClanEmbed(interaction, clanData) {
@@ -129,7 +132,7 @@ async function sendClanEmbed(interaction, clanData) {
         .setColor('#3498db')
         .setTitle(`${clanData.name} (${clanData.tag})`)
         .setDescription(clanData.description || 'No description')
-        .setThumbnail(clanData.badgeUrls.medium)
+        .setThumbnail(clanData.badgeUrls?.medium || 'https://example.com/default-badge.png')
         .addFields(
             { name: 'Level', value: `${clanData.clanLevel} ${levelStars}`, inline: true },
             { name: 'Members', value: `${clanData.members}/50`, inline: true },
@@ -139,7 +142,7 @@ async function sendClanEmbed(interaction, clanData) {
             { name: 'War Frequency', value: capitalize(clanData.warFrequency) || 'Unknown', inline: true },
             { name: 'War Win Streak', value: clanData.warWinStreak.toString(), inline: true },
             { name: 'War Wins', value: clanData.warWins.toString(), inline: true },
-            { name: 'War Losses', value: (clanData.warLosses || 'N/A').toString(), inline: true },
+            { name: 'War Losses', value: (clanData.warLosses !== undefined ? clanData.warLosses : 'N/A').toString(), inline: true },
         )
         .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
         .setTimestamp();
@@ -172,7 +175,7 @@ async function sendClanEmbed(interaction, clanData) {
 function capitalize(str) {
     if (!str) return '';
     return str
-        .split(/(?=[A-Z])|\s+/)
+        .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
 }

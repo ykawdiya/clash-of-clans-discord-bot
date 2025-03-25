@@ -5,6 +5,13 @@ const PlayerStats = require('../../models/PlayerStats'); // We'll define this mo
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
 
+async function fetchWithTimeout(apiCall, timeout = 5000) {
+    return Promise.race([
+        apiCall,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timeout')), timeout))
+    ]);
+}
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('stats')
@@ -302,6 +309,9 @@ async function compareStats(interaction) {
 
         // Get comparison player tag
         let comparePlayerTag = interaction.options.getString('tag');
+        if (!comparePlayerTag) {
+            return interaction.editReply('You must provide a valid player tag to compare.');
+        }
 
         // Validate the provided tag
         const validation = validateTag(comparePlayerTag);
@@ -310,11 +320,15 @@ async function compareStats(interaction) {
         }
         comparePlayerTag = validation.formattedTag;
 
-        // Fetch both players' data
+        // Fetch both players' data with timeout
         const [ownPlayerData, comparePlayerData] = await Promise.all([
-            clashApiService.getPlayer(ownPlayerTag),
-            clashApiService.getPlayer(comparePlayerTag)
+            fetchWithTimeout(clashApiService.getPlayer(ownPlayerTag)),
+            fetchWithTimeout(clashApiService.getPlayer(comparePlayerTag))
         ]);
+
+        if (!ownPlayerData || !comparePlayerData) {
+            return interaction.editReply('Could not retrieve player data. Please check the provided tags and try again.');
+        }
 
         // Create comparison embed
         const embed = new EmbedBuilder()

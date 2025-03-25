@@ -44,6 +44,7 @@ class ErrorHandler {
                 title = `API Error (${status})`;
                 description = 'An error occurred while communicating with the Clash of Clans API.';
             }
+            console.error(`[Error ID: ${errorId}] API Error [${status}]:`, error.response.data || 'No response data');
         } else if (error.message && error.message.includes('timed out')) {
             title = 'Request Timeout';
             description = 'The request to the Clash of Clans API timed out.';
@@ -60,6 +61,10 @@ class ErrorHandler {
             title = 'Connection Error';
             description = 'Could not connect to the Clash of Clans API.';
             fields.push({ name: 'Solution', value: 'Please try again later.' });
+        } else if (error.code === 'ECONNRESET') {
+            title = 'Connection Reset';
+            description = 'The connection to the Clash of Clans API was reset.';
+            fields.push({ name: 'Solution', value: 'Try again in a few seconds.' });
         }
 
         // Create error embed
@@ -78,7 +83,7 @@ class ErrorHandler {
         embed.setFooter({ text: `Error ID: ${errorId}` });
 
         // Log error for debugging with error ID reference
-        console.error(`[Error ID: ${errorId}] ${context} error:`, error);
+        console.error(`[Error ID: ${errorId}] ${context} error:\n`, error.stack || error);
 
         return {
             embeds: [embed],

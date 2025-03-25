@@ -16,11 +16,21 @@ function loadEvents(client) {
             return;
         }
 
-        const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+        let eventFiles = [];
+        try {
+            eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
+        } catch (error) {
+            console.error(`Failed to read events directory: ${error.message}`);
+            return;
+        }
 
         if (eventFiles.length === 0) {
             console.log('No event files found.');
             return;
+        }
+
+        function clearEventListeners(client, eventName) {
+            client.removeAllListeners(eventName);
         }
 
         for (const file of eventFiles) {
@@ -39,6 +49,7 @@ function loadEvents(client) {
                 }
 
                 if (event.once) {
+                    clearEventListeners(client, event.name);
                     client.once(event.name, (...args) => {
                         try {
                             event.execute(client, ...args);
@@ -47,6 +58,7 @@ function loadEvents(client) {
                         }
                     });
                 } else {
+                    clearEventListeners(client, event.name);
                     client.on(event.name, (...args) => {
                         try {
                             event.execute(client, ...args);

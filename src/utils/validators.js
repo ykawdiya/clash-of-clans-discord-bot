@@ -17,6 +17,12 @@ function validateTag(tag) {
 
     // Trim whitespace that might be present in the input
     const trimmedTag = tag.trim();
+    if (trimmedTag.length === 0) {
+        return {
+            valid: false,
+            message: 'Tag cannot be empty after trimming.'
+        };
+    }
 
     // Remove # if present
     const formattedTag = trimmedTag.startsWith('#') ? trimmedTag.substring(1) : trimmedTag;
@@ -81,7 +87,7 @@ function validateClanSearchParams(params) {
 
     // Min/max members validation
     if (params.minMembers && !isNaN(parseInt(params.minMembers)) && parseInt(params.minMembers) >= 1) {
-        validParams.minMembers = parseInt(params.minMembers);
+        validParams.minMembers = Math.max(parseInt(params.minMembers), 1);
     }
 
     if (params.maxMembers && !isNaN(parseInt(params.maxMembers)) && parseInt(params.maxMembers) <= 50) {
@@ -89,7 +95,7 @@ function validateClanSearchParams(params) {
     }
 
     // Min/max clan points validation
-    if (params.minClanPoints && !isNaN(parseInt(params.minClanPoints))) {
+    if (params.minClanPoints && !isNaN(parseInt(params.minClanPoints)) && parseInt(params.minClanPoints) >= 0) {
         validParams.minClanPoints = parseInt(params.minClanPoints);
     }
 
@@ -117,7 +123,7 @@ function validateClanSearchParams(params) {
  * @returns {string|null} Formatted channel ID or null if invalid
  */
 function formatChannelId(channelInput) {
-    if (!channelInput) return null;
+    if (!channelInput || typeof channelInput !== 'string') return null;
 
     // If it's already just an ID
     if (/^\d{17,19}$/.test(channelInput)) {

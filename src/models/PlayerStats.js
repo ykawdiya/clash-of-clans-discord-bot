@@ -23,7 +23,12 @@ const playerStatsSchema = new mongoose.Schema({
     playerTag: {
         type: String,
         required: true,
-        index: true
+        index: true,
+        trim: true,
+        validate: {
+            validator: tag => tag.length > 0,
+            message: 'Player tag cannot be empty.'
+        }
     },
 
     // Discord user who owns/tracks this player
@@ -87,6 +92,12 @@ const playerStatsSchema = new mongoose.Schema({
 // Index to efficiently find a player's most recent stats
 playerStatsSchema.index({ playerTag: 1, timestamp: -1 });
 
+// Pre-hook to update timestamp on findOneAndUpdate
+playerStatsSchema.pre('findOneAndUpdate', function(next) {
+    this.set({ timestamp: Date.now() });
+    next();
+});
+
 // Method to get progress since a specific date
 playerStatsSchema.statics.getProgressSince = async function(playerTag, date) {
     const earliest = await this.findOne({
@@ -102,13 +113,17 @@ playerStatsSchema.statics.getProgressSince = async function(playerTag, date) {
         return null;
     }
 
+    const daysTracked = (earliest.timestamp && latest.timestamp)
+        ? Math.round((latest.timestamp - earliest.timestamp) / (1000 * 60 * 60 * 24))
+        : 0;
+
     return {
         earliest,
         latest,
         thLevelDiff: latest.townHallLevel - earliest.townHallLevel,
         trophyDiff: latest.trophies - earliest.trophies,
         warStarsDiff: latest.warStars - earliest.warStars,
-        daysTracked: Math.round((latest.timestamp - earliest.timestamp) / (1000 * 60 * 60 * 24))
+        daysTracked
     };
 };
 
