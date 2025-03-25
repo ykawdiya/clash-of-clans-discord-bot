@@ -31,9 +31,3 @@ jobs:
         run: railway list
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-      # After seeing the output of the previous step, uncomment and update this
-  name: Deploy to Railway
-  run: railway up --service acceptable-vibrancy1
-  env:
-  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
