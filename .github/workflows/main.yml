@@ -28,3 +28,4 @@ jobs:
         uses: devtomio/action-railway@v1.1.4
         with:
           railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          service: "acceptable-vibrancy"
