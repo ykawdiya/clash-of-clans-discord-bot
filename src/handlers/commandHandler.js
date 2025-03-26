@@ -12,15 +12,18 @@ function loadCommands() {
 
     try {
         const commandsPath = path.join(__dirname, '../commands');
+        console.log(`🔍 Looking for commands in: ${commandsPath}`);
 
         // Check if commands directory exists
         if (!fs.existsSync(commandsPath)) {
-            console.log('Commands directory not found, creating it...');
+            console.log('❌ Commands directory not found, creating it...');
             fs.mkdirSync(commandsPath, { recursive: true });
             return { commands, commandFiles };
         }
 
+        // Read all subdirectories
         const commandFolders = fs.readdirSync(commandsPath);
+        console.log(`📁 Found command folders: ${commandFolders.join(', ')}`);
 
         for (const folder of commandFolders) {
             const folderPath = path.join(commandsPath, folder);
@@ -28,39 +31,35 @@ function loadCommands() {
             // Skip if not a directory
             if (!fs.statSync(folderPath).isDirectory()) continue;
 
-            // Check if any command files exist in this folder
+            // List files in the folder
             const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
-
-            if (files.length === 0) {
-                console.log(`No command files found in ${folder} directory.`);
-                continue;
-            }
+            console.log(`📄 Files in ${folder} folder: ${files.join(', ')}`);
 
             for (const file of files) {
                 const filePath = path.join(folderPath, file);
                 try {
-                    // Clear require cache to ensure fresh command data
+                    // Clear require cache
                     delete require.cache[require.resolve(filePath)];
 
                     const command = require(filePath);
 
-                    // Check if command has required properties
+                    // Validate command structure
                     if ('data' in command && 'execute' in command) {
+                        console.log(`✅ Loaded command: ${command.data.name} (from ${file})`);
                         commands.push(command.data.toJSON());
                         commandFiles.set(command.data.name, command);
-                        console.log(`Loaded command: ${command.data.name}`);
                     } else {
-                        console.warn(`The command at ${filePath} is missing required "data" or "execute" properties.`);
+                        console.warn(`⚠️ Command at ${filePath} is missing required "data" or "execute" properties`);
                     }
                 } catch (error) {
-                    console.error(`Error loading command from ${filePath}:`, error);
+                    console.error(`❌ Error loading command from ${filePath}:`, error);
                 }
             }
         }
 
-        console.log(`Loaded ${commands.length} commands successfully.`);
+        console.log(`📊 Total commands loaded: ${commands.length}`);
     } catch (error) {
-        console.error('Error loading commands:', error);
+        console.error('🚨 Error loading commands:', error);
     }
 
     return { commands, commandFiles };
@@ -73,17 +72,17 @@ async function registerCommands(clientId, guildId = null) {
     const { commands } = loadCommands();
 
     if (commands.length === 0) {
-        console.log('No commands to register.');
+        console.log('❌ No commands to register');
         return [];
     }
 
-    // Explicitly set the REST version to ensure compatibility
+    // Explicitly set the REST version
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
     try {
-        console.log(`Started refreshing ${commands.length} application (/) commands.`);
-        console.log(`Client ID: ${clientId}`);
-        console.log(`Guild ID: ${guildId || 'Global registration'}`);
+        console.log(`🚀 Registering ${commands.length} application (/) commands`);
+        console.log(`👤 Client ID: ${clientId}`);
+        console.log(`🏠 Guild ID: ${guildId || 'Global registration'}`);
 
         let data;
 
@@ -93,19 +92,19 @@ async function registerCommands(clientId, guildId = null) {
                 Routes.applicationGuildCommands(clientId, guildId),
                 { body: commands },
             );
-            console.log(`Successfully reloaded ${data.length} guild (/) commands.`);
+            console.log(`✅ Successfully reloaded ${data.length} guild (/) commands`);
         } else {
             // Global commands - for production, can take up to an hour to update
             data = await rest.put(
                 Routes.applicationCommands(clientId),
                 { body: commands },
             );
-            console.log(`Successfully reloaded ${data.length} global (/) commands.`);
+            console.log(`✅ Successfully reloaded ${data.length} global (/) commands`);
         }
 
         return data;
     } catch (error) {
-        console.error('Error registering commands:', error);
+        console.error('🚨 Error registering commands:', error);
         console.error('Error details:', error.message);
 
         // Log more detailed error information
