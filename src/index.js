@@ -10,11 +10,11 @@ const fs = require('fs');
 const path = require('path');
 
 // Import database service
-const databaseService = require('./src/services/databaseService');
+const databaseService = require('./services/databaseService');
 
 // Import handlers
-const { loadCommands } = require('./src/handlers/commandHandler');
-const { loadEvents } = require('./src/handlers/eventHandler');
+const { loadCommands } = require('./handlers/commandHandler');
+const { loadEvents } = require('./handlers/eventHandler');
 
 console.log('Starting CoC Discord Bot - Version 1.0.1');
 console.log('Environment:', {
@@ -67,7 +67,7 @@ client.once('ready', async () => {
     // REGISTER COMMANDS ONCE AFTER BOT IS READY
     console.log('Registering slash commands with Discord API...');
     try {
-        const { registerCommands } = require('./src/handlers/commandHandler');
+        const { registerCommands } = require('./handlers/commandHandler');
         await registerCommands(client.user.id);
     } catch (error) {
         console.error('Error registering commands:', error);
