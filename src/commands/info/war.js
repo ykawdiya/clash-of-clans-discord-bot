@@ -173,6 +173,9 @@ module.exports = {
                 throw apiError;
             }
         }
+            // Replace the catch block in your war.js file (around line 148-175)
+// with this improved error handling
+
         catch (error) {
             console.error('Error in war command:', error);
 
@@ -187,16 +190,69 @@ module.exports = {
             });
 
             // Check for specific error types
-            if (error.response && error.response.status === 404) {
+            if (error.response && error.response.status === 403) {
+                // Check if this is a private war log issue
+                const errorMessage = error.response.data?.message || '';
+                if (errorMessage.includes('access') && errorMessage.includes('war')) {
+                    return interaction.editReply({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle("⚠️ Private War Log")
+                                .setColor(0xFFA500) // Orange color
+                                .setDescription("This clan has their war log set to private.")
+                                .addFields(
+                                    {
+                                        name: "Why this happens",
+                                        value: "Clash of Clans allows clans to hide their war information from outside tools and websites."
+                                    },
+                                    {
+                                        name: "How to fix",
+                                        value: "Only the clan's leadership can change this setting in-game under clan settings."
+                                    }
+                                )
+                                .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
+                                .setTimestamp()
+                        ]
+                    });
+                } else {
+                    // This is likely an actual IP whitelist issue
+                    return interaction.editReply({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle("⚠️ API Access Denied")
+                                .setColor(0xED4245) // Red color
+                                .setDescription("The Clash of Clans API rejected our request.")
+                                .addFields(
+                                    {
+                                        name: "Possible Issues",
+                                        value: "1. The bot's IP address is not whitelisted\n2. The API key is invalid or expired"
+                                    }
+                                )
+                                .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
+                                .setTimestamp()
+                        ]
+                    });
+                }
+            } else if (error.response && error.response.status === 404) {
                 return interaction.editReply("Clan not found. Please check the tag and try again.");
             } else if (error.message && error.message.includes('timeout')) {
                 return interaction.editReply("Request timed out. The Clash of Clans API might be experiencing issues.");
+            } else if (error.message && error.message.includes('notInWar')) {
+                return interaction.editReply({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle("Not in War")
+                            .setColor(0x3498db) // Blue color
+                            .setDescription("This clan is not currently participating in a war.")
+                            .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
+                            .setTimestamp()
+                    ]
+                });
             }
 
-            // Return a more informative error to the user
+            // Default error message
             return interaction.editReply(
-                `Error fetching war data: ${error.message}. ` +
-                `Please check if the clan tag is correct and the clan is in an active war.`
+                "Error fetching war data. Please check if the clan tag is correct and try again later."
             );
         }
     },
