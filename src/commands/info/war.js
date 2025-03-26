@@ -98,6 +98,18 @@ async function processWarData(interaction, warData, clanData) {
     const clan = warData.clan;
     const opponent = warData.opponent;
 
+    // Safely get members count (ensure it's a number)
+    const clanMembers = typeof clan.members === 'number' ? clan.members :
+        (clan.members && typeof clan.members.length === 'number' ? clan.members.length : 0);
+    const opponentMembers = typeof opponent.members === 'number' ? opponent.members :
+        (opponent.members && typeof opponent.members.length === 'number' ? opponent.members.length : 0);
+
+    // Safely calculate attacks
+    const clanTotalAttacks = clanMembers * 2;
+    const opponentTotalAttacks = opponentMembers * 2;
+    const clanAttacks = typeof clan.attacks === 'number' ? clan.attacks : 0;
+    const opponentAttacks = typeof opponent.attacks === 'number' ? opponent.attacks : 0;
+
     // Determine war status and color
     let status, color;
     switch (warData.state) {
@@ -120,12 +132,24 @@ async function processWarData(interaction, warData, clanData) {
 
     // Calculate time remaining if applicable
     let timeRemaining = '';
-    if (warData.state === 'preparation') {
-        const endTime = new Date(warData.startTime);
-        timeRemaining = formatTimeRemaining(endTime);
-    } else if (warData.state === 'inWar') {
-        const endTime = new Date(warData.endTime);
-        timeRemaining = formatTimeRemaining(endTime);
+    if (warData.state === 'preparation' && warData.startTime) {
+        try {
+            const endTime = new Date(warData.startTime);
+            if (!isNaN(endTime.getTime())) { // Ensure valid date
+                timeRemaining = formatTimeRemaining(endTime);
+            }
+        } catch (e) {
+            console.error('Error parsing preparation end time:', e);
+        }
+    } else if (warData.state === 'inWar' && warData.endTime) {
+        try {
+            const endTime = new Date(warData.endTime);
+            if (!isNaN(endTime.getTime())) { // Ensure valid date
+                timeRemaining = formatTimeRemaining(endTime);
+            }
+        } catch (e) {
+            console.error('Error parsing war end time:', e);
+        }
     }
 
     // Create the embed
@@ -134,8 +158,16 @@ async function processWarData(interaction, warData, clanData) {
         .setColor(color)
         .setDescription(`**Status:** ${status}${timeRemaining ? `\n**Time Remaining:** ${timeRemaining}` : ''}`)
         .addFields(
-            { name: clan.name, value: `Level: ${clan.clanLevel}\nAttacks: ${clan.attacks || 0}/${clan.members * 2}\nStars: ${clan.stars || 0}\nDestruction: ${clan.destructionPercentage?.toFixed(2) || 0}%`, inline: true },
-            { name: opponent.name, value: `Level: ${opponent.clanLevel}\nAttacks: ${opponent.attacks || 0}/${opponent.members * 2}\nStars: ${opponent.stars || 0}\nDestruction: ${opponent.destructionPercentage?.toFixed(2) || 0}%`, inline: true }
+            {
+                name: clan.name,
+                value: `Level: ${clan.clanLevel || '?'}\nAttacks: ${clanAttacks}/${clanTotalAttacks}\nStars: ${clan.stars || 0}\nDestruction: ${(clan.destructionPercentage || 0).toFixed(2)}%`,
+                inline: true
+            },
+            {
+                name: opponent.name,
+                value: `Level: ${opponent.clanLevel || '?'}\nAttacks: ${opponentAttacks}/${opponentTotalAttacks}\nStars: ${opponent.stars || 0}\nDestruction: ${(opponent.destructionPercentage || 0).toFixed(2)}%`,
+                inline: true
+            }
         )
         .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
         .setTimestamp();
@@ -146,12 +178,16 @@ async function processWarData(interaction, warData, clanData) {
     }
 
     // Add team size
-    embed.addFields({ name: 'War Size', value: `${clan.members}v${opponent.members}`, inline: false });
+    embed.addFields({
+        name: 'War Size',
+        value: `${clanMembers}v${opponentMembers}`,
+        inline: false
+    });
 
     // Add attacks remaining if in war
     if (warData.state === 'inWar') {
-        const clanAttacksRemaining = (clan.members * 2) - (clan.attacks || 0);
-        const opponentAttacksRemaining = (opponent.members * 2) - (opponent.attacks || 0);
+        const clanAttacksRemaining = clanTotalAttacks - clanAttacks;
+        const opponentAttacksRemaining = opponentTotalAttacks - opponentAttacks;
 
         embed.addFields({
             name: 'Attacks Remaining',
