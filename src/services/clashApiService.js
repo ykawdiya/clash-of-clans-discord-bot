@@ -12,9 +12,6 @@ class ClashApiService {
         this.proxyConfigured = false;
         this.proxySetupAttempted = false;
 
-        // Cache for successful client types to avoid inconsistencies
-        this.successfulClientType = null;
-
         // Debug logging for proxy configuration
         this.logProxyConfiguration();
     }
@@ -27,8 +24,7 @@ class ClashApiService {
             proxyHost: process.env.PROXY_HOST,
             proxyPort: process.env.PROXY_PORT,
             proxyUser: process.env.PROXY_USERNAME ? 'SET' : 'NOT SET',
-            proxyPass: process.env.PROXY_PASSWORD ? 'SET' : 'NOT SET',
-            successfulClientType: this.successfulClientType
+            proxyPass: process.env.PROXY_PASSWORD ? 'SET' : 'NOT SET'
         });
     }
 
@@ -43,7 +39,6 @@ class ClashApiService {
         const forceProxyClans = ['#2RUVGR2QQ']; // Replace with your clan's tag
         if (forceProxyClans.includes(clanTag)) {
             console.log(`Forcing proxy usage for clan ${clanTag}`);
-            this.successfulClientType = null; // Reset to force proxy reconfiguration
             return true;
         }
         return false;
@@ -59,11 +54,6 @@ class ClashApiService {
         if (!apiKey) {
             console.error('COC_API_KEY environment variable is not set');
             throw new Error('Clash of Clans API key is not configured');
-        }
-
-        // If we've already had success with direct client, use that consistently
-        if (this.successfulClientType === 'direct') {
-            return this.getDirectClient();
         }
 
         // WebShare proxy configuration
@@ -110,11 +100,12 @@ class ClashApiService {
             } catch (error) {
                 console.error('Error setting up proxy agent:', error.message);
                 this.proxyConfigured = false;
-                // Continue without proxy if setup fails
+                throw new Error(`Failed to set up proxy: ${error.message}`);
             }
         } else {
-            console.warn('Proxy configuration incomplete, using direct connection');
+            console.error('Proxy configuration incomplete. Cannot proceed without proxy');
             this.proxyConfigured = false;
+            throw new Error('Proxy configuration is required but incomplete');
         }
 
         // Create and return axios client
@@ -122,10 +113,11 @@ class ClashApiService {
     }
 
     /**
-     * Get a direct client without proxy (fallback)
+     * Get a direct client without proxy (for testing only)
      * @returns {axios.AxiosInstance}
      */
     getDirectClient() {
+        console.warn('Using direct client is not recommended');
         const apiKey = process.env.COC_API_KEY;
 
         if (!apiKey) {
@@ -184,86 +176,30 @@ class ClashApiService {
             endpoint,
             method: options.method || 'get',
             params: options.params,
-            usingProxy: this.proxyConfigured,
-            successfulClientType: this.successfulClientType
+            usingProxy: this.proxyConfigured
         });
 
-        // If we've had success with a specific client type, use that consistently
-        if (this.successfulClientType === 'direct') {
-            try {
-                console.log(`Using direct client (based on previous success) for ${endpoint}`);
-                const directClient = this.getDirectClient();
-                const response = await directClient.request({
-                    url: endpoint,
-                    method: options.method || 'get',
-                    params: options.params,
-                    data: options.data
-                });
-                console.log(`Request successful with direct client`);
-                return response.data;
-            } catch (err) {
-                console.error(`Direct client failed despite previous success:`, err.message);
-                // Reset the successful client type and continue with normal flow
-                this.successfulClientType = null;
-            }
+        // Check that proxy is configured
+        if (!this.proxyConfigured) {
+            throw new Error('Proxy is required but not configured properly');
         }
 
-        // Try proxy client first with retries
+        // Try proxy client with retries
         let error;
-        if (this.proxyConfigured) {
-            for (let attempt = 0; attempt < this.retryCount; attempt++) {
-                try {
-                    console.log(`Proxy attempt ${attempt + 1}/${this.retryCount} for ${endpoint}`);
-                    const client = this.getClient();
-                    const response = await client.request({
-                        url: endpoint,
-                        method: options.method || 'get',
-                        params: options.params,
-                        data: options.data
-                    });
-                    console.log(`Request successful on proxy attempt ${attempt + 1}`);
-                    // Store successful client type
-                    this.successfulClientType = 'proxy';
-                    return response.data;
-                } catch (err) {
-                    console.error(`Proxy attempt ${attempt + 1} failed: ${err.message}`);
-                    error = err;
-
-                    // Only retry if it's a timeout or connection error
-                    if (err.response || (err.code !== 'ECONNABORTED' &&
-                        err.code !== 'ETIMEDOUT' &&
-                        err.code !== 'ECONNRESET' &&
-                        !err.message.includes('timeout'))) {
-                        break; // Don't retry if it's not a timeout/connection issue
-                    }
-
-                    // Wait before retry (exponential backoff)
-                    const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s, etc.
-                    console.log(`Waiting ${delay}ms before retry...`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                }
-            }
-        } else {
-            console.log(`Skipping proxy attempts as proxy is not configured`);
-        }
-
-        // If proxy failed or wasn't configured, try direct client with retries
         for (let attempt = 0; attempt < this.retryCount; attempt++) {
             try {
-                console.log(`Direct attempt ${attempt + 1}/${this.retryCount} for ${endpoint}`);
-                const directClient = this.getDirectClient();
-                const response = await directClient.request({
+                console.log(`Proxy attempt ${attempt + 1}/${this.retryCount} for ${endpoint}`);
+                const client = this.getClient();
+                const response = await client.request({
                     url: endpoint,
                     method: options.method || 'get',
                     params: options.params,
                     data: options.data
                 });
-                console.log(`Request successful on direct attempt ${attempt + 1}`);
-                // Store successful client type
-                this.successfulClientType = 'direct';
+                console.log(`Request successful on proxy attempt ${attempt + 1}`);
                 return response.data;
             } catch (err) {
-                console.error(`Direct attempt ${attempt + 1} failed: ${err.message}`);
+                console.error(`Proxy attempt ${attempt + 1} failed: ${err.message}`);
                 error = err;
 
                 // Only retry if it's a timeout or connection error
@@ -282,7 +218,7 @@ class ClashApiService {
         }
 
         // If we get here, all attempts failed
-        this.logError(`all attempts for ${endpoint}`, error);
+        this.logError(`all proxy attempts for ${endpoint}`, error);
         this.handleApiError(endpoint, error);
     }
 
@@ -404,7 +340,6 @@ class ClashApiService {
                 console.error('\nAPI ACCESS DENIED: There may be an issue with the proxy or API key');
                 console.error('Check if the IP is whitelisted in Clash of Clans API');
                 console.error(`Using proxy: ${this.proxyConfigured ? 'Yes' : 'No'}`);
-                console.error(`Successful client type: ${this.successfulClientType || 'None'}`);
             } else if (error.response.status === 401) {
                 console.error('\nAPI KEY INVALID: Check your COC_API_KEY environment variable');
             } else if (error.response.status === 429) {
@@ -452,7 +387,6 @@ class ClashApiService {
             responseData: error.response?.data,
             isNetworkError: !error.response && error.request,
             usingProxy: this.proxyConfigured,
-            successfulClientType: this.successfulClientType,
             stack: process.env.NODE_ENV !== 'production' ? error.stack : undefined
         };
 
@@ -523,31 +457,13 @@ class ClashApiService {
         } catch (error) {
             console.error('Proxy connection test failed:', error.message);
 
-            // Try direct connection to see if that works
-            try {
-                const directClient = this.getDirectClient();
-                const directResponse = await directClient.get('https://api.ipify.org?format=json');
-
-                return {
-                    success: false,
-                    directSuccess: true,
-                    proxyError: error.message,
-                    directIP: directResponse.data.ip,
-                    message: 'Proxy failed but direct connection works',
-                    proxyConfigured: this.proxyConfigured,
-                    proxySetupAttempted: this.proxySetupAttempted
-                };
-            } catch (directError) {
-                return {
-                    success: false,
-                    directSuccess: false,
-                    proxyError: error.message,
-                    directError: directError.message,
-                    message: 'Both proxy and direct connections failed',
-                    proxyConfigured: this.proxyConfigured,
-                    proxySetupAttempted: this.proxySetupAttempted
-                };
-            }
+            return {
+                success: false,
+                proxyError: error.message,
+                message: 'Proxy connection failed',
+                proxyConfigured: this.proxyConfigured,
+                proxySetupAttempted: this.proxySetupAttempted
+            };
         }
     }
 }
