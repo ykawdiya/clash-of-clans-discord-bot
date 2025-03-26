@@ -3,48 +3,58 @@ const { Events } = require('discord.js');
 module.exports = {
     name: Events.InteractionCreate,
     async execute(client, interaction) {
-        if (!interaction.isChatInputCommand()) return;
+        // Log all details about the interaction
+        console.log('--- Interaction Received ---');
+        console.log(`Type: ${interaction.type}`);
+        console.log(`Is Chat Input Command: ${interaction.isChatInputCommand()}`);
+        console.log(`Command Name: ${interaction.commandName}`);
+        console.log(`User: ${interaction.user.tag} (${interaction.user.id})`);
+        console.log(`Guild: ${interaction.guild ? interaction.guild.name : 'DM'}`)
+
+        if (!interaction.isChatInputCommand()) {
+            console.log('Not a chat input command, ignoring.');
+            return;
+        }
 
         const command = client.commands.get(interaction.commandName);
 
         if (!command) {
-            console.error(`No command matching ${interaction.commandName} was found.`);
-            return;
+            console.error(`❌ No command matching ${interaction.commandName} was found.`);
+
+            // Log all available commands in the client
+            console.log('Available Commands:');
+            client.commands.forEach((cmd, name) => {
+                console.log(`- ${name}`);
+            });
+
+            return interaction.reply({
+                content: `Command not found. Available commands: ${Array.from(client.commands.keys()).join(', ')}`,
+                ephemeral: true
+            });
         }
 
         try {
-            // Check if this command requires database access
-            if (command.requiresDatabase === true) {
-                const databaseService = require('../services/databaseService');
-
-                // Make sure we're connected to the database
-                if (!databaseService.checkConnection()) {
-                    console.log(`Database connection needed for ${interaction.commandName}, connecting...`);
-                    try {
-                        await databaseService.connect();
-                    } catch (dbErr) {
-                        console.error('Failed to connect to database:', dbErr);
-                        return interaction.reply({
-                            content: 'Unable to connect to the database. Please try again later.',
-                            ephemeral: true
-                        });
-                    }
-                }
-            }
-
-            // Execute the command
+            console.log(`Executing command: ${interaction.commandName}`);
             await command.execute(interaction);
         } catch (error) {
-            console.error(`Error executing ${interaction.commandName}:`, error);
+            console.error(`❌ Error executing ${interaction.commandName}:`, error);
+
+            // More detailed error logging
+            if (error.stack) {
+                console.error('Error Stack:', error.stack);
+            }
+
+            // Attempt to provide a helpful error message
+            const errorMessage = error.message || 'An unknown error occurred';
 
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({
-                    content: 'There was an error executing this command!',
+                    content: `Error executing command: ${errorMessage}`,
                     ephemeral: true
                 });
             } else {
                 await interaction.reply({
-                    content: 'There was an error executing this command!',
+                    content: `Error executing command: ${errorMessage}`,
                     ephemeral: true
                 });
             }
