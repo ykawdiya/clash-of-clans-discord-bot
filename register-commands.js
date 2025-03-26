@@ -45,15 +45,16 @@ async function registerCommands() {
 
         return commands; // Return commands for use outside
     } catch (error) {
-        console.error('Error registering commands:', error);
+        console.error('Error loading commands:', error);
         return [];
     }
 }
 
-// Register commands properly with both global and guild-specific registration
+// Register commands properly with development mode
 async function init() {
     const clientId = process.env.CLIENT_ID;
     const guildId = process.env.GUILD_ID;
+    const isDevelopment = process.env.NODE_ENV === 'development';
 
     if (!clientId) {
         console.error('CLIENT_ID is not set in the .env file');
@@ -71,24 +72,47 @@ async function init() {
 
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
-        // Register global commands
-        console.log(`Registering ${commands.length} application commands globally...`);
-        const globalResult = await rest.put(
-            Routes.applicationCommands(clientId),
-            { body: commands }
-        );
-        console.log(`Successfully registered ${globalResult.length} global commands!`);
+        // Check for development mode and GUILD_ID
+        if (isDevelopment && guildId) {
+            console.log(`DEVELOPMENT MODE: Registering commands to guild ${guildId} only...`);
 
-        // Register guild commands if GUILD_ID is provided
-        if (guildId) {
+            // First, clear any existing global commands to avoid duplicates
+            console.log("Removing any existing global commands...");
+            await rest.put(
+                Routes.applicationCommands(clientId),
+                { body: [] }
+            );
+            console.log("Global commands cleared.");
+
+            // Then register guild-specific commands
             console.log(`Registering ${commands.length} application commands to guild ${guildId}...`);
             const guildResult = await rest.put(
                 Routes.applicationGuildCommands(clientId, guildId),
                 { body: commands }
             );
             console.log(`Successfully registered ${guildResult.length} commands to guild ${guildId}!`);
+            console.log("Guild commands update instantly. Use these for development.");
         } else {
-            console.warn('GUILD_ID not set in .env file. Skipping guild command registration.');
+            // Production mode: register globally
+            console.log(`PRODUCTION MODE: Registering ${commands.length} application commands globally...`);
+
+            // First, clear any guild-specific commands to avoid duplicates
+            if (guildId) {
+                console.log(`Removing any existing guild commands from ${guildId}...`);
+                await rest.put(
+                    Routes.applicationGuildCommands(clientId, guildId),
+                    { body: [] }
+                );
+                console.log("Guild commands cleared.");
+            }
+
+            // Then register global commands
+            const globalResult = await rest.put(
+                Routes.applicationCommands(clientId),
+                { body: commands }
+            );
+            console.log(`Successfully registered ${globalResult.length} global commands!`);
+            console.log("NOTE: Global commands can take up to an hour to update across all servers.");
         }
     } catch (error) {
         console.error('Error during command registration:', error);
