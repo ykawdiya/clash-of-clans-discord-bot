@@ -3,6 +3,13 @@ const clashApiService = require('../../services/clashApiService');
 const User = require('../../models/User');
 const { validateTag } = require('../../utils/validators'); // Import the tag validator
 
+const fetchWithTimeout = async (promise, timeout = 5000) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
+    ]);
+};
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('link')
@@ -30,14 +37,20 @@ module.exports = {
             // Check if player exists
             let playerData;
             try {
-                playerData = await clashApiService.getPlayer(playerTag);
+                playerData = await fetchWithTimeout(clashApiService.getPlayer(playerTag));
             } catch (error) {
+                if (error.message === 'Request timed out') {
+                    return interaction.editReply('Clash of Clans API is taking too long. Please try again later.');
+                }
                 if (error.response?.status === 404) {
                     return interaction.editReply('Player not found. Please check your tag and try again.');
                 }
                 console.error('Error fetching player data:', error);
                 return interaction.editReply('An error occurred while checking your player tag. Please try again later.');
             }
+
+            // Log the user who is linking their Clash of Clans account
+            console.log(`User ${interaction.user.id} linked to ${playerTag}`);
 
             // Check if this tag is already linked to another user
             const existingUser = await User.findOne({ playerTag });

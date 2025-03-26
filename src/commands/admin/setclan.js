@@ -6,6 +6,13 @@ const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
 const databaseService = require('../../services/databaseService');
 
+const fetchWithTimeout = async (promise, timeout = 5000) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
+    ]);
+};
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setclan')
@@ -32,6 +39,8 @@ module.exports = {
         await interaction.deferReply().catch(err => console.error('Failed to defer reply:', err));
 
         try {
+            console.log(`[SETCLAN] User ${interaction.user.id} set clan ${interaction.options.getString('tag')} in guild ${interaction.guild.id}`);
+
             // First ensure we have a database connection
             if (!databaseService.checkConnection()) {
                 console.log('Database connection not established, attempting to connect...');
@@ -79,7 +88,7 @@ module.exports = {
             // Check if clan exists with appropriate error handling
             let clanData;
             try {
-                clanData = await clashApiService.getClan(clanTag);
+                clanData = await fetchWithTimeout(clashApiService.getClan(clanTag));
             } catch (error) {
                 console.error('Error fetching clan data:', error);
 

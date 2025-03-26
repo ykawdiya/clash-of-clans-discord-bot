@@ -1,9 +1,13 @@
+require('dotenv').config();
+if (!process.env.DISCORD_TOKEN) {
+    console.error('FATAL: DISCORD_TOKEN is not set in environment variables.');
+    process.exit(1);
+}
 // Import required packages
-const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes, ActivityType } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
 
 // Import database service first to avoid reference error
 const databaseService = require('./services/databaseService');
@@ -42,8 +46,16 @@ app.get('/', (req, res) => {
 });
 
 // Start Express server for health checks
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Health check server running on port ${PORT}`);
+});
+
+process.on('SIGINT', () => {
+    console.log('Shutting down...');
+    server.close(() => {
+        console.log('Express server closed.');
+        process.exit(0);
+    });
 });
 
 // Create necessary directories if they don't exist
@@ -298,7 +310,7 @@ const init = async () => {
         // Add a single ready event that will register commands
         client.once('ready', async () => {
             console.log(`Bot is online! Logged in as ${client.user.tag}`);
-            client.user.setActivity('Clash of Clans', { type: 0 });
+            client.user.setActivity('Clash of Clans', { type: ActivityType.Playing });
 
             // Register commands manually after bot is ready
             await manuallyRegisterCommands();

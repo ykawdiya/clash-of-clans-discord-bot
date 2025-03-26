@@ -5,6 +5,14 @@ const PlayerStats = require('../../models/PlayerStats'); // We'll define this mo
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
 
+// Timeout mechanism for API calls
+const fetchWithTimeout = async (promise, timeout = 5000) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
+    ]);
+};
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('stats')
@@ -107,8 +115,10 @@ async function updateStats(interaction) {
             playerTag = validation.formattedTag;
         }
 
-        // Fetch player data from API
-        const playerData = await clashApiService.getPlayer(playerTag);
+        // Log command execution
+        console.log(`[STATS] User ${interaction.user.id} requested update for ${playerTag}`);
+        // Fetch player data from API with timeout
+        const playerData = await fetchWithTimeout(clashApiService.getPlayer(playerTag));
 
         // Create stats object
         const stats = {
@@ -212,8 +222,10 @@ async function showProgress(interaction) {
             return interaction.editReply(`No stats found for player ${playerTag}. Use \`/stats update\` to start tracking.`);
         }
 
-        // Get current stats from the API for the most up-to-date information
-        const currentPlayerData = await clashApiService.getPlayer(playerTag);
+        // Log command execution
+        console.log(`[STATS] User ${interaction.user.id} requested progress for ${playerTag}`);
+        // Get current stats from the API for the most up-to-date information with timeout
+        const currentPlayerData = await fetchWithTimeout(clashApiService.getPlayer(playerTag));
 
         // Get the oldest and most recent stats
         const oldestStats = statsHistory[0];
@@ -310,10 +322,12 @@ async function compareStats(interaction) {
         }
         comparePlayerTag = validation.formattedTag;
 
-        // Fetch both players' data
+        // Log command execution
+        console.log(`[STATS] User ${interaction.user.id} requested compare for ${comparePlayerTag}`);
+        // Fetch both players' data with timeout
         const [ownPlayerData, comparePlayerData] = await Promise.all([
-            clashApiService.getPlayer(ownPlayerTag),
-            clashApiService.getPlayer(comparePlayerTag)
+            fetchWithTimeout(clashApiService.getPlayer(ownPlayerTag)),
+            fetchWithTimeout(clashApiService.getPlayer(comparePlayerTag))
         ]);
 
         // Create comparison embed

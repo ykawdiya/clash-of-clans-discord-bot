@@ -2,6 +2,13 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const clashApiService = require('../../services/clashApiService');
 const User = require('../../models/User');
 
+const fetchWithTimeout = async (promise, timeout = 5000) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
+    ]);
+};
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('player')
@@ -48,11 +55,13 @@ module.exports = {
                 }
             }
 
+            console.log(`[PLAYER] User ${interaction.user.id} requested player info for ${playerTag}`);
+
             // Remove # if provided and add it if not
             playerTag = playerTag.replace(/^#/, '');
 
             // Fetch player data from CoC API
-            const playerData = await clashApiService.getPlayer(playerTag);
+            const playerData = await fetchWithTimeout(clashApiService.getPlayer(playerTag));
 
             // Create embed with player information
             const embed = new EmbedBuilder()

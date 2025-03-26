@@ -3,6 +3,12 @@ const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
+const fetchWithTimeout = async (promise, timeout = 5000) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
+    ]);
+};
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -92,9 +98,10 @@ module.exports = {
             }
 
             // Get current war data
+            console.log(`[WAR] User ${interaction.user.id} requested war info for ${clanTag}`);
             console.log(`Fetching war data for clan: ${clanTag}`);
             try {
-                const warData = await clashApiService.getCurrentWar(clanTag);
+                const warData = await fetchWithTimeout(clashApiService.getCurrentWar(clanTag));
 
                 // Check if war data is valid
                 if (!warData) {

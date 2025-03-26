@@ -2,6 +2,13 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
 
+const fetchWithTimeout = async (promise, timeout = 5000) => {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
+    ]);
+};
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('clan')
@@ -18,6 +25,8 @@ module.exports = {
     async execute(interaction) {
         await interaction.deferReply();
 
+        console.log(`[CLAN] User ${interaction.user.id} requested clan info for ${interaction.options.getString('tag') || interaction.options.getString('name') || 'linked clan'}`);
+
         try {
             // Check if tag option is provided
             const clanTag = interaction.options.getString('tag');
@@ -32,20 +41,20 @@ module.exports = {
                 }
 
                 // Use the linked clan's tag
-                const clanData = await clashApiService.getClan(linkedClan.clanTag);
+                const clanData = await fetchWithTimeout(clashApiService.getClan(linkedClan.clanTag));
                 return sendClanEmbed(interaction, clanData);
             }
 
             // If tag is provided, look up by tag
             if (clanTag) {
                 const formattedTag = clanTag.startsWith('#') ? clanTag : `#${clanTag}`;
-                const clanData = await clashApiService.getClan(formattedTag);
+                const clanData = await fetchWithTimeout(clashApiService.getClan(formattedTag));
                 return sendClanEmbed(interaction, clanData);
             }
 
             // If name is provided, search for clans
             if (clanName) {
-                const searchResults = await clashApiService.searchClans({ name: clanName, limit: 5 });
+                const searchResults = await fetchWithTimeout(clashApiService.searchClans({ name: clanName, limit: 5 }));
 
                 if (!searchResults.items || searchResults.items.length === 0) {
                     return interaction.editReply(`No clans found matching "${clanName}". Try a different name or use a clan tag instead.`);
@@ -53,7 +62,7 @@ module.exports = {
 
                 // If only one result, show that clan
                 if (searchResults.items.length === 1) {
-                    const clanData = await clashApiService.getClan(searchResults.items[0].tag);
+                    const clanData = await fetchWithTimeout(clashApiService.getClan(searchResults.items[0].tag));
                     return sendClanEmbed(interaction, clanData);
                 }
 
