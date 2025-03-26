@@ -6,13 +6,6 @@ const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
 const databaseService = require('../../services/databaseService');
 
-const fetchWithTimeout = async (promise, timeout = 5000) => {
-    return Promise.race([
-        promise,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
-    ]);
-};
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setclan')
@@ -35,93 +28,98 @@ module.exports = {
     requiresDatabase: true,
 
     async execute(interaction) {
-        // Acknowledge the interaction immediately
-        await interaction.deferReply().catch(err => console.error('Failed to defer reply:', err));
+        // Comprehensive logging
+        console.log(`[SETCLAN] Command initiated`);
+        console.log(`User: ${interaction.user.tag} (${interaction.user.id})`);
+        console.log(`Guild: ${interaction.guild.name} (${interaction.guild.id})`);
 
         try {
-            console.log(`[SETCLAN] User ${interaction.user.id} set clan ${interaction.options.getString('tag')} in guild ${interaction.guild.id}`);
+            // Defer reply with robust error handling
+            await interaction.deferReply({ ephemeral: false }).catch(err => {
+                console.error('[SETCLAN] Failed to defer reply:', err);
+                throw new Error('Could not acknowledge the interaction');
+            });
 
-            // First ensure we have a database connection
+            // Validate database connection
+            console.log('[SETCLAN] Checking database connection...');
             if (!databaseService.checkConnection()) {
-                console.log('Database connection not established, attempting to connect...');
+                console.log('[SETCLAN] Database not connected, attempting to connect...');
                 try {
                     await databaseService.connect();
-                    console.log('Successfully connected to database');
+                    console.log('[SETCLAN] Database connection established');
                 } catch (connErr) {
-                    console.error('Failed to establish database connection:', connErr);
-                    return interaction.editReply('Unable to connect to the database. Please try again later.');
+                    console.error('[SETCLAN] Database connection failed:', connErr);
+                    return interaction.editReply({
+                        content: '❌ Cannot connect to the database. Please try again later.',
+                        ephemeral: true
+                    });
                 }
             }
 
-            // Get clan tag from options and validate it
-            let clanTag = interaction.options.getString('tag');
+            // Validate clan tag
+            const rawTag = interaction.options.getString('tag');
+            console.log(`[SETCLAN] Validating clan tag: ${rawTag}`);
 
-            // Use the tag validator utility
-            const validation = validateTag(clanTag);
+            const validation = validateTag(rawTag);
             if (!validation.valid) {
-                return interaction.editReply(validation.message);
+                console.warn(`[SETCLAN] Invalid clan tag: ${rawTag}`);
+                return interaction.editReply({
+                    content: `❌ ${validation.message}`,
+                    ephemeral: true
+                });
             }
-            clanTag = validation.formattedTag;
 
-            // Get channel options and validate them
+            const clanTag = validation.formattedTag;
+
+            // Fetch clan data with timeout
+            let clanData;
+            try {
+                console.log(`[SETCLAN] Fetching clan data for tag: ${clanTag}`);
+                clanData = await clashApiService.getClan(clanTag);
+                console.log(`[SETCLAN] Clan data fetched: ${clanData.name}`);
+            } catch (error) {
+                console.error('[SETCLAN] Clan fetch error:', error);
+
+                // Detailed error handling
+                if (error.response?.status === 404) {
+                    return interaction.editReply({
+                        content: '❌ Clan not found. Please check the tag and try again.',
+                        ephemeral: true
+                    });
+                }
+
+                return interaction.editReply({
+                    content: `❌ API Error: ${error.message}. Please try again later.`,
+                    ephemeral: true
+                });
+            }
+
+            // Validate and process channels
             const warChannel = interaction.options.getChannel('war_channel');
             const generalChannel = interaction.options.getChannel('general_channel') || interaction.channel;
 
-            // Validate that channels are text channels
-            if (warChannel && warChannel.type !== ChannelType.GuildText) {
-                return interaction.editReply('War channel must be a text channel.');
-            }
-
-            if (generalChannel && generalChannel.type !== ChannelType.GuildText) {
-                return interaction.editReply('General channel must be a text channel.');
-            }
-
-            // Check if bot has access to the channels
-            if (warChannel && !warChannel.permissionsFor(interaction.client.user).has('SendMessages')) {
-                return interaction.editReply(`I don't have permission to send messages in ${warChannel}.`);
-            }
-
-            if (generalChannel && !generalChannel.permissionsFor(interaction.client.user).has('SendMessages')) {
-                return interaction.editReply(`I don't have permission to send messages in ${generalChannel}.`);
-            }
-
-            // Check if clan exists with appropriate error handling
-            let clanData;
-            try {
-                clanData = await fetchWithTimeout(clashApiService.getClan(clanTag));
-            } catch (error) {
-                console.error('Error fetching clan data:', error);
-
-                if (error.response?.status === 404) {
-                    return interaction.editReply('Clan not found. Please check the tag and try again.');
+            // Validate channel types
+            const validateChannel = (channel, channelType) => {
+                if (channel && channel.type !== ChannelType.GuildText) {
+                    throw new Error(`${channelType} channel must be a text channel.`);
                 }
+                return channel;
+            };
 
-                // Log detailed information for troubleshooting
-                console.error('Detailed error:', {
-                    errorMessage: error.message,
-                    errorCode: error.code,
-                    statusCode: error.response?.status,
-                    responseData: error.response?.data,
-                    stack: error.stack
-                });
-
-                return interaction.editReply('An error occurred while fetching clan data. Please try again later.');
-            }
-
-            // Double check MongoDB connection state before database operations
-            if (mongoose.connection.readyState !== 1) {
-                console.error('Database connection is not in connected state before operation. Current state:', mongoose.connection.readyState);
-                return interaction.editReply('Database connection issue. Please try again later.');
-            }
-
-            // Create or update clan document with error handling
             try {
-                console.log('Attempting to save clan to database:', {
-                    clanTag,
-                    name: clanData.name,
-                    guildId: interaction.guild.id
+                validateChannel(warChannel, 'War');
+                validateChannel(generalChannel, 'General');
+            } catch (channelError) {
+                console.warn(`[SETCLAN] Channel validation error: ${channelError.message}`);
+                return interaction.editReply({
+                    content: `❌ ${channelError.message}`,
+                    ephemeral: true
                 });
+            }
 
+            // Save clan data to database
+            try {
+                console.log('[SETCLAN] Saving clan to database...');
                 const clan = await Clan.findOneAndUpdate(
                     { clanTag },
                     {
@@ -140,58 +138,62 @@ module.exports = {
                     {
                         upsert: true,
                         new: true,
-                        runValidators: true // This ensures validation runs on update too
+                        runValidators: true
                     }
                 );
 
-                console.log('Clan saved successfully:', clan);
+                console.log(`[SETCLAN] Clan saved successfully: ${clan.name}`);
 
                 // Create success embed
                 const embed = new EmbedBuilder()
                     .setColor('#2ecc71')
-                    .setTitle('Clan Setup Successful')
-                    .setDescription(`This Discord server has been linked to the following Clash of Clans clan:`)
-                    .setThumbnail(clanData.badgeUrls.medium)
+                    .setTitle('✅ Clan Setup Successful')
+                    .setDescription(`Linked to Clash of Clans clan:`)
+                    .setThumbnail(clanData.badgeUrls?.medium || null)
                     .addFields(
                         { name: 'Clan Name', value: clanData.name, inline: true },
                         { name: 'Clan Tag', value: clanData.tag, inline: true },
                         { name: 'Clan Level', value: clanData.clanLevel.toString(), inline: true },
                         { name: 'Members', value: `${clanData.members}/50`, inline: true },
-                        { name: 'War Channel', value: warChannel ? `<#${warChannel.id}>` : 'Not set', inline: true },
-                        { name: 'General Channel', value: `<#${generalChannel.id}>`, inline: true }
+                        {
+                            name: 'War Channel',
+                            value: warChannel ? `<#${warChannel.id}>` : 'Not set',
+                            inline: true
+                        },
+                        {
+                            name: 'General Channel',
+                            value: `<#${generalChannel.id}>`,
+                            inline: true
+                        }
                     )
-                    .setFooter({ text: 'You can now use clan commands without specifying a tag', iconURL: interaction.client.user.displayAvatarURL() })
+                    .setFooter({
+                        text: 'Clan successfully linked to this Discord server',
+                        iconURL: interaction.client.user.displayAvatarURL()
+                    })
                     .setTimestamp();
 
                 return interaction.editReply({ embeds: [embed] });
+
             } catch (dbError) {
-                console.error('Database error in setclan command:', dbError);
+                console.error('[SETCLAN] Database save error:', dbError);
 
-                // Log more detailed information about the error
-                console.error('Error details:', {
-                    name: dbError.name,
-                    code: dbError.code,
-                    keyValue: dbError.keyValue,
-                    message: dbError.message,
-                    stack: dbError.stack
+                // Use ErrorHandler for database-specific error messages
+                const userMessage = ErrorHandler.handleDatabaseError(dbError);
+
+                return interaction.editReply({
+                    content: `❌ Database Error: ${userMessage}`,
+                    ephemeral: true
                 });
-
-                // Add more specific error messages based on common database issues
-                let userMessage = `Failed to set up clan: ${ErrorHandler.handleDatabaseError(dbError)}`;
-
-                if (dbError.name === 'MongooseServerSelectionError') {
-                    userMessage = 'Could not connect to the database server. Please check your database connection and try again.';
-                } else if (dbError.name === 'ValidationError') {
-                    userMessage = 'The clan data failed validation. Please check the clan information and try again.';
-                } else if (dbError.code === 11000) {
-                    userMessage = 'This clan is already registered with another Discord server.';
-                }
-
-                return interaction.editReply(userMessage);
             }
-        } catch (error) {
-            console.error('Unexpected error in setclan command:', error);
-            return interaction.editReply('An unexpected error occurred while setting up the clan. Please try again later.');
+
+        } catch (unexpectedError) {
+            console.error('[SETCLAN] Unexpected critical error:', unexpectedError);
+
+            // Last resort error handling
+            return interaction.editReply({
+                content: '❌ An unexpected error occurred. Please contact support if this persists.',
+                ephemeral: true
+            });
         }
     },
 };
