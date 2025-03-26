@@ -43,15 +43,18 @@ class ClashApiService {
             throw new Error('Clash of Clans API key is not configured');
         }
 
-        // Create basic client config
-        const config = {
+        // Clean the API key to remove any whitespace
+        const cleanApiKey = apiKey.trim();
+
+        // Create the client first without custom headers
+        const client = axios.create({
             baseURL: this.baseUrl,
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Accept': 'application/json'
-            },
             timeout: 30000
-        };
+        });
+
+        // Set headers separately
+        client.defaults.headers.common['Accept'] = 'application/json';
+        client.defaults.headers.common['Authorization'] = `Bearer ${cleanApiKey}`;
 
         // Try to set up proxy
         const proxyHost = process.env.PROXY_HOST;
@@ -71,8 +74,8 @@ class ClashApiService {
                 });
 
                 // Configure client with proxy
-                config.httpsAgent = httpsAgent;
-                config.proxy = false; // This tells axios to use the httpsAgent
+                client.defaults.httpsAgent = httpsAgent;
+                client.defaults.proxy = false; // This tells axios to use the httpsAgent
                 this.proxyConfigured = true;
 
                 console.log(`Using proxy: ${proxyHost}:${proxyPort}`);
@@ -82,7 +85,7 @@ class ClashApiService {
             }
         }
 
-        return axios.create(config);
+        return client;
     }
 
     formatTag(tag) {
@@ -127,6 +130,15 @@ class ClashApiService {
                 return response.data;
             } catch (error) {
                 console.error(`Request failed:`, error.message);
+
+                // Log more detailed error information
+                if (error.response) {
+                    console.error('Response status:', error.response.status);
+                    console.error('Response data:', error.response.data);
+                } else if (error.request) {
+                    console.error('No response received', error.request);
+                }
+
                 lastError = error;
 
                 // Only retry on connection/timeout errors
