@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Import database service first to avoid reference error
-const databaseService = require('./services/databaseService');
+const databaseService = require('./src/services/databaseService');
 
 console.log('Starting CoC Discord Bot - Version 1.0.1');
 console.log('Environment:', {
