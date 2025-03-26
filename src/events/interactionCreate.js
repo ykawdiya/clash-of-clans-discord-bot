@@ -1,4 +1,4 @@
-// In your interactionCreate.js event handler, update the execute function:
+const { Events } = require('discord.js');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -35,8 +35,7 @@ module.exports = {
             // Execute the command
             await command.execute(interaction);
         } catch (error) {
-            console.error(`Error executing ${interaction.commandName}`);
-            console.error(error);
+            console.error(`Error executing ${interaction.commandName}:`, error);
 
             if (interaction.replied || interaction.deferred) {
                 await interaction.followUp({

@@ -28,7 +28,8 @@ module.exports = {
     requiresDatabase: true,
 
     async execute(interaction) {
-        await interaction.deferReply();
+        // Acknowledge the interaction immediately
+        await interaction.deferReply().catch(err => console.error('Failed to defer reply:', err));
 
         try {
             // First ensure we have a database connection

@@ -386,5 +386,21 @@ process.on('SIGTERM', async () => {
     }
 });
 
+client.on('ready', () => {
+    console.log(`Bot is online! Logged in as ${client.user.tag}`);
+});
+
+client.on('error', error => {
+    console.error('Discord client error:', error);
+});
+
+client.on('disconnect', event => {
+    console.error('Bot disconnected from Discord:', event);
+});
+
+client.on('reconnecting', () => {
+    console.log('Bot is reconnecting to Discord...');
+});
+
 // Start the bot
 init();
