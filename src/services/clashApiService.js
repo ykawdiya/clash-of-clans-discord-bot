@@ -6,9 +6,13 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 class ClashApiService {
     constructor() {
         this.baseUrl = 'https://api.clashofclans.com/v1';
-        this.retryCount = 3; // Number of retries for failed requests
+        this.retryCount = 2; // Reduced from 3 to 2 for faster response
         this.proxyConfigured = false;
         this.currentProxyIP = null;
+
+        // Default timeout values
+        this.defaultTimeout = 2000; // Reduced from 30000 to 2000ms
+        this.verifyProxyTimeout = 3000; // 3 seconds for proxy verification
 
         // Check proxy configuration on startup
         console.log('Initializing Clash of Clans API service');
@@ -32,7 +36,7 @@ class ClashApiService {
             this.proxyConfigured = true;
             console.log('Proxy configuration is complete');
 
-            // Test proxy connection immediately
+            // Test proxy connection immediately but don't wait for it
             this.verifyProxyIP().catch(err => {
                 console.error('Error verifying proxy IP at startup:', err.message);
             });
@@ -47,7 +51,14 @@ class ClashApiService {
             console.log('Verifying proxy IP address...');
             const client = this.getProxyOnlyClient();
 
-            const response = await client.get('https://api.ipify.org?format=json');
+            // Set a shorter timeout for verification
+            const response = await Promise.race([
+                client.get('https://api.ipify.org?format=json'),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Proxy verification timed out')), this.verifyProxyTimeout)
+                )
+            ]);
+
             this.currentProxyIP = response.data.ip;
 
             console.log(`Current proxy IP: ${this.currentProxyIP}`);
@@ -80,7 +91,7 @@ class ClashApiService {
             return axios.create({
                 httpsAgent,
                 proxy: false,
-                timeout: 10000
+                timeout: this.verifyProxyTimeout
             });
         } catch (error) {
             console.error('Error creating proxy client:', error.message);
@@ -98,10 +109,10 @@ class ClashApiService {
         // Clean the API key to remove any whitespace
         const cleanApiKey = apiKey.trim();
 
-        // Create the client first
+        // Create the client first with reduced timeout
         const client = axios.create({
             baseURL: this.baseUrl,
-            timeout: 30000
+            timeout: this.defaultTimeout
         });
 
         // Set the base headers
@@ -119,7 +130,6 @@ class ClashApiService {
             try {
                 // Create proxy URL (more compatible format)
                 const proxyUrl = `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`;
-                console.log(`Using proxy URL format: http://[username]:[password]@${proxyHost}:${proxyPort}`);
 
                 // Create proxy agent
                 const httpsAgent = new HttpsProxyAgent(proxyUrl);
@@ -128,8 +138,6 @@ class ClashApiService {
                 client.defaults.httpsAgent = httpsAgent;
                 client.defaults.proxy = false; // This tells axios to use the httpsAgent
                 this.proxyConfigured = true;
-
-                console.log(`Proxy configured for API requests`);
             } catch (error) {
                 console.error('Error setting up proxy:', error.message);
                 this.proxyConfigured = false;
@@ -162,12 +170,21 @@ class ClashApiService {
     async executeRequest(endpoint, options = {}) {
         console.log(`Executing request to ${endpoint}`);
 
-        // Make sure we have the current proxy IP
+        // Only check proxy IP if needed and not already verified
         if (this.proxyConfigured && !this.currentProxyIP) {
             try {
-                await this.verifyProxyIP();
+                await Promise.race([
+                    this.verifyProxyIP(),
+                    new Promise((_, reject) =>
+                        setTimeout(() => {
+                            console.log('Proxy verification taking too long, continuing with request');
+                            reject(new Error('Proxy verification timeout'));
+                        }, 1000) // Very short timeout for verification during request
+                    )
+                ]);
             } catch (err) {
-                console.warn('Could not verify proxy IP before request:', err.message);
+                // Just log but continue with the request
+                console.warn('Could not verify proxy IP before request, continuing anyway');
             }
         }
 
@@ -180,19 +197,24 @@ class ClashApiService {
 
                 const client = this.getClient();
 
-                // Print request info for debugging
-                console.log(`Request details:
-                  URL: ${this.baseUrl}${endpoint}
-                  Method: ${options.method || 'GET'}
-                  Using proxy: ${this.proxyConfigured ? 'Yes' : 'No'}
-                  Proxy IP: ${this.currentProxyIP || 'Unknown'}`);
+                // Add a specific timeout for this request (potentially shorter than the client default)
+                const requestTimeout = options.timeout || this.defaultTimeout;
 
-                const response = await client.request({
+                // Execute request with timeout
+                const responsePromise = client.request({
                     url: endpoint,
                     method: options.method || 'get',
                     params: options.params,
                     data: options.data
                 });
+
+                // Race the request against a timeout
+                const response = await Promise.race([
+                    responsePromise,
+                    new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Request timed out')), requestTimeout)
+                    )
+                ]);
 
                 console.log(`Request successful: Status ${response.status}`);
                 return response.data;
@@ -200,10 +222,9 @@ class ClashApiService {
             } catch (error) {
                 console.error(`Request failed:`, error.message);
 
-                // Log more detailed error information
+                // Only log detailed error info if it's available
                 if (error.response) {
                     console.error('Response status:', error.response.status);
-                    console.error('Response data:', JSON.stringify(error.response.data, null, 2));
 
                     // Check specifically for IP whitelist issues
                     if (error.response.status === 403 &&
@@ -213,17 +234,7 @@ class ClashApiService {
 
                         console.error('IP WHITELIST ERROR DETECTED!');
                         console.error(`Make sure IP ${this.currentProxyIP || 'Unknown'} is whitelisted at developer.clashofclans.com`);
-
-                        // Try to get the current IP again to verify
-                        try {
-                            await this.verifyProxyIP();
-                            console.error(`Verified current proxy IP: ${this.currentProxyIP}`);
-                        } catch (ipErr) {
-                            console.error('Could not verify current IP:', ipErr.message);
-                        }
                     }
-                } else if (error.request) {
-                    console.error('No response received from request');
                 }
 
                 lastError = error;
@@ -234,17 +245,16 @@ class ClashApiService {
                     error.response.status === 503 ||
                     error.code === 'ECONNABORTED' ||
                     error.code === 'ETIMEDOUT' ||
-                    error.code === 'ECONNRESET';
+                    error.code === 'ECONNRESET' ||
+                    error.message.includes('timeout');
 
                 if (!shouldRetry) {
                     console.log('Error is not retryable, breaking retry loop');
                     break;
                 }
 
-                // Wait before retrying
-                const delay = Math.pow(2, attempt) * 1000;
-                console.log(`Waiting ${delay}ms before retry...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
+                // Shorter wait before retrying - fixed at 500ms to avoid Discord timeout
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
 
@@ -267,12 +277,12 @@ class ClashApiService {
         }
     }
 
-    // API methods
+    // API methods with shorter timeouts
     async getClan(clanTag) {
         try {
             const formattedTag = this.formatTag(clanTag);
             console.log(`Getting clan data for: ${formattedTag}`);
-            return await this.executeRequest(`/clans/${formattedTag}`);
+            return await this.executeRequest(`/clans/${formattedTag}`, { timeout: 2000 });
         } catch (error) {
             console.error(`Error getting clan data:`, error.message);
             throw error;
@@ -283,7 +293,7 @@ class ClashApiService {
         try {
             const formattedTag = this.formatTag(playerTag);
             console.log(`Getting player data for: ${formattedTag}`);
-            return await this.executeRequest(`/players/${formattedTag}`);
+            return await this.executeRequest(`/players/${formattedTag}`, { timeout: 2000 });
         } catch (error) {
             console.error(`Error getting player data:`, error.message);
             throw error;
@@ -293,7 +303,10 @@ class ClashApiService {
     async searchClans(params = {}) {
         try {
             console.log(`Searching clans with parameters:`, params);
-            return await this.executeRequest('/clans', { params });
+            return await this.executeRequest('/clans', {
+                params,
+                timeout: 2000
+            });
         } catch (error) {
             console.error(`Error searching clans:`, error.message);
             throw error;
@@ -304,7 +317,7 @@ class ClashApiService {
         try {
             const formattedTag = this.formatTag(clanTag);
             console.log(`Getting current war for clan: ${formattedTag}`);
-            return await this.executeRequest(`/clans/${formattedTag}/currentwar`);
+            return await this.executeRequest(`/clans/${formattedTag}/currentwar`, { timeout: 2000 });
         } catch (error) {
             console.error(`Error getting current war:`, error.message);
             throw error;

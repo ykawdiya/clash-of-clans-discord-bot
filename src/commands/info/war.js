@@ -3,7 +3,9 @@ const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
-const fetchWithTimeout = async (promise, timeout = 5000) => {
+
+// Use a shorter timeout for fetching data to avoid Discord timeouts
+const fetchWithTimeout = async (promise, timeout = 2000) => {
     return Promise.race([
         promise,
         new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), timeout))
@@ -37,8 +39,15 @@ module.exports = {
         '/war tag:#ABC123'
     ],
 
+    // Flag to indicate this command handles its own deferring
+    manualDeferring: true,
+
     async execute(interaction) {
-        await interaction.deferReply();
+        // IMMEDIATELY defer reply to prevent timeout
+        await interaction.deferReply().catch(err => {
+            console.error('Failed to defer reply:', err);
+            // We should still continue the execution even if deferring fails
+        });
 
         try {
             // Check if tag option is provided
@@ -50,7 +59,11 @@ module.exports = {
             if (!clanTag) {
                 console.log(`No tag provided, looking up linked clan for guild: ${interaction.guild.id}`);
                 try {
-                    const linkedClan = await Clan.findOne({ guildId: interaction.guild.id });
+                    // Use timeout for database query to prevent hanging
+                    const linkedClan = await Promise.race([
+                        Clan.findOne({ guildId: interaction.guild.id }),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 2000))
+                    ]);
 
                     console.log(`Database query result:`, linkedClan ?
                         {
@@ -97,11 +110,12 @@ module.exports = {
                 clanTag = validation.formattedTag;
             }
 
-            // Get current war data
+            // Get current war data with shorter timeout
             console.log(`[WAR] User ${interaction.user.id} requested war info for ${clanTag}`);
             console.log(`Fetching war data for clan: ${clanTag}`);
             try {
-                const warData = await fetchWithTimeout(clashApiService.getCurrentWar(clanTag));
+                // Use shorter timeout for API calls
+                const warData = await fetchWithTimeout(clashApiService.getCurrentWar(clanTag), 2000);
 
                 // Check if war data is valid
                 if (!warData) {
@@ -110,9 +124,9 @@ module.exports = {
 
                 console.log(`War state: ${warData.state || 'unknown'}`);
 
-                // Get clan data for clan names and badges
+                // Get clan data for clan names and badges with shorter timeout
                 console.log(`Fetching clan data for: ${clanTag}`);
-                const clanData = await clashApiService.getClan(clanTag);
+                const clanData = await fetchWithTimeout(clashApiService.getClan(clanTag), 2000);
 
                 // Process war data
                 return await processWarData(interaction, warData, clanData);
@@ -189,14 +203,14 @@ module.exports = {
 };
 
 /**
- * Process and display war data
+ * Process and display war data - simplified to be faster
  * @param {CommandInteraction} interaction
  * @param {Object} warData
  * @param {Object} clanData
  */
 async function processWarData(interaction, warData, clanData) {
     try {
-        // Check war state
+        // Check war state - handle simplest case first
         if (!warData || warData.state === 'notInWar') {
             const embed = new EmbedBuilder()
                 .setTitle(`${clanData?.name || 'This clan'} is not currently in a war`)
@@ -219,53 +233,39 @@ async function processWarData(interaction, warData, clanData) {
             return interaction.editReply("Invalid war data received. The clan might be in an unusual war state.");
         }
 
-        // Safely get members count (ensure it's a number)
-        let clanMembers = 0;
-        if (typeof clan.members === 'number') {
-            clanMembers = clan.members;
-        } else if (clan.members && Array.isArray(clan.members)) {
-            clanMembers = clan.members.length;
-        } else if (warData.teamSize) {
-            clanMembers = warData.teamSize;
-        }
+        // Safer, faster calculation of member counts
+        const clanMembers = warData.teamSize || (clan.members?.length || 0);
+        const opponentMembers = warData.teamSize || (opponent.members?.length || 0);
 
-        let opponentMembers = 0;
-        if (typeof opponent.members === 'number') {
-            opponentMembers = opponent.members;
-        } else if (opponent.members && Array.isArray(opponent.members)) {
-            opponentMembers = opponent.members.length;
-        } else if (warData.teamSize) {
-            opponentMembers = warData.teamSize;
-        }
-
-        // Safely calculate attacks
-        const clanTotalAttacks = clanMembers * 2;
-        const opponentTotalAttacks = opponentMembers * 2;
-
-        // Count actual attacks if available
+        // Faster calculation of attacks
         let clanAttacks = 0;
-        if (typeof clan.attacks === 'number') {
-            clanAttacks = clan.attacks;
-        } else if (clan.attacks && Array.isArray(clan.attacks)) {
+        let opponentAttacks = 0;
+
+        if (Array.isArray(clan.attacks)) {
             clanAttacks = clan.attacks.length;
         } else if (Array.isArray(clan.members)) {
-            // Count attacks from members if available
-            clanAttacks = clan.members.reduce((total, member) => {
-                return total + (Array.isArray(member.attacks) ? member.attacks.length : 0);
-            }, 0);
+            // Count attacks from members
+            for (const member of clan.members) {
+                if (Array.isArray(member.attacks)) {
+                    clanAttacks += member.attacks.length;
+                }
+            }
         }
 
-        let opponentAttacks = 0;
-        if (typeof opponent.attacks === 'number') {
-            opponentAttacks = opponent.attacks;
-        } else if (opponent.attacks && Array.isArray(opponent.attacks)) {
+        if (Array.isArray(opponent.attacks)) {
             opponentAttacks = opponent.attacks.length;
         } else if (Array.isArray(opponent.members)) {
-            // Count attacks from members if available
-            opponentAttacks = opponent.members.reduce((total, member) => {
-                return total + (Array.isArray(member.attacks) ? member.attacks.length : 0);
-            }, 0);
+            // Count attacks from members
+            for (const member of opponent.members) {
+                if (Array.isArray(member.attacks)) {
+                    opponentAttacks += member.attacks.length;
+                }
+            }
         }
+
+        // Total possible attacks
+        const clanTotalAttacks = clanMembers * 2;
+        const opponentTotalAttacks = opponentMembers * 2;
 
         // Determine war status and color
         let status, color;
@@ -296,7 +296,7 @@ async function processWarData(interaction, warData, clanData) {
                     timeRemaining = formatTimeRemaining(endTime);
                 }
             } catch (e) {
-                console.error('Error parsing preparation end time:', e);
+                // Just skip if error
             }
         } else if (warData.state === 'inWar' && warData.endTime) {
             try {
@@ -305,11 +305,11 @@ async function processWarData(interaction, warData, clanData) {
                     timeRemaining = formatTimeRemaining(endTime);
                 }
             } catch (e) {
-                console.error('Error parsing war end time:', e);
+                // Just skip if error
             }
         }
 
-        // Create the embed
+        // Create a simpler embed with essential information
         const embed = new EmbedBuilder()
             .setTitle(`${clan.name} vs ${opponent.name}`)
             .setColor(color)
@@ -329,7 +329,7 @@ async function processWarData(interaction, warData, clanData) {
             .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
             .setTimestamp();
 
-        // Add thumbnail if available
+        // Add thumbnail if available (optional for speed)
         if (clanData?.badgeUrls?.medium) {
             embed.setThumbnail(clanData.badgeUrls.medium);
         }
@@ -353,20 +353,21 @@ async function processWarData(interaction, warData, clanData) {
             });
         }
 
-        // Add war result if ended
+        // Add war result if ended (more simplified calculation)
         if (warData.state === 'warEnded') {
-            let result;
             const clanStars = clan.stars || 0;
             const opponentStars = opponent.stars || 0;
-            const clanDestruction = clan.destructionPercentage || 0;
-            const opponentDestruction = opponent.destructionPercentage || 0;
 
+            let result;
             if (clanStars > opponentStars) {
                 result = `${clan.name} Won! 🏆`;
             } else if (clanStars < opponentStars) {
                 result = `${opponent.name} Won! 😓`;
             } else {
                 // If stars are equal, compare destruction percentage
+                const clanDestruction = clan.destructionPercentage || 0;
+                const opponentDestruction = opponent.destructionPercentage || 0;
+
                 if (clanDestruction > opponentDestruction) {
                     result = `${clan.name} Won! 🏆 (by destruction percentage)`;
                 } else if (clanDestruction < opponentDestruction) {
@@ -387,7 +388,7 @@ async function processWarData(interaction, warData, clanData) {
 }
 
 /**
- * Format time remaining until a date
+ * Format time remaining until a date - simplified version for faster processing
  * @param {Date} endTime
  * @returns {string} Formatted time string
  */
