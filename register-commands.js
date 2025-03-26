@@ -94,4 +94,15 @@ async function registerCommands() {
     }
 }
 
+// Modify register-commands.js to include this (replace YOUR_GUILD_ID with your server ID)
+const GUILD_ID = '1354151475009290352'; // Add your Discord server ID here
+
+// Then in the registration code section:
+// For guild-specific commands (appears instantly)
+const guildResult = await rest.put(
+    Routes.applicationGuildCommands(clientId, GUILD_ID),
+    { body: commands }
+);
+console.log(`Successfully registered ${guildResult.length} commands to guild ${GUILD_ID}!`);
+
 registerCommands();
