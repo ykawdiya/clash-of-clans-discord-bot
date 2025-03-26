@@ -510,4 +510,21 @@ class ClashApiService {
     }
 }
 
+// Debug logging for proxy configuration
+console.log('Proxy Configuration Debug:', {
+    proxyHost: process.env.PROXY_HOST,
+    proxyPort: process.env.PROXY_PORT,
+    proxyUser: process.env.PROXY_USERNAME ? 'SET' : 'NOT SET',
+    proxyPass: process.env.PROXY_PASSWORD ? 'SET' : 'NOT SET',
+    successfulClientType: this.successfulClientType,
+    clanTag: clanTag
+});
+
+// Force proxy usage for specific clans or conditions
+const forceProxyClans = ['#2RUVGR2QQ']; // Replace with your clan's tag
+if (forceProxyClans.includes(clanTag)) {
+    console.log(`Forcing proxy usage for clan ${clanTag}`);
+    this.successfulClientType = null; // Reset to force proxy reconfiguration
+}
+
 module.exports = new ClashApiService();
