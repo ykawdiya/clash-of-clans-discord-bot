@@ -14,6 +14,39 @@ class ClashApiService {
 
         // Cache for successful client types to avoid inconsistencies
         this.successfulClientType = null;
+
+        // Debug logging for proxy configuration
+        this.logProxyConfiguration();
+    }
+
+    /**
+     * Log proxy configuration details
+     */
+    logProxyConfiguration() {
+        console.log('Proxy Configuration Debug:', {
+            proxyHost: process.env.PROXY_HOST,
+            proxyPort: process.env.PROXY_PORT,
+            proxyUser: process.env.PROXY_USERNAME ? 'SET' : 'NOT SET',
+            proxyPass: process.env.PROXY_PASSWORD ? 'SET' : 'NOT SET',
+            successfulClientType: this.successfulClientType
+        });
+    }
+
+    /**
+     * Force proxy for specific clan tags
+     * @param {string} clanTag - The clan tag to check
+     * @returns {boolean} Whether proxy was forced
+     */
+    forceProxyForClan(clanTag) {
+        if (!clanTag) return false;
+
+        const forceProxyClans = ['#2RUVGR2QQ']; // Replace with your clan's tag
+        if (forceProxyClans.includes(clanTag)) {
+            console.log(`Forcing proxy usage for clan ${clanTag}`);
+            this.successfulClientType = null; // Reset to force proxy reconfiguration
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -260,6 +293,9 @@ class ClashApiService {
      */
     async getClan(clanTag) {
         try {
+            // Check if we should force proxy for this clan
+            this.forceProxyForClan(clanTag);
+
             // Use our consistent tag formatter
             const formattedTag = this.formatTag(clanTag);
             console.log(`Fetching clan data for tag: ${formattedTag} (original: ${clanTag})`);
@@ -309,6 +345,9 @@ class ClashApiService {
      */
     async getCurrentWar(clanTag) {
         try {
+            // Check if we should force proxy for this clan
+            this.forceProxyForClan(clanTag);
+
             // Use our consistent tag formatter
             const formattedTag = this.formatTag(clanTag);
             console.log(`Fetching war data for clan tag: ${formattedTag} (original: ${clanTag})`);
@@ -326,6 +365,9 @@ class ClashApiService {
      */
     async getClanWarLeagueGroup(clanTag) {
         try {
+            // Check if we should force proxy for this clan
+            this.forceProxyForClan(clanTag);
+
             // Use our consistent tag formatter
             const formattedTag = this.formatTag(clanTag);
             console.log(`Fetching CWL data for clan tag: ${formattedTag} (original: ${clanTag})`);
@@ -510,21 +552,5 @@ class ClashApiService {
     }
 }
 
-// Debug logging for proxy configuration
-console.log('Proxy Configuration Debug:', {
-    proxyHost: process.env.PROXY_HOST,
-    proxyPort: process.env.PROXY_PORT,
-    proxyUser: process.env.PROXY_USERNAME ? 'SET' : 'NOT SET',
-    proxyPass: process.env.PROXY_PASSWORD ? 'SET' : 'NOT SET',
-    successfulClientType: this.successfulClientType,
-    clanTag: clanTag
-});
-
-// Force proxy usage for specific clans or conditions
-const forceProxyClans = ['#2RUVGR2QQ']; // Replace with your clan's tag
-if (forceProxyClans.includes(clanTag)) {
-    console.log(`Forcing proxy usage for clan ${clanTag}`);
-    this.successfulClientType = null; // Reset to force proxy reconfiguration
-}
-
+// Create and export a singleton instance
 module.exports = new ClashApiService();
