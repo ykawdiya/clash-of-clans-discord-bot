@@ -4,21 +4,29 @@ const clanSchema = new mongoose.Schema({
     // Clan tag from CoC
     clanTag: {
         type: String,
-        required: true,
+        required: [true, 'Clan tag is required'],
         unique: true,
-        trim: true
+        trim: true,
+        validate: {
+            validator: function(v) {
+                // Validate tag format (starts with # and contains valid characters)
+                return /^#[0289PYLQGRJCUV]+$/i.test(v);
+            },
+            message: props => `${props.value} is not a valid clan tag!`
+        }
     },
 
     // Clan name
     name: {
         type: String,
-        required: true
+        required: [true, 'Clan name is required']
     },
 
     // Discord server ID where this clan is registered
     guildId: {
         type: String,
-        required: true
+        required: [true, 'Guild ID is required'],
+        index: true
     },
 
     // Clan description/information
@@ -28,18 +36,42 @@ const clanSchema = new mongoose.Schema({
     settings: {
         // Channels for different notifications
         channels: {
-            warAnnouncements: String,
-            raidWeekend: String,
-            clanGames: String,
-            general: String
+            warAnnouncements: {
+                type: String,
+                default: null
+            },
+            raidWeekend: {
+                type: String,
+                default: null
+            },
+            clanGames: {
+                type: String,
+                default: null
+            },
+            general: {
+                type: String,
+                default: null
+            }
         },
 
         // Role IDs for mentions
         roles: {
-            everyone: String,
-            elder: String,
-            coLeader: String,
-            leader: String
+            everyone: {
+                type: String,
+                default: null
+            },
+            elder: {
+                type: String,
+                default: null
+            },
+            coLeader: {
+                type: String,
+                default: null
+            },
+            leader: {
+                type: String,
+                default: null
+            }
         },
 
         // Automatic notifications
@@ -101,5 +133,17 @@ clanSchema.pre('save', function(next) {
     this.updatedAt = Date.now();
     next();
 });
+
+// Add a pre-update hook for findOneAndUpdate
+clanSchema.pre('findOneAndUpdate', function(next) {
+    this.set({ updatedAt: Date.now() });
+    next();
+});
+
+// Add an index for quicker lookups by guild ID
+clanSchema.index({ guildId: 1 });
+
+// Add a compound index for efficient queries
+clanSchema.index({ clanTag: 1, guildId: 1 });
 
 module.exports = mongoose.model('Clan', clanSchema);

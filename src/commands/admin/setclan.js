@@ -1,8 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits, ChannelType } = require('discord.js');
+const mongoose = require('mongoose');
 const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
+const databaseService = require('../../services/databaseService');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -22,10 +24,25 @@ module.exports = {
                 .setRequired(false))
         .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
+    // Flag to indicate this command requires database access
+    requiresDatabase: true,
+
     async execute(interaction) {
         await interaction.deferReply();
 
         try {
+            // First ensure we have a database connection
+            if (!databaseService.checkConnection()) {
+                console.log('Database connection not established, attempting to connect...');
+                try {
+                    await databaseService.connect();
+                    console.log('Successfully connected to database');
+                } catch (connErr) {
+                    console.error('Failed to establish database connection:', connErr);
+                    return interaction.editReply('Unable to connect to the database. Please try again later.');
+                }
+            }
+
             // Get clan tag from options and validate it
             let clanTag = interaction.options.getString('tag');
 
@@ -81,8 +98,20 @@ module.exports = {
                 return interaction.editReply('An error occurred while fetching clan data. Please try again later.');
             }
 
+            // Double check MongoDB connection state before database operations
+            if (mongoose.connection.readyState !== 1) {
+                console.error('Database connection is not in connected state before operation. Current state:', mongoose.connection.readyState);
+                return interaction.editReply('Database connection issue. Please try again later.');
+            }
+
             // Create or update clan document with error handling
             try {
+                console.log('Attempting to save clan to database:', {
+                    clanTag,
+                    name: clanData.name,
+                    guildId: interaction.guild.id
+                });
+
                 const clan = await Clan.findOneAndUpdate(
                     { clanTag },
                     {
@@ -98,8 +127,14 @@ module.exports = {
                         },
                         updatedAt: Date.now()
                     },
-                    { upsert: true, new: true }
+                    {
+                        upsert: true,
+                        new: true,
+                        runValidators: true // This ensures validation runs on update too
+                    }
                 );
+
+                console.log('Clan saved successfully:', clan);
 
                 // Create success embed
                 const embed = new EmbedBuilder()
@@ -122,9 +157,27 @@ module.exports = {
             } catch (dbError) {
                 console.error('Database error in setclan command:', dbError);
 
-                // Use the centralized database error handler
-                const errorMessage = ErrorHandler.handleDatabaseError(dbError);
-                return interaction.editReply(`Failed to set up clan: ${errorMessage}`);
+                // Log more detailed information about the error
+                console.error('Error details:', {
+                    name: dbError.name,
+                    code: dbError.code,
+                    keyValue: dbError.keyValue,
+                    message: dbError.message,
+                    stack: dbError.stack
+                });
+
+                // Add more specific error messages based on common database issues
+                let userMessage = `Failed to set up clan: ${ErrorHandler.handleDatabaseError(dbError)}`;
+
+                if (dbError.name === 'MongooseServerSelectionError') {
+                    userMessage = 'Could not connect to the database server. Please check your database connection and try again.';
+                } else if (dbError.name === 'ValidationError') {
+                    userMessage = 'The clan data failed validation. Please check the clan information and try again.';
+                } else if (dbError.code === 11000) {
+                    userMessage = 'This clan is already registered with another Discord server.';
+                }
+
+                return interaction.editReply(userMessage);
             }
         } catch (error) {
             console.error('Unexpected error in setclan command:', error);
