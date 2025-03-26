@@ -358,3 +358,13 @@ function formatTimeRemaining(endTime) {
 
     return `${hours}h ${minutes}m`;
 }
+
+if (error.response && error.response.status === 403) {
+    console.error('API access denied. Full error:', error);
+    console.error('Request URL:', error.config?.url);
+    console.error('Clan tag being used:', clanTag);
+    return interaction.editReply(
+        "API access denied. This usually means your server's IP address isn't whitelisted in the Clash of Clans API. " +
+        "If this only happens with the linked clan, try using the clan tag directly: `/war tag:" + clanTag + "`"
+    );
+}
