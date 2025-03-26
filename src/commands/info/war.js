@@ -1,6 +1,3 @@
-// At start of execute function:
-console.log(`War command called for clan tag: ${clanTag || 'None provided (using server default)'}`);
-
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
