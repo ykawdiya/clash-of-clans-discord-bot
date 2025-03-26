@@ -1,3 +1,6 @@
+// At start of execute function:
+console.log(`War command called for clan tag: ${clanTag || 'None provided (using server default)'}`);
+
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
@@ -38,6 +41,8 @@ module.exports = {
             // Check if tag option is provided
             let clanTag = interaction.options.getString('tag');
 
+            console.log(`War command called for clan tag: ${clanTag || 'None provided (using server default)'}`);
+
             // If no tag provided, check if server has a linked clan
             if (!clanTag) {
                 const linkedClan = await Clan.findOne({ guildId: interaction.guild.id });
@@ -47,6 +52,7 @@ module.exports = {
                 }
 
                 clanTag = linkedClan.clanTag;
+                console.log(`Using linked clan tag: ${clanTag}`);
             } else {
                 // Validate the provided tag
                 const validation = validateTag(clanTag);
@@ -57,19 +63,50 @@ module.exports = {
             }
 
             // Get current war data
+            console.log(`Fetching war data for clan: ${clanTag}`);
             const warData = await clashApiService.getCurrentWar(clanTag);
 
+            // Check if war data is valid
+            if (!warData) {
+                return interaction.editReply("Could not retrieve war data. The clan might not be in a war or there might be an API issue.");
+            }
+
+            console.log(`War state: ${warData.state || 'unknown'}`);
+
             // Get clan data for clan names and badges
+            console.log(`Fetching clan data for: ${clanTag}`);
             const clanData = await clashApiService.getClan(clanTag);
 
             // Process war data
             return await processWarData(interaction, warData, clanData);
-
-        } catch (error) {
+        }
+        catch (error) {
             console.error('Error in war command:', error);
 
-            // Return a user-friendly error response
-            return interaction.editReply(ErrorHandler.formatError(error, 'war data'));
+            // Log more detailed info about the error
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                response: error.response ? {
+                    status: error.response.status,
+                    data: error.response.data
+                } : null
+            });
+
+            // Check for specific error types
+            if (error.response && error.response.status === 404) {
+                return interaction.editReply("Clan not found. Please check the tag and try again.");
+            } else if (error.response && error.response.status === 403) {
+                return interaction.editReply("API access denied. Please check your API key and IP whitelist settings.");
+            } else if (error.message && error.message.includes('timeout')) {
+                return interaction.editReply("Request timed out. The Clash of Clans API might be experiencing issues.");
+            }
+
+            // Return a more informative error to the user
+            return interaction.editReply(
+                `Error fetching war data: ${error.message}. ` +
+                `Please check if the clan tag is correct and the clan is in an active war.`
+            );
         }
     },
 };
@@ -81,143 +118,195 @@ module.exports = {
  * @param {Object} clanData
  */
 async function processWarData(interaction, warData, clanData) {
-    // Check war state
-    if (warData.state === 'notInWar') {
+    try {
+        // Check war state
+        if (!warData || warData.state === 'notInWar') {
+            const embed = new EmbedBuilder()
+                .setTitle(`${clanData?.name || 'This clan'} is not currently in a war`)
+                .setColor('#3498db')
+                .setThumbnail(clanData?.badgeUrls?.medium || null)
+                .setDescription('The clan is not participating in a clan war right now.')
+                .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
+                .setTimestamp();
+
+            return interaction.editReply({ embeds: [embed] });
+        }
+
+        // If in war, process the data with safe fallbacks
+        const clan = warData.clan || {};
+        const opponent = warData.opponent || {};
+
+        // Check if essential data is available
+        if (!clan.name || !opponent.name) {
+            console.error('Missing essential war data:', { clan, opponent });
+            return interaction.editReply("Invalid war data received. The clan might be in an unusual war state.");
+        }
+
+        // Safely get members count (ensure it's a number)
+        let clanMembers = 0;
+        if (typeof clan.members === 'number') {
+            clanMembers = clan.members;
+        } else if (clan.members && Array.isArray(clan.members)) {
+            clanMembers = clan.members.length;
+        } else if (warData.teamSize) {
+            clanMembers = warData.teamSize;
+        }
+
+        let opponentMembers = 0;
+        if (typeof opponent.members === 'number') {
+            opponentMembers = opponent.members;
+        } else if (opponent.members && Array.isArray(opponent.members)) {
+            opponentMembers = opponent.members.length;
+        } else if (warData.teamSize) {
+            opponentMembers = warData.teamSize;
+        }
+
+        // Safely calculate attacks
+        const clanTotalAttacks = clanMembers * 2;
+        const opponentTotalAttacks = opponentMembers * 2;
+
+        // Count actual attacks if available
+        let clanAttacks = 0;
+        if (typeof clan.attacks === 'number') {
+            clanAttacks = clan.attacks;
+        } else if (clan.attacks && Array.isArray(clan.attacks)) {
+            clanAttacks = clan.attacks.length;
+        } else if (Array.isArray(clan.members)) {
+            // Count attacks from members if available
+            clanAttacks = clan.members.reduce((total, member) => {
+                return total + (Array.isArray(member.attacks) ? member.attacks.length : 0);
+            }, 0);
+        }
+
+        let opponentAttacks = 0;
+        if (typeof opponent.attacks === 'number') {
+            opponentAttacks = opponent.attacks;
+        } else if (opponent.attacks && Array.isArray(opponent.attacks)) {
+            opponentAttacks = opponent.attacks.length;
+        } else if (Array.isArray(opponent.members)) {
+            // Count attacks from members if available
+            opponentAttacks = opponent.members.reduce((total, member) => {
+                return total + (Array.isArray(member.attacks) ? member.attacks.length : 0);
+            }, 0);
+        }
+
+        // Determine war status and color
+        let status, color;
+        switch (warData.state) {
+            case 'preparation':
+                status = 'Preparation Day';
+                color = '#f1c40f'; // Yellow
+                break;
+            case 'inWar':
+                status = 'Battle Day';
+                color = '#e67e22'; // Orange
+                break;
+            case 'warEnded':
+                status = 'War Ended';
+                color = '#2ecc71'; // Green
+                break;
+            default:
+                status = warData.state || 'Unknown';
+                color = '#3498db'; // Blue
+        }
+
+        // Calculate time remaining if applicable
+        let timeRemaining = '';
+        if (warData.state === 'preparation' && warData.startTime) {
+            try {
+                const endTime = new Date(warData.startTime);
+                if (!isNaN(endTime.getTime())) { // Ensure valid date
+                    timeRemaining = formatTimeRemaining(endTime);
+                }
+            } catch (e) {
+                console.error('Error parsing preparation end time:', e);
+            }
+        } else if (warData.state === 'inWar' && warData.endTime) {
+            try {
+                const endTime = new Date(warData.endTime);
+                if (!isNaN(endTime.getTime())) { // Ensure valid date
+                    timeRemaining = formatTimeRemaining(endTime);
+                }
+            } catch (e) {
+                console.error('Error parsing war end time:', e);
+            }
+        }
+
+        // Create the embed
         const embed = new EmbedBuilder()
-            .setTitle(`${clanData.name} is not currently in a war`)
-            .setColor('#3498db')
-            .setThumbnail(clanData.badgeUrls.medium)
-            .setDescription('The clan is not participating in a clan war right now.')
+            .setTitle(`${clan.name} vs ${opponent.name}`)
+            .setColor(color)
+            .setDescription(`**Status:** ${status}${timeRemaining ? `\n**Time Remaining:** ${timeRemaining}` : ''}`)
+            .addFields(
+                {
+                    name: clan.name,
+                    value: `Level: ${clan.clanLevel || '?'}\nAttacks: ${clanAttacks}/${clanTotalAttacks}\nStars: ${clan.stars || 0}\nDestruction: ${((clan.destructionPercentage || 0).toFixed(2))}%`,
+                    inline: true
+                },
+                {
+                    name: opponent.name,
+                    value: `Level: ${opponent.clanLevel || '?'}\nAttacks: ${opponentAttacks}/${opponentTotalAttacks}\nStars: ${opponent.stars || 0}\nDestruction: ${((opponent.destructionPercentage || 0).toFixed(2))}%`,
+                    inline: true
+                }
+            )
             .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
             .setTimestamp();
 
-        return interaction.editReply({ embeds: [embed] });
-    }
-
-    // If in war, process the data
-    const clan = warData.clan;
-    const opponent = warData.opponent;
-
-    // Safely get members count (ensure it's a number)
-    const clanMembers = typeof clan.members === 'number' ? clan.members :
-        (clan.members && typeof clan.members.length === 'number' ? clan.members.length : 0);
-    const opponentMembers = typeof opponent.members === 'number' ? opponent.members :
-        (opponent.members && typeof opponent.members.length === 'number' ? opponent.members.length : 0);
-
-    // Safely calculate attacks
-    const clanTotalAttacks = clanMembers * 2;
-    const opponentTotalAttacks = opponentMembers * 2;
-    const clanAttacks = typeof clan.attacks === 'number' ? clan.attacks : 0;
-    const opponentAttacks = typeof opponent.attacks === 'number' ? opponent.attacks : 0;
-
-    // Determine war status and color
-    let status, color;
-    switch (warData.state) {
-        case 'preparation':
-            status = 'Preparation Day';
-            color = '#f1c40f'; // Yellow
-            break;
-        case 'inWar':
-            status = 'Battle Day';
-            color = '#e67e22'; // Orange
-            break;
-        case 'warEnded':
-            status = 'War Ended';
-            color = '#2ecc71'; // Green
-            break;
-        default:
-            status = warData.state;
-            color = '#3498db'; // Blue
-    }
-
-    // Calculate time remaining if applicable
-    let timeRemaining = '';
-    if (warData.state === 'preparation' && warData.startTime) {
-        try {
-            const endTime = new Date(warData.startTime);
-            if (!isNaN(endTime.getTime())) { // Ensure valid date
-                timeRemaining = formatTimeRemaining(endTime);
-            }
-        } catch (e) {
-            console.error('Error parsing preparation end time:', e);
+        // Add thumbnail if available
+        if (clanData?.badgeUrls?.medium) {
+            embed.setThumbnail(clanData.badgeUrls.medium);
         }
-    } else if (warData.state === 'inWar' && warData.endTime) {
-        try {
-            const endTime = new Date(warData.endTime);
-            if (!isNaN(endTime.getTime())) { // Ensure valid date
-                timeRemaining = formatTimeRemaining(endTime);
-            }
-        } catch (e) {
-            console.error('Error parsing war end time:', e);
-        }
-    }
 
-    // Create the embed
-    const embed = new EmbedBuilder()
-        .setTitle(`${clan.name} vs ${opponent.name}`)
-        .setColor(color)
-        .setDescription(`**Status:** ${status}${timeRemaining ? `\n**Time Remaining:** ${timeRemaining}` : ''}`)
-        .addFields(
-            {
-                name: clan.name,
-                value: `Level: ${clan.clanLevel || '?'}\nAttacks: ${clanAttacks}/${clanTotalAttacks}\nStars: ${clan.stars || 0}\nDestruction: ${(clan.destructionPercentage || 0).toFixed(2)}%`,
-                inline: true
-            },
-            {
-                name: opponent.name,
-                value: `Level: ${opponent.clanLevel || '?'}\nAttacks: ${opponentAttacks}/${opponentTotalAttacks}\nStars: ${opponent.stars || 0}\nDestruction: ${(opponent.destructionPercentage || 0).toFixed(2)}%`,
-                inline: true
-            }
-        )
-        .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
-        .setTimestamp();
-
-    // Add thumbnail if available
-    if (clanData.badgeUrls && clanData.badgeUrls.medium) {
-        embed.setThumbnail(clanData.badgeUrls.medium);
-    }
-
-    // Add team size
-    embed.addFields({
-        name: 'War Size',
-        value: `${clanMembers}v${opponentMembers}`,
-        inline: false
-    });
-
-    // Add attacks remaining if in war
-    if (warData.state === 'inWar') {
-        const clanAttacksRemaining = clanTotalAttacks - clanAttacks;
-        const opponentAttacksRemaining = opponentTotalAttacks - opponentAttacks;
-
+        // Add team size
         embed.addFields({
-            name: 'Attacks Remaining',
-            value: `${clan.name}: ${clanAttacksRemaining}\n${opponent.name}: ${opponentAttacksRemaining}`,
+            name: 'War Size',
+            value: `${clanMembers}v${opponentMembers}`,
             inline: false
         });
-    }
 
-    // Add war result if ended
-    if (warData.state === 'warEnded') {
-        let result;
-        if (clan.stars > opponent.stars) {
-            result = `${clan.name} Won! 🏆`;
-        } else if (clan.stars < opponent.stars) {
-            result = `${opponent.name} Won! 😓`;
-        } else {
-            // If stars are equal, compare destruction percentage
-            if (clan.destructionPercentage > opponent.destructionPercentage) {
-                result = `${clan.name} Won! 🏆 (by destruction percentage)`;
-            } else if (clan.destructionPercentage < opponent.destructionPercentage) {
-                result = `${opponent.name} Won! 😓 (by destruction percentage)`;
-            } else {
-                result = "It's a Perfect Tie! 🤝";
-            }
+        // Add attacks remaining if in war
+        if (warData.state === 'inWar') {
+            const clanAttacksRemaining = clanTotalAttacks - clanAttacks;
+            const opponentAttacksRemaining = opponentTotalAttacks - opponentAttacks;
+
+            embed.addFields({
+                name: 'Attacks Remaining',
+                value: `${clan.name}: ${clanAttacksRemaining}\n${opponent.name}: ${opponentAttacksRemaining}`,
+                inline: false
+            });
         }
 
-        embed.addFields({ name: 'War Result', value: result, inline: false });
-    }
+        // Add war result if ended
+        if (warData.state === 'warEnded') {
+            let result;
+            const clanStars = clan.stars || 0;
+            const opponentStars = opponent.stars || 0;
+            const clanDestruction = clan.destructionPercentage || 0;
+            const opponentDestruction = opponent.destructionPercentage || 0;
 
-    return interaction.editReply({ embeds: [embed] });
+            if (clanStars > opponentStars) {
+                result = `${clan.name} Won! 🏆`;
+            } else if (clanStars < opponentStars) {
+                result = `${opponent.name} Won! 😓`;
+            } else {
+                // If stars are equal, compare destruction percentage
+                if (clanDestruction > opponentDestruction) {
+                    result = `${clan.name} Won! 🏆 (by destruction percentage)`;
+                } else if (clanDestruction < opponentDestruction) {
+                    result = `${opponent.name} Won! 😓 (by destruction percentage)`;
+                } else {
+                    result = "It's a Perfect Tie! 🤝";
+                }
+            }
+
+            embed.addFields({ name: 'War Result', value: result, inline: false });
+        }
+
+        return interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+        console.error('Error in processWarData:', error);
+        return interaction.editReply("An error occurred while processing war data. Please try again later.");
+    }
 }
 
 /**
