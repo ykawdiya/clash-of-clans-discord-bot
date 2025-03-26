@@ -42,14 +42,46 @@ module.exports = {
 
             // If no tag provided, check if server has a linked clan
             if (!clanTag) {
-                const linkedClan = await Clan.findOne({ guildId: interaction.guild.id });
+                console.log(`No tag provided, looking up linked clan for guild: ${interaction.guild.id}`);
+                try {
+                    const linkedClan = await Clan.findOne({ guildId: interaction.guild.id });
 
-                if (!linkedClan) {
-                    return interaction.editReply("Please provide a clan tag or link a clan to this server using `/setclan` command.");
+                    console.log(`Database query result:`, linkedClan ?
+                        {
+                            found: true,
+                            clanTag: linkedClan.clanTag,
+                            name: linkedClan.name
+                        } :
+                        {found: false}
+                    );
+
+                    if (!linkedClan) {
+                        return interaction.editReply("Please provide a clan tag or link a clan to this server using `/setclan` command.");
+                    }
+
+                    clanTag = linkedClan.clanTag;
+                    console.log(`Using linked clan tag: ${clanTag}`);
+
+                    // Make sure the tag has # prefix
+                    if (!clanTag.startsWith('#')) {
+                        clanTag = '#' + clanTag;
+                        console.log(`Added # to clan tag: ${clanTag}`);
+                    }
+
+                    // Validate the tag format
+                    const validation = validateTag(clanTag);
+                    if (!validation.valid) {
+                        console.error(`Invalid clan tag format in database: ${clanTag}`);
+                        return interaction.editReply(`The clan tag stored for this server is invalid: ${validation.message}`);
+                    }
+
+                    // Use the formatted tag
+                    clanTag = validation.formattedTag;
+                    console.log(`Using formatted clan tag: ${clanTag}`);
+                } catch (dbError) {
+                    console.error('Database error when finding linked clan:', dbError);
+                    return interaction.editReply("Error retrieving the server's linked clan. Please provide a clan tag directly or try again later.");
                 }
-
-                clanTag = linkedClan.clanTag;
-                console.log(`Using linked clan tag: ${clanTag}`);
             } else {
                 // Validate the provided tag
                 const validation = validateTag(clanTag);
