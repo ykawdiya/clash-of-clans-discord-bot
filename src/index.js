@@ -307,16 +307,8 @@ const init = async () => {
             console.error('Error loading events, creating minimal events handler', error);
         }
 
-        // Add a single ready event that will register commands
-        client.once('ready', async () => {
-            console.log(`Bot is online! Logged in as ${client.user.tag}`);
-            client.user.setActivity('Clash of Clans', { type: ActivityType.Playing });
-
-            // Register commands manually after bot is ready
-            await manuallyRegisterCommands();
-
-            console.log('Bot initialization complete');
-        });
+        // REMOVED: The duplicate ready event handler
+        // Now we're only using the one in src/events/ready.js that will be loaded by loadEvents()
 
         console.log('Connecting to Discord...');
         await client.login(process.env.DISCORD_TOKEN);
