@@ -84,22 +84,36 @@ async function registerCommands(clientId, guildId = null) {
         console.log(`👤 Client ID: ${clientId}`);
         console.log(`🏠 Guild ID: ${guildId || 'Global registration'}`);
 
-        let data;
+        // IMPORTANT: Clear existing commands first
+        console.log("Clearing existing commands...");
+        if (guildId) {
+            await rest.put(
+                Routes.applicationGuildCommands(clientId, guildId),
+                { body: [] }
+            );
+        } else {
+            await rest.put(
+                Routes.applicationCommands(clientId),
+                { body: [] }
+            );
+        }
+        console.log("Existing commands cleared successfully");
 
+        let data;
         if (guildId) {
             // Guild commands - for testing, updates instantly
             data = await rest.put(
                 Routes.applicationGuildCommands(clientId, guildId),
                 { body: commands },
             );
-            console.log(`✅ Successfully reloaded ${data.length} guild (/) commands`);
+            console.log(`✅ Successfully registered ${data.length} guild (/) commands`);
         } else {
             // Global commands - for production, can take up to an hour to update
             data = await rest.put(
                 Routes.applicationCommands(clientId),
                 { body: commands },
             );
-            console.log(`✅ Successfully reloaded ${data.length} global (/) commands`);
+            console.log(`✅ Successfully registered ${data.length} global (/) commands`);
         }
 
         return data;
