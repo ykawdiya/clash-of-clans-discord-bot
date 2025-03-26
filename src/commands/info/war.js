@@ -93,21 +93,64 @@ module.exports = {
 
             // Get current war data
             console.log(`Fetching war data for clan: ${clanTag}`);
-            const warData = await clashApiService.getCurrentWar(clanTag);
+            try {
+                const warData = await clashApiService.getCurrentWar(clanTag);
 
-            // Check if war data is valid
-            if (!warData) {
-                return interaction.editReply("Could not retrieve war data. The clan might not be in a war or there might be an API issue.");
+                // Check if war data is valid
+                if (!warData) {
+                    return interaction.editReply("Could not retrieve war data. The clan might not be in a war or there might be an API issue.");
+                }
+
+                console.log(`War state: ${warData.state || 'unknown'}`);
+
+                // Get clan data for clan names and badges
+                console.log(`Fetching clan data for: ${clanTag}`);
+                const clanData = await clashApiService.getClan(clanTag);
+
+                // Process war data
+                return await processWarData(interaction, warData, clanData);
+            } catch (apiError) {
+                // Special handling for API errors
+                if (apiError.code === 'ACCESS_DENIED' || (apiError.response && apiError.response.status === 403)) {
+                    console.error('API access denied error:', apiError);
+
+                    // Check for IP whitelist issue in error message
+                    let ipAddress = "your server's IP";
+                    if (apiError.details && apiError.details.responseData && apiError.details.responseData.message) {
+                        const ipMatch = apiError.details.responseData.message.match(/IP ([0-9.]+)/);
+                        if (ipMatch && ipMatch[1]) {
+                            ipAddress = ipMatch[1];
+                        }
+                    }
+
+                    return interaction.editReply({
+                        embeds: [
+                            new EmbedBuilder()
+                                .setTitle("⚠️ Clash of Clans API Access Denied")
+                                .setColor(0xED4245)
+                                .setDescription(`The Clash of Clans API rejected our request because ${ipAddress} is not whitelisted.`)
+                                .addFields(
+                                    {
+                                        name: "How to Fix This",
+                                        value: "1. Go to [developer.clashofclans.com](https://developer.clashofclans.com)\n" +
+                                            "2. Log in and go to 'My Account'\n" +
+                                            "3. Add IP address `" + ipAddress + "` to your whitelist\n" +
+                                            "4. Wait a few minutes for changes to take effect"
+                                    },
+                                    {
+                                        name: "Temporary Workaround",
+                                        value: "While you wait for the whitelist to update, you can try using a different CoC API key that already has this IP whitelisted."
+                                    }
+                                )
+                                .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
+                                .setTimestamp()
+                        ]
+                    });
+                }
+
+                // Rethrow for general error handling below
+                throw apiError;
             }
-
-            console.log(`War state: ${warData.state || 'unknown'}`);
-
-            // Get clan data for clan names and badges
-            console.log(`Fetching clan data for: ${clanTag}`);
-            const clanData = await clashApiService.getClan(clanTag);
-
-            // Process war data
-            return await processWarData(interaction, warData, clanData);
         }
         catch (error) {
             console.error('Error in war command:', error);
@@ -125,8 +168,6 @@ module.exports = {
             // Check for specific error types
             if (error.response && error.response.status === 404) {
                 return interaction.editReply("Clan not found. Please check the tag and try again.");
-            } else if (error.response && error.response.status === 403) {
-                return interaction.editReply("API access denied. Please check your API key and IP whitelist settings.");
             } else if (error.message && error.message.includes('timeout')) {
                 return interaction.editReply("Request timed out. The Clash of Clans API might be experiencing issues.");
             }
