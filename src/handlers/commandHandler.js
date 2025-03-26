@@ -39,6 +39,9 @@ function loadCommands() {
             for (const file of files) {
                 const filePath = path.join(folderPath, file);
                 try {
+                    // Clear require cache to ensure fresh command data
+                    delete require.cache[require.resolve(filePath)];
+
                     const command = require(filePath);
 
                     // Check if command has required properties
@@ -74,10 +77,13 @@ async function registerCommands(clientId, guildId = null) {
         return [];
     }
 
-    const rest = new REST().setToken(process.env.DISCORD_TOKEN);
+    // Explicitly set the REST version to ensure compatibility
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
     try {
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
+        console.log(`Client ID: ${clientId}`);
+        console.log(`Guild ID: ${guildId || 'Global registration'}`);
 
         let data;
 
@@ -100,6 +106,22 @@ async function registerCommands(clientId, guildId = null) {
         return data;
     } catch (error) {
         console.error('Error registering commands:', error);
+        console.error('Error details:', error.message);
+
+        // Log more detailed error information
+        if (error.rawError) {
+            console.error('Discord API error details:', JSON.stringify(error.rawError, null, 2));
+        }
+
+        // Check for common errors
+        if (error.message.includes('401')) {
+            console.error('Authentication failed. Check your Discord token.');
+        } else if (error.message.includes('403')) {
+            console.error('Authorization failed. Make sure your bot has the applications.commands scope.');
+        } else if (error.message.includes('missing access')) {
+            console.error('Missing access. Your bot may not have the necessary permissions.');
+        }
+
         return [];
     }
 }

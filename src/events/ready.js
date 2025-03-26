@@ -1,3 +1,4 @@
+// src/events/ready.js
 const { Events } = require('discord.js');
 const { registerCommands } = require('../handlers/commandHandler');
 
@@ -9,6 +10,7 @@ module.exports = {
             console.log(`Ready! Logged in as ${client.user.tag}`);
 
             // Register slash commands
+            console.log('Registering slash commands...');
             await registerCommands(client.user.id)
                 .catch(error => console.error('Failed to register commands:', error));
 

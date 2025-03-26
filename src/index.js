@@ -1,5 +1,5 @@
 // Import required packages
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -181,6 +181,86 @@ module.exports = {
     }
 };
 
+// New function to manually register commands with Discord API
+async function manuallyRegisterCommands() {
+    try {
+        console.log('Attempting to manually register commands with Discord API...');
+
+        // Load all commands
+        const commands = [];
+        const commandsPath = path.join(__dirname, 'commands');
+
+        if (!fs.existsSync(commandsPath)) {
+            console.error('Commands directory not found!');
+            return;
+        }
+
+        const commandFolders = fs.readdirSync(commandsPath);
+
+        for (const folder of commandFolders) {
+            const folderPath = path.join(commandsPath, folder);
+
+            // Skip if not a directory
+            if (!fs.statSync(folderPath).isDirectory()) continue;
+
+            const commandFiles = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
+
+            for (const file of commandFiles) {
+                const filePath = path.join(folderPath, file);
+                try {
+                    // Clear require cache
+                    delete require.cache[require.resolve(filePath)];
+
+                    const command = require(filePath);
+
+                    if ('data' in command && 'execute' in command) {
+                        commands.push(command.data.toJSON());
+                        console.log(`Added command to registration: ${command.data.name}`);
+                    } else {
+                        console.warn(`Command at ${filePath} is missing required properties`);
+                    }
+                } catch (error) {
+                    console.error(`Error loading command from ${filePath}:`, error);
+                }
+            }
+        }
+
+        if (commands.length === 0) {
+            console.error('No commands found to register!');
+            return;
+        }
+
+        // Create REST instance
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+        console.log(`Attempting to register ${commands.length} application commands...`);
+
+        // Register globally (this takes up to an hour to propagate)
+        const data = await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands }
+        );
+
+        console.log(`Successfully registered ${data.length} application commands globally`);
+
+        // For faster testing, you can uncomment this to register to a specific guild
+        // Replace YOUR_GUILD_ID with an actual Discord server ID
+        /*
+        const testGuildId = 'YOUR_GUILD_ID';
+        const guildData = await rest.put(
+            Routes.applicationGuildCommands(client.user.id, testGuildId),
+            { body: commands }
+        );
+        console.log(`Successfully registered ${guildData.length} commands to test guild`);
+        */
+    } catch (error) {
+        console.error('Error registering commands manually:', error);
+        if (error.rawError) {
+            console.error('Raw Discord API error:', JSON.stringify(error.rawError, null, 2));
+        }
+    }
+}
+
 const init = async () => {
     try {
         console.log('Starting bot initialization...');
@@ -213,11 +293,18 @@ const init = async () => {
             loadEvents(client);
         } catch (error) {
             console.error('Error loading events, creating minimal events handler', error);
-            client.once('ready', async () => {
-                console.log(`Ready! Logged in as ${client.user.tag}`);
-                client.user.setActivity('Clash of Clans', { type: 0 });
-            });
         }
+
+        // Add a single ready event that will register commands
+        client.once('ready', async () => {
+            console.log(`Bot is online! Logged in as ${client.user.tag}`);
+            client.user.setActivity('Clash of Clans', { type: 0 });
+
+            // Register commands manually after bot is ready
+            await manuallyRegisterCommands();
+
+            console.log('Bot initialization complete');
+        });
 
         console.log('Connecting to Discord...');
         await client.login(process.env.DISCORD_TOKEN);
@@ -386,21 +473,7 @@ process.on('SIGTERM', async () => {
     }
 });
 
-client.on('ready', () => {
-    console.log(`Bot is online! Logged in as ${client.user.tag}`);
-});
-
-client.on('error', error => {
-    console.error('Discord client error:', error);
-});
-
-client.on('disconnect', event => {
-    console.error('Bot disconnected from Discord:', event);
-});
-
-client.on('reconnecting', () => {
-    console.log('Bot is reconnecting to Discord...');
-});
+// Removed duplicate event listeners to prevent conflicts
 
 // Start the bot
 init();
