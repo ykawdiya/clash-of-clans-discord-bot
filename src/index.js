@@ -473,7 +473,11 @@ process.on('SIGTERM', async () => {
     }
 });
 
-// Removed duplicate event listeners to prevent conflicts
+// Load commands
+const { commandFiles } = loadCommands();
+commandFiles.forEach((command, name) => {
+    client.commands.set(name, command);
+});
 
 // Start the bot
 init();
