@@ -61,3 +61,11 @@ module.exports = {
         }
     },
 };
+
+client.on('error', (error) => {
+    console.error('Discord client error:', error);
+});
+
+client.on('debug', (debugInfo) => {
+    console.log('Discord debug:', debugInfo);
+});
