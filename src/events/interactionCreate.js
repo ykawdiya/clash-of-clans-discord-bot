@@ -21,64 +21,43 @@ module.exports = {
     },
 
     async execute(client, interaction) {
+        // Skip if not a command interaction
+        if (!interaction.isChatInputCommand()) return;
+
         // Start a timer to track execution time
         const startTime = Date.now();
 
-        // Log all details about the interaction
-        console.log('--- Interaction Received ---');
-        console.log(`Type: ${interaction.type}`);
-        console.log(`Is Chat Input Command: ${interaction.isChatInputCommand()}`);
-
-        if (interaction.isChatInputCommand()) {
-            console.log(`Command Name: ${interaction.commandName}`);
-        }
-
+        // Log key interaction details
+        console.log('--- Command Interaction Received ---');
+        console.log(`Command Name: ${interaction.commandName}`);
         console.log(`User: ${interaction.user.tag} (${interaction.user.id})`);
         console.log(`Guild: ${interaction.guild ? interaction.guild.name : 'DM'}`);
-
-        if (!interaction.isChatInputCommand()) {
-            console.log('Not a chat input command, ignoring.');
-            return;
-        }
 
         const command = client.commands.get(interaction.commandName);
 
         if (!command) {
             console.error(`❌ No command matching ${interaction.commandName} was found.`);
-
-            // Log all available commands in the client
-            console.log('Available Commands:');
-            client.commands.forEach((cmd, name) => {
-                console.log(`- ${name}`);
-            });
+            console.log('Available Commands:', Array.from(client.commands.keys()).join(', '));
 
             return interaction.reply({
-                content: `Command not found. Available commands: ${Array.from(client.commands.keys()).join(', ')}`,
+                content: `Command not found. Please try one of these: ${Array.from(client.commands.keys()).join(', ')}`,
                 ephemeral: true
             }).catch(error => {
                 console.error('Failed to reply to unknown command:', error);
             });
         }
 
-        // Check if too much time has elapsed already (over 1.5 seconds)
-        if (Date.now() - startTime > 1500) {
-            console.warn(`⚠️ Command preparation took too long: ${Date.now() - startTime}ms`);
-        }
-
         try {
             console.log(`Executing command: ${interaction.commandName}`);
 
-            // For safety, try to defer right away to avoid timeouts
-            // Only if the command doesn't already handle deferring
-            if (!command.manualDeferring) {
+            // Only auto-defer if the command doesn't handle it and hasn't been replied to
+            if (!command.manualDeferring && !interaction.replied && !interaction.deferred) {
                 try {
-                    await interaction.deferReply().catch(err => {
-                        console.error('Failed to auto-defer reply:', err);
-                        // If deferring fails, we can still continue with the command
-                    });
+                    await interaction.deferReply();
                     console.log(`Auto-deferred reply for ${interaction.commandName}`);
                 } catch (deferError) {
-                    console.warn(`Could not auto-defer for ${interaction.commandName}, continuing anyway:`, deferError.message);
+                    // Just log and continue if deferring fails
+                    console.warn(`Could not auto-defer for ${interaction.commandName}:`, deferError.message);
                 }
             }
 
@@ -91,20 +70,23 @@ module.exports = {
 
         } catch (error) {
             console.error(`❌ Error executing ${interaction.commandName}:`, error);
+            console.error('Error Stack:', error.stack || 'No stack trace available');
 
-            // More detailed error logging
-            if (error.stack) {
-                console.error('Error Stack:', error.stack);
+            // Provide specific error messages for common issues
+            let userErrorMessage = 'Sorry, an error occurred while executing this command.';
+
+            if (error.message) {
+                if (error.message.includes('database') || error.message.includes('mongo')) {
+                    userErrorMessage = 'Database connection error. Please try again later.';
+                } else if (error.message.includes('API') || error.message.includes('timeout')) {
+                    userErrorMessage = 'The Clash of Clans API is currently unavailable. Please try again later.';
+                } else {
+                    userErrorMessage = `Error: ${error.message}`;
+                }
             }
 
-            // Attempt to provide a helpful error message
-            const errorMessage = error.message || 'An unknown error occurred';
-
-            // Create a user-friendly error message
-            const userErrorMessage = `Sorry, an error occurred while executing this command: ${errorMessage}`;
-
             try {
-                // Handle different interaction states
+                // Respond based on the current interaction state
                 if (interaction.replied) {
                     await interaction.followUp({
                         content: userErrorMessage,

@@ -6,13 +6,21 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 class ClashApiService {
     constructor() {
         this.baseUrl = 'https://api.clashofclans.com/v1';
-        this.retryCount = 2; // Reduced from 3 to 2 for faster response
+        this.retryCount = 2;
         this.proxyConfigured = false;
         this.currentProxyIP = null;
+        this.lastError = null;
+        this.apiStatus = {
+            lastSuccessTime: null,
+            lastErrorTime: null,
+            totalRequests: 0,
+            successfulRequests: 0,
+            failedRequests: 0
+        };
 
         // Default timeout values
-        this.defaultTimeout = 2000; // Reduced from 30000 to 2000ms
-        this.verifyProxyTimeout = 3000; // 3 seconds for proxy verification
+        this.defaultTimeout = 3000; // Increased from 2000 to 3000ms for better reliability
+        this.verifyProxyTimeout = 3000;
 
         // Check proxy configuration on startup
         console.log('Initializing Clash of Clans API service');
@@ -39,6 +47,7 @@ class ClashApiService {
             // Test proxy connection immediately but don't wait for it
             this.verifyProxyIP().catch(err => {
                 console.error('Error verifying proxy IP at startup:', err.message);
+                this.lastError = err;
             });
         } else {
             this.proxyConfigured = false;
@@ -67,6 +76,7 @@ class ClashApiService {
             return this.currentProxyIP;
         } catch (error) {
             console.error('Failed to verify proxy IP:', error.message);
+            this.lastError = error;
             throw error;
         }
     }
@@ -95,6 +105,7 @@ class ClashApiService {
             });
         } catch (error) {
             console.error('Error creating proxy client:', error.message);
+            this.lastError = error;
             throw error;
         }
     }
@@ -103,7 +114,9 @@ class ClashApiService {
         const apiKey = process.env.COC_API_KEY;
 
         if (!apiKey) {
-            throw new Error('Clash of Clans API key is not configured');
+            const error = new Error('Clash of Clans API key is not configured');
+            this.lastError = error;
+            throw error;
         }
 
         // Clean the API key to remove any whitespace
@@ -141,6 +154,7 @@ class ClashApiService {
             } catch (error) {
                 console.error('Error setting up proxy:', error.message);
                 this.proxyConfigured = false;
+                this.lastError = error;
             }
         }
 
@@ -149,7 +163,9 @@ class ClashApiService {
 
     formatTag(tag) {
         if (!tag) {
-            throw new Error('Tag is required');
+            const error = new Error('Tag is required');
+            this.lastError = error;
+            throw error;
         }
 
         // Remove whitespace
@@ -169,6 +185,7 @@ class ClashApiService {
 
     async executeRequest(endpoint, options = {}) {
         console.log(`Executing request to ${endpoint}`);
+        this.apiStatus.totalRequests++;
 
         // Only check proxy IP if needed and not already verified
         if (this.proxyConfigured && !this.currentProxyIP) {
@@ -217,10 +234,18 @@ class ClashApiService {
                 ]);
 
                 console.log(`Request successful: Status ${response.status}`);
+
+                // Update success stats
+                this.apiStatus.lastSuccessTime = new Date();
+                this.apiStatus.successfulRequests++;
+
                 return response.data;
 
             } catch (error) {
                 console.error(`Request failed:`, error.message);
+                this.lastError = error;
+                this.apiStatus.failedRequests++;
+                this.apiStatus.lastErrorTime = new Date();
 
                 // Only log detailed error info if it's available
                 if (error.response) {
@@ -266,14 +291,22 @@ class ClashApiService {
             const message = lastError.response.data?.message || lastError.message;
 
             if (status === 403) {
-                throw new Error(`Access denied. The IP address (${this.currentProxyIP || 'Unknown'}) is not whitelisted in the Clash of Clans API. Status: ${status}`);
+                const error = new Error(`Access denied. The IP address (${this.currentProxyIP || 'Unknown'}) is not whitelisted in the Clash of Clans API. Status: ${status}`);
+                this.lastError = error;
+                throw error;
             } else if (status === 404) {
-                throw new Error(`Not found: ${endpoint}. Status: ${status}`);
+                const error = new Error(`Not found: ${endpoint}. Status: ${status}`);
+                this.lastError = error;
+                throw error;
             } else {
-                throw new Error(`API error: ${message}. Status: ${status}`);
+                const error = new Error(`API error: ${message}. Status: ${status}`);
+                this.lastError = error;
+                throw error;
             }
         } else {
-            throw new Error(`Network error: ${lastError.message}`);
+            const error = new Error(`Network error: ${lastError.message}`);
+            this.lastError = error;
+            throw error;
         }
     }
 
@@ -282,7 +315,7 @@ class ClashApiService {
         try {
             const formattedTag = this.formatTag(clanTag);
             console.log(`Getting clan data for: ${formattedTag}`);
-            return await this.executeRequest(`/clans/${formattedTag}`, { timeout: 2000 });
+            return await this.executeRequest(`/clans/${formattedTag}`, { timeout: 3000 });
         } catch (error) {
             console.error(`Error getting clan data:`, error.message);
             throw error;
@@ -293,7 +326,7 @@ class ClashApiService {
         try {
             const formattedTag = this.formatTag(playerTag);
             console.log(`Getting player data for: ${formattedTag}`);
-            return await this.executeRequest(`/players/${formattedTag}`, { timeout: 2000 });
+            return await this.executeRequest(`/players/${formattedTag}`, { timeout: 3000 });
         } catch (error) {
             console.error(`Error getting player data:`, error.message);
             throw error;
@@ -305,7 +338,7 @@ class ClashApiService {
             console.log(`Searching clans with parameters:`, params);
             return await this.executeRequest('/clans', {
                 params,
-                timeout: 2000
+                timeout: 3000
             });
         } catch (error) {
             console.error(`Error searching clans:`, error.message);
@@ -317,9 +350,16 @@ class ClashApiService {
         try {
             const formattedTag = this.formatTag(clanTag);
             console.log(`Getting current war for clan: ${formattedTag}`);
-            return await this.executeRequest(`/clans/${formattedTag}/currentwar`, { timeout: 2000 });
+            return await this.executeRequest(`/clans/${formattedTag}/currentwar`, { timeout: 3000 });
         } catch (error) {
             console.error(`Error getting current war:`, error.message);
+
+            // Special handling for "not in war" error - this allows /war command to work even if clan isn't in war
+            if (error.message.includes('403') || error.message.includes('404')) {
+                console.log('Clan might not be in war - returning null instead of error');
+                return { state: 'notInWar' };
+            }
+
             throw error;
         }
     }
@@ -337,6 +377,7 @@ class ClashApiService {
             };
         } catch (error) {
             console.error('Proxy test failed:', error.message);
+            this.lastError = error;
 
             return {
                 success: false,
@@ -345,6 +386,25 @@ class ClashApiService {
                 proxyConfigured: this.proxyConfigured
             };
         }
+    }
+
+    /**
+     * Get API status information
+     * @returns {Object} Status information
+     */
+    getStatus() {
+        return {
+            apiKey: !!process.env.COC_API_KEY,
+            proxyConfigured: this.proxyConfigured,
+            proxyIP: this.currentProxyIP,
+            lastSuccessTime: this.apiStatus.lastSuccessTime,
+            lastErrorTime: this.apiStatus.lastErrorTime,
+            totalRequests: this.apiStatus.totalRequests,
+            successRate: this.apiStatus.totalRequests > 0
+                ? (this.apiStatus.successfulRequests / this.apiStatus.totalRequests * 100).toFixed(1) + '%'
+                : 'N/A',
+            lastError: this.lastError ? this.lastError.message : null
+        };
     }
 }
 

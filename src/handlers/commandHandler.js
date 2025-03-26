@@ -84,21 +84,7 @@ async function registerCommands(clientId, guildId = null) {
         console.log(`👤 Client ID: ${clientId}`);
         console.log(`🏠 Guild ID: ${guildId || 'Global registration'}`);
 
-        // IMPORTANT: Clear existing commands first
-        console.log("Clearing existing commands...");
-        if (guildId) {
-            await rest.put(
-                Routes.applicationGuildCommands(clientId, guildId),
-                { body: [] }
-            );
-        } else {
-            await rest.put(
-                Routes.applicationCommands(clientId),
-                { body: [] }
-            );
-        }
-        console.log("Existing commands cleared successfully");
-
+        // Simply register commands without clearing them first
         let data;
         if (guildId) {
             // Guild commands - for testing, updates instantly

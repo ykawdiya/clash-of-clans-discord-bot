@@ -2,10 +2,10 @@
   "name": "clash-of-clans-discord-bot",
   "version": "1.0.1",
   "description": "A Discord bot for Clash of Clans clan management and statistics",
-  "main": "src/index.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [
