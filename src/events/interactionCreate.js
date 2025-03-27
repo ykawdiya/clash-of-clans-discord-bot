@@ -23,6 +23,64 @@ module.exports = {
     },
 
     async execute(client, interaction) {
+        // Handle Modal Submissions
+        if (interaction.isModalSubmit()) {
+            console.log(`Modal submitted: ${interaction.customId}`);
+
+            // Handle recruitment application
+            if (interaction.customId === 'recruitment_application') {
+                try {
+                    const recruitmentCommand = require('../commands/recruitment/recruit');
+                    if (recruitmentCommand.handleApplicationSubmit) {
+                        await recruitmentCommand.handleApplicationSubmit(interaction);
+                    } else {
+                        console.error('handleApplicationSubmit function not found in recruit.js');
+                        await interaction.reply({
+                            content: 'Error processing your application. Please contact an administrator.',
+                            ephemeral: true
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error handling application submission:', error);
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({
+                            content: 'Error processing your application. Please try again later.',
+                            ephemeral: true
+                        }).catch(console.error);
+                    }
+                }
+                return;
+            }
+
+            // Handle other modal submissions here
+        }
+
+        // Handle Button/Select Menu interactions
+        if (interaction.isButton() || interaction.isStringSelectMenu()) {
+            // Check for recruitment-related interactions
+            if (interaction.customId.startsWith('apply_') ||
+                interaction.customId.startsWith('approve_') ||
+                interaction.customId.startsWith('reject_') ||
+                interaction.customId.startsWith('waitlist_') ||
+                interaction.customId.startsWith('view_') ||
+                interaction.customId === 'apply_button') {
+
+                try {
+                    const recruitmentCommand = require('../commands/recruitment/recruit');
+                    if (recruitmentCommand.handleRecruitmentButton) {
+                        const handled = await recruitmentCommand.handleRecruitmentButton(interaction);
+                        if (handled) return;
+                    } else {
+                        console.warn('handleRecruitmentButton function not found');
+                    }
+                } catch (error) {
+                    console.error('Error handling recruitment button:', error);
+                }
+            }
+
+            // Continue with other button handlers...
+        }
+
         // Skip if not a command interaction
         if (!interaction.isChatInputCommand()) return;
 
@@ -51,6 +109,8 @@ module.exports = {
                 return;
             }
         }
+
+        // Rest of the original function remains the same...
 
         // Check if command requires database and if database is available
         if (command.requiresDatabase && !client.databaseAvailable) {
@@ -149,6 +209,7 @@ module.exports = {
  * Creates a safe wrapper around an interaction to prevent duplicate replies
  */
 function createSafeInteraction(interaction) {
+    // Function remains the same...
     // Create a proxy that wraps all interaction methods with error handling
     return new Proxy(interaction, {
         get(target, prop) {

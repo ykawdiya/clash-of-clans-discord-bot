@@ -126,11 +126,14 @@ async function sendEventReminder(event, reminderType) {
         // Check if we have a valid channel ID
         if (!event.channelId) return;
 
-        // Get the client from a bot instance (this will need to be adjusted based on your bot setup)
-        const client = global.client; // Or however you access your bot client
-        if (!client) return;
+        // Get the client - updated approach
+        const client = require('../../index').client;
+        if (!client) {
+            console.error('Unable to access client instance');
+            return;
+        }
 
-        // Get the channel
+        // Rest of the function remains the same
         const channel = await client.channels.fetch(event.channelId).catch(err => null);
         if (!channel) return;
 

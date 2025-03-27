@@ -65,6 +65,12 @@ client.commands = new Collection();
 // Initially assume database is not available until verified
 client.databaseAvailable = false;
 
+// Make client globally accessible for other modules
+global.client = client;
+
+// Export client for use in other modules
+module.exports.client = client;
+
 // Initialize the automation service
 const automationService = new AutomationService(client);
 

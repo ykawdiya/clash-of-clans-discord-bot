@@ -440,6 +440,69 @@ class ClashApiService {
             lastError: this.lastError ? this.lastError.message : null
         };
     }
+
+    /**
+     * Get Clan Capital raid seasons
+     * @param {string} clanTag Clan tag
+     * @param {Object} params Optional parameters
+     * @returns {Promise<Object>} Raid seasons data
+     */
+    async getCapitalRaidSeasons(clanTag, params = {}) {
+        try {
+            const cacheKey = `capitalRaidSeasons:${clanTag}`;
+            const cachedData = cacheService.get(cacheKey);
+
+            if (cachedData) {
+                console.log(`Using cached data for Capital raid seasons ${clanTag}`);
+                return cachedData;
+            }
+
+            const formattedTag = this.formatTag(clanTag);
+            console.log(`Getting capital raid seasons for clan: ${formattedTag}`);
+            const data = await this.executeRequest(`/clans/${formattedTag}/capitalraidseasons`, {
+                params,
+                timeout: 3000
+            });
+
+            // Cache for 5 minutes
+            cacheService.set(cacheKey, data, 300);
+            return data;
+        } catch (error) {
+            console.error(`Error getting capital raid seasons:`, error.message);
+            throw error;
+        }
+    }
+
+    /**
+     * Get CWL war data
+     * @param {string} warTag War tag
+     * @returns {Promise<Object>} CWL war data
+     */
+    async getCWLWar(warTag) {
+        try {
+            const cacheKey = `cwlWar:${warTag}`;
+            const cachedData = cacheService.get(cacheKey);
+
+            if (cachedData) {
+                console.log(`Using cached data for CWL war ${warTag}`);
+                return cachedData;
+            }
+
+            console.log(`Getting CWL war with tag: ${warTag}`);
+            const data = await this.executeRequest(`/clanwarleagues/wars/${encodeURIComponent(warTag)}`, {
+                timeout: 3000
+            });
+
+            // Cache for 5 minutes
+            cacheService.set(cacheKey, data, 300);
+            return data;
+        } catch (error) {
+            console.error(`Error getting CWL war:`, error.message);
+            throw error;
+        }
+    }
 }
+
+
 
 module.exports = new ClashApiService();

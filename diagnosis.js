@@ -37,7 +37,7 @@ const keyFiles = [
     './src/handlers/commandHandler.js',
     './src/handlers/eventHandler.js',
     './src/services/clashApiService.js',
-    './src/events/interactionCreate.js',
+    './events/interactionCreate.js',
     './src/events/ready.js'
 ];
 

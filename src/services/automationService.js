@@ -39,27 +39,59 @@ class AutomationService {
         }
     }
 
-    // Find appropriate channel based on theme preferences
+    /**
+     * Find appropriate channel based on theme preferences
+     * @param {Guild} guild Discord guild
+     * @param {string} channelType Type of channel to find
+     * @param {string} configuredId Optional configured channel ID
+     * @returns {Promise<TextChannel|null>} Found channel or null
+     */
     async findAppropriateChannel(guild, channelType, configuredId = null) {
-        // If a specific channel ID is configured, try that first
-        if (configuredId) {
-            try {
-                const configuredChannel = await guild.channels.fetch(configuredId).catch(() => null);
-                if (configuredChannel) return configuredChannel;
-            } catch (error) {
-                console.warn(`Configured channel ${configuredId} not found: ${error.message}`);
+        try {
+            // If a specific channel ID is configured, try that first
+            if (configuredId) {
+                try {
+                    const configuredChannel = await guild.channels.fetch(configuredId).catch(() => null);
+                    if (configuredChannel) return configuredChannel;
+                } catch (error) {
+                    console.warn(`Configured channel ${configuredId} not found: ${error.message}`);
+                }
             }
-        }
 
-        // Fall back to finding a channel by name
-        const channelNames = this.channelMappings[channelType] || [];
-        for (const name of channelNames) {
-            const channel = guild.channels.cache.find(c => c.name.toLowerCase() === name.toLowerCase());
-            if (channel) return channel;
-        }
+            // Fall back to finding a channel by name
+            const channelNames = this.channelMappings[channelType] || [];
+            for (const name of channelNames) {
+                try {
+                    const channel = guild.channels.cache.find(c =>
+                        c.name && c.name.toLowerCase() === name.toLowerCase()
+                    );
+                    if (channel) return channel;
+                } catch (error) {
+                    console.warn(`Error finding channel by name ${name}: ${error.message}`);
+                    // Continue to next name
+                }
+            }
 
-        // If no matching channel, return null
-        return null;
+            // If no matching channel, try to find any text channel
+            if (channelType === 'general') {
+                try {
+                    // Last resort: find any text channel
+                    const anyChannel = guild.channels.cache.find(c =>
+                        c.type === 0 // TextChannel
+                    );
+                    if (anyChannel) return anyChannel;
+                } catch (error) {
+                    console.warn('Error finding fallback text channel:', error.message);
+                }
+            }
+
+            // If no matching channel, return null
+            console.log(`No suitable ${channelType} channel found for guild ${guild.name}`);
+            return null;
+        } catch (error) {
+            console.error(`Error in findAppropriateChannel for ${channelType}:`, error);
+            return null;
+        }
     }
 
     // Check all clan wars and send notifications for state changes

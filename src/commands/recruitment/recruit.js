@@ -1095,3 +1095,7 @@ function handleRecruitmentButton(interaction) {
 
     return false;
 }
+
+// At the bottom of the file, add this export
+module.exports.handleRecruitmentButton = handleRecruitmentButton;
+module.exports.handleApplicationSubmit = handleApplicationSubmit;
