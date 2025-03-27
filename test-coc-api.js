@@ -13,7 +13,7 @@ async function testAPI() {
         });
 
         // Test with a specific clan tag
-        const testTag = '#2Q0JJGJG9'; // Replace with a valid clan tag
+        const testTag = '#2RUVGR2QQ'; // Replace with a valid clan tag
         console.log(`Testing with specific clan tag: ${testTag}`);
         const clanData = await clashApiService.getClan(testTag);
         console.log('Clan lookup successful!', {
