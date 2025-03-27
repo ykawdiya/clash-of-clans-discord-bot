@@ -5,15 +5,6 @@ const PlayerStats = require('../../models/PlayerStats'); // We'll define this mo
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
 
-// Add this at the top of the file
-const { getModel } = require('../../models/modelRegistry');
-
-// Then, instead of:
-// const Base = mongoose.model('Base', baseSchema);
-
-// Use:
-const Base = getModel('Base', baseSchema);
-
 // Timeout mechanism for API calls
 const fetchWithTimeout = async (promise, timeout = 5000) => {
     return Promise.race([

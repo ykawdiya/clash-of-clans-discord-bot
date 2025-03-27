@@ -1,14 +1,5 @@
 const { SlashCommandBuilder } = require('discord.js');
 
-// Add this at the top of the file
-const { getModel } = require('../../models/modelRegistry');
-
-// Then, instead of:
-// const Base = mongoose.model('Base', baseSchema);
-
-// Use:
-const Base = getModel('Base', baseSchema);
-
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('ping')

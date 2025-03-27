@@ -2,21 +2,10 @@ const { REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
-// Track if commands have been loaded already
-let commandsLoaded = false;
-let cachedCommands = [];
-let cachedCommandFiles = new Map();
-
 /**
  * Load all command files from the commands directory
  */
 function loadCommands() {
-    // If commands are already loaded, return cached version to prevent duplicate loading
-    if (commandsLoaded && cachedCommands.length > 0) {
-        console.log('Using cached commands to prevent reloading');
-        return { commands: cachedCommands, commandFiles: cachedCommandFiles };
-    }
-
     // Collection to store commands
     const commands = [];
     const commandFiles = new Map();
@@ -49,15 +38,10 @@ function loadCommands() {
             for (const file of files) {
                 const filePath = path.join(folderPath, file);
                 try {
-                    // We use require for CommonJS, but handle errors gracefully
-                    let command;
-                    try {
-                        delete require.cache[require.resolve(filePath)];
-                        command = require(filePath);
-                    } catch (err) {
-                        console.error(`Failed to load command at ${filePath}:`, err.message);
-                        continue;
-                    }
+                    // Clear require cache
+                    delete require.cache[require.resolve(filePath)];
+
+                    const command = require(filePath);
 
                     // Validate command structure
                     if ('data' in command && 'execute' in command) {
@@ -74,11 +58,6 @@ function loadCommands() {
         }
 
         console.log(`📊 Total commands loaded: ${commands.length}`);
-
-        // Cache the loaded commands
-        cachedCommands = commands;
-        cachedCommandFiles = commandFiles;
-        commandsLoaded = true;
     } catch (error) {
         console.error('🚨 Error loading commands:', error);
     }
@@ -105,7 +84,7 @@ async function registerCommands(clientId, guildId = null) {
         console.log(`👤 Client ID: ${clientId}`);
         console.log(`🏠 Guild ID: ${guildId || 'Global registration'}`);
 
-        // Register commands based on environment
+        // Simply register commands without clearing them first
         let data;
         if (guildId) {
             // Guild commands - for testing, updates instantly
@@ -131,6 +110,15 @@ async function registerCommands(clientId, guildId = null) {
         // Log more detailed error information
         if (error.rawError) {
             console.error('Discord API error details:', JSON.stringify(error.rawError, null, 2));
+        }
+
+        // Check for common errors
+        if (error.message.includes('401')) {
+            console.error('Authentication failed. Check your Discord token.');
+        } else if (error.message.includes('403')) {
+            console.error('Authorization failed. Make sure your bot has the applications.commands scope.');
+        } else if (error.message.includes('missing access')) {
+            console.error('Missing access. Your bot may not have the necessary permissions.');
         }
 
         return [];
