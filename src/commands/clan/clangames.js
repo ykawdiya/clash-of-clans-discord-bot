@@ -74,11 +74,11 @@ module.exports = {
                         .setRequired(true))
                 .addStringOption(option =>
                     option.setName('start_date')
-                        .setDescription('Start date (YYYY-MM-DD)')
+                        .setDescription('Start date (DD-MM-YYYY)')
                         .setRequired(true))
                 .addStringOption(option =>
                     option.setName('end_date')
-                        .setDescription('End date (YYYY-MM-DD)')
+                        .setDescription('End date (DD-MM-YYYY)')
                         .setRequired(true))
                 .addIntegerOption(option =>
                     option.setName('goal')
@@ -117,7 +117,7 @@ module.exports = {
     longDescription: 'Track and manage Clan Games participation and points. Start tracking a new season, update player scores, check clan progress, and view the points leaderboard.',
 
     examples: [
-        '/clangames start month:August year:2023 start_date:2023-08-22 end_date:2023-08-28',
+        '/clangames start month:August year:2023 start_date:22-08-2023 end_date:28-08-2023',
         '/clangames update player_tag:#ABC123 points:4000',
         '/clangames status',
         '/clangames leaderboard'
@@ -168,14 +168,54 @@ async function startClanGames(interaction, linkedClan) {
     const endDateStr = interaction.options.getString('end_date');
     const goalPoints = interaction.options.getInteger('goal') || 50000;
 
-    // Validate dates
-    const startDate = new Date(startDateStr);
-    const endDate = new Date(endDateStr);
+    // Validate dates with improved parsing for DD-MM-YYYY format
+    let startDate, endDate;
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        return interaction.editReply('Invalid date format. Please use YYYY-MM-DD format.');
+    // Validate start_date
+    try {
+        // Check if format is DD-MM-YYYY
+        if (!/^\d{2}-\d{2}-\d{4}$/.test(startDateStr)) {
+            return interaction.editReply('Invalid start date format. Please use DD-MM-YYYY format (e.g., 22-03-2025).');
+        }
+
+        // Parse DD-MM-YYYY format manually
+        const [day, month, year] = startDateStr.split('-').map(Number);
+
+        // Month is 0-based in JavaScript Date (0 = January)
+        startDate = new Date(year, month - 1, day);
+
+        // Check if the date is valid
+        if (isNaN(startDate.getTime()) || startDate.getDate() !== day || startDate.getMonth() !== month - 1 || startDate.getFullYear() !== year) {
+            return interaction.editReply(`Invalid start date: ${startDateStr}. Please provide a valid date in DD-MM-YYYY format.`);
+        }
+    } catch (error) {
+        console.error('Error parsing start date:', error);
+        return interaction.editReply(`Error parsing start date: ${startDateStr}. Please use DD-MM-YYYY format.`);
     }
 
+    // Validate end_date
+    try {
+        // Check if format is DD-MM-YYYY
+        if (!/^\d{2}-\d{2}-\d{4}$/.test(endDateStr)) {
+            return interaction.editReply('Invalid end date format. Please use DD-MM-YYYY format (e.g., 28-03-2025).');
+        }
+
+        // Parse DD-MM-YYYY format manually
+        const [day, month, year] = endDateStr.split('-').map(Number);
+
+        // Month is 0-based in JavaScript Date (0 = January)
+        endDate = new Date(year, month - 1, day);
+
+        // Check if the date is valid
+        if (isNaN(endDate.getTime()) || endDate.getDate() !== day || endDate.getMonth() !== month - 1 || endDate.getFullYear() !== year) {
+            return interaction.editReply(`Invalid end date: ${endDateStr}. Please provide a valid date in DD-MM-YYYY format.`);
+        }
+    } catch (error) {
+        console.error('Error parsing end date:', error);
+        return interaction.editReply(`Error parsing end date: ${endDateStr}. Please use DD-MM-YYYY format.`);
+    }
+
+    // Ensure end date is after start date
     if (endDate <= startDate) {
         return interaction.editReply('End date must be after start date.');
     }
