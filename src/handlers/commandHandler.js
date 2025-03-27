@@ -22,14 +22,17 @@ function loadCommands() {
         }
 
         // Read all subdirectories
-        const commandFolders = fs.readdirSync(commandsPath);
+        const commandFolders = fs.readdirSync(commandsPath).filter(
+            folder => {
+                const folderPath = path.join(commandsPath, folder);
+                return fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory();
+            }
+        );
+
         console.log(`📁 Found command folders: ${commandFolders.join(', ')}`);
 
         for (const folder of commandFolders) {
             const folderPath = path.join(commandsPath, folder);
-
-            // Skip if not a directory
-            if (!fs.statSync(folderPath).isDirectory()) continue;
 
             // List files in the folder
             const files = fs.readdirSync(folderPath).filter(file => file.endsWith('.js'));
@@ -44,12 +47,25 @@ function loadCommands() {
                     const command = require(filePath);
 
                     // Validate command structure
-                    if ('data' in command && 'execute' in command) {
-                        console.log(`✅ Loaded command: ${command.data.name} (from ${file})`);
-                        commands.push(command.data.toJSON());
+                    if (!command.data) {
+                        console.warn(`⚠️ Command at ${filePath} is missing required "data" property`);
+                        continue;
+                    }
+
+                    if (!command.execute) {
+                        console.warn(`⚠️ Command at ${filePath} is missing required "execute" property`);
+                        continue;
+                    }
+
+                    // Check if data can be converted to JSON
+                    try {
+                        const jsonData = command.data.toJSON();
+                        commands.push(jsonData);
                         commandFiles.set(command.data.name, command);
-                    } else {
-                        console.warn(`⚠️ Command at ${filePath} is missing required "data" or "execute" properties`);
+                        console.log(`✅ Loaded command: ${command.data.name} (from ${file})`);
+                    } catch (jsonError) {
+                        console.error(`❌ Command data in ${filePath} cannot be converted to JSON:`, jsonError);
+                        continue;
                     }
                 } catch (error) {
                     console.error(`❌ Error loading command from ${filePath}:`, error);
@@ -84,7 +100,6 @@ async function registerCommands(clientId, guildId = null) {
         console.log(`👤 Client ID: ${clientId}`);
         console.log(`🏠 Guild ID: ${guildId || 'Global registration'}`);
 
-        // Simply register commands without clearing them first
         let data;
         if (guildId) {
             // Guild commands - for testing, updates instantly

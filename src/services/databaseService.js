@@ -43,6 +43,9 @@ class DatabaseService {
             // Connect to MongoDB
             await mongoose.connect(process.env.MONGODB_URI, connectionOptions);
 
+            // Verify connection is active by performing a simple operation
+            await mongoose.connection.db.admin().ping();
+
             this.connection = mongoose.connection;
             this.isConnected = true;
             this.connectionAttempts = 0;

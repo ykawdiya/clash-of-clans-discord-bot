@@ -250,15 +250,20 @@ module.exports = {
 };
 
 /**
- * Process and display war data - simplified to be faster
+ * Process and display war data - simplified to be faster and more robust
  * @param {CommandInteraction} interaction
  * @param {Object} warData
  * @param {Object} clanData
  */
 async function processWarData(interaction, warData, clanData) {
     try {
+        // Verify that warData is valid
+        if (!warData || typeof warData !== 'object') {
+            return interaction.editReply('Could not retrieve valid war data. Please try again later.');
+        }
+
         // Check war state - handle simplest case first
-        if (!warData || warData.state === 'notInWar') {
+        if (warData.state === 'notInWar') {
             const embed = new EmbedBuilder()
                 .setTitle(`${clanData?.name || 'This clan'} is not currently in a war`)
                 .setColor('#3498db')
@@ -270,12 +275,12 @@ async function processWarData(interaction, warData, clanData) {
             return interaction.editReply({ embeds: [embed] });
         }
 
-        // If in war, process the data with safe fallbacks
+        // Safely extract clan and opponent data with fallbacks
         const clan = warData.clan || {};
         const opponent = warData.opponent || {};
 
         // Check if essential data is available
-        if (!clan.name || !opponent.name) {
+        if (!clan.name && !opponent.name) {
             console.error('Missing essential war data:', { clan, opponent });
             return interaction.editReply("Invalid war data received. The clan might be in an unusual war state.");
         }
@@ -284,7 +289,7 @@ async function processWarData(interaction, warData, clanData) {
         const clanMembers = warData.teamSize || (clan.members?.length || 0);
         const opponentMembers = warData.teamSize || (opponent.members?.length || 0);
 
-        // Faster calculation of attacks
+        // Safer calculation of attacks
         let clanAttacks = 0;
         let opponentAttacks = 0;
 
@@ -292,7 +297,7 @@ async function processWarData(interaction, warData, clanData) {
             clanAttacks = clan.attacks.length;
         } else if (Array.isArray(clan.members)) {
             // Count attacks from members
-            for (const member of clan.members) {
+            for (const member of clan.members || []) {
                 if (Array.isArray(member.attacks)) {
                     clanAttacks += member.attacks.length;
                 }
@@ -303,7 +308,7 @@ async function processWarData(interaction, warData, clanData) {
             opponentAttacks = opponent.attacks.length;
         } else if (Array.isArray(opponent.members)) {
             // Count attacks from members
-            for (const member of opponent.members) {
+            for (const member of opponent.members || []) {
                 if (Array.isArray(member.attacks)) {
                     opponentAttacks += member.attacks.length;
                 }
@@ -344,6 +349,7 @@ async function processWarData(interaction, warData, clanData) {
                 }
             } catch (e) {
                 // Just skip if error
+                console.error('Error calculating preparation time remaining:', e);
             }
         } else if (warData.state === 'inWar' && warData.endTime) {
             try {
@@ -353,23 +359,24 @@ async function processWarData(interaction, warData, clanData) {
                 }
             } catch (e) {
                 // Just skip if error
+                console.error('Error calculating war end time remaining:', e);
             }
         }
 
         // Create a simpler embed with essential information
         const embed = new EmbedBuilder()
-            .setTitle(`${clan.name} vs ${opponent.name}`)
+            .setTitle(`${clan.name || 'Our Clan'} vs ${opponent.name || 'Enemy Clan'}`)
             .setColor(color)
             .setDescription(`**Status:** ${status}${timeRemaining ? `\n**Time Remaining:** ${timeRemaining}` : ''}`)
             .addFields(
                 {
-                    name: clan.name,
-                    value: `Level: ${clan.clanLevel || '?'}\nAttacks: ${clanAttacks}/${clanTotalAttacks}\nStars: ${clan.stars || 0}\nDestruction: ${((clan.destructionPercentage || 0).toFixed(2))}%`,
+                    name: clan.name || 'Our Clan',
+                    value: `Level: ${clan.clanLevel || '?'}\nAttacks: ${clanAttacks}/${clanTotalAttacks}\nStars: ${clan.stars || 0}\nDestruction: ${(parseFloat(clan.destructionPercentage || 0).toFixed(2))}%`,
                     inline: true
                 },
                 {
-                    name: opponent.name,
-                    value: `Level: ${opponent.clanLevel || '?'}\nAttacks: ${opponentAttacks}/${opponentTotalAttacks}\nStars: ${opponent.stars || 0}\nDestruction: ${((opponent.destructionPercentage || 0).toFixed(2))}%`,
+                    name: opponent.name || 'Enemy Clan',
+                    value: `Level: ${opponent.clanLevel || '?'}\nAttacks: ${opponentAttacks}/${opponentTotalAttacks}\nStars: ${opponent.stars || 0}\nDestruction: ${(parseFloat(opponent.destructionPercentage || 0).toFixed(2))}%`,
                     inline: true
                 }
             )
@@ -395,7 +402,7 @@ async function processWarData(interaction, warData, clanData) {
 
             embed.addFields({
                 name: 'Attacks Remaining',
-                value: `${clan.name}: ${clanAttacksRemaining}\n${opponent.name}: ${opponentAttacksRemaining}`,
+                value: `${clan.name || 'Our Clan'}: ${clanAttacksRemaining}\n${opponent.name || 'Enemy Clan'}: ${opponentAttacksRemaining}`,
                 inline: false
             });
         }
@@ -407,18 +414,18 @@ async function processWarData(interaction, warData, clanData) {
 
             let result;
             if (clanStars > opponentStars) {
-                result = `${clan.name} Won! 🏆`;
+                result = `${clan.name || 'Our Clan'} Won! 🏆`;
             } else if (clanStars < opponentStars) {
-                result = `${opponent.name} Won! 😓`;
+                result = `${opponent.name || 'Enemy Clan'} Won! 😓`;
             } else {
                 // If stars are equal, compare destruction percentage
-                const clanDestruction = clan.destructionPercentage || 0;
-                const opponentDestruction = opponent.destructionPercentage || 0;
+                const clanDestruction = parseFloat(clan.destructionPercentage || 0);
+                const opponentDestruction = parseFloat(opponent.destructionPercentage || 0);
 
                 if (clanDestruction > opponentDestruction) {
-                    result = `${clan.name} Won! 🏆 (by destruction percentage)`;
+                    result = `${clan.name || 'Our Clan'} Won! 🏆 (by destruction percentage)`;
                 } else if (clanDestruction < opponentDestruction) {
-                    result = `${opponent.name} Won! 😓 (by destruction percentage)`;
+                    result = `${opponent.name || 'Enemy Clan'} Won! 😓 (by destruction percentage)`;
                 } else {
                     result = "It's a Perfect Tie! 🤝";
                 }

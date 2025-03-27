@@ -31,7 +31,7 @@ const { loadEvents } = require('./src/handlers/eventHandler');
 // Import automation service
 const AutomationService = require('./src/services/automationService');
 
-console.log('Starting CoC Discord Bot - Version 1.0.3');
+console.log('Starting CoC Discord Bot - Version 1.0.4');
 console.log('Environment:', {
     nodeEnv: process.env.NODE_ENV || 'development',
     apiKeyConfigured: process.env.COC_API_KEY ? 'Yes' : 'No',
@@ -62,6 +62,8 @@ const client = new Client({
 
 // Create command collection on client
 client.commands = new Collection();
+// Initially assume database is not available until verified
+client.databaseAvailable = false;
 
 // Initialize the automation service
 const automationService = new AutomationService(client);
@@ -137,15 +139,32 @@ async function init() {
         if (process.env.MONGODB_URI) {
             console.log('Connecting to database...');
             try {
-                await databaseService.connect();
-                console.log('Database connected successfully');
+                // Try to connect with timeout to prevent hanging
+                const dbConnectPromise = databaseService.connect();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Database connection timed out after 30 seconds')), 30000)
+                );
+
+                await Promise.race([dbConnectPromise, timeoutPromise]);
+
+                // Verify the connection is working
+                if (!databaseService.checkConnection()) {
+                    throw new Error('Database connection state check failed');
+                }
+
+                console.log('Database connected and verified successfully');
+                // Flag database as available
+                client.databaseAvailable = true;
             } catch (err) {
                 console.error('Database connection error:', err);
                 console.error('Stack trace:', err.stack);
                 console.warn('Continuing without database. Some features will not work.');
+                // Ensure flag is set to false
+                client.databaseAvailable = false;
             }
         } else {
             console.warn('MONGODB_URI not set. Database features will not work.');
+            client.databaseAvailable = false;
         }
 
         // Login to Discord with timeout

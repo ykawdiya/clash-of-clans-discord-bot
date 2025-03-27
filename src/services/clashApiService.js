@@ -230,7 +230,8 @@ class ClashApiService {
                 const response = await Promise.race([
                     responsePromise,
                     new Promise((_, reject) =>
-                        setTimeout(() => reject(new Error('Request timed out')), requestTimeout)
+                        setTimeout(() => reject(new Error(`Request timed out after ${requestTimeout}ms`)),
+                            requestTimeout)
                     )
                 ]);
 
@@ -243,9 +244,8 @@ class ClashApiService {
                 return response.data;
 
             } catch (error) {
-                console.error(`Request failed:`, error.message);
+                console.error(`Request attempt ${attempt + 1} failed:`, error.message);
                 this.lastError = error;
-                this.apiStatus.failedRequests++;
                 this.apiStatus.lastErrorTime = new Date();
 
                 // Only log detailed error info if it's available
@@ -280,34 +280,31 @@ class ClashApiService {
                 }
 
                 // Shorter wait before retrying - fixed at 500ms to avoid Discord timeout
-                await new Promise(resolve => setTimeout(resolve, 500));
+                if (attempt < this.retryCount - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
             }
         }
 
-        // All attempts failed
-        console.error(`All ${this.retryCount} attempts failed for ${endpoint}`);
+        // All attempts failed - enhance error handling
+        this.apiStatus.failedRequests++;
 
+        // Create a more descriptive error based on what happened
         if (lastError.response) {
             const status = lastError.response.status;
             const message = lastError.response.data?.message || lastError.message;
 
             if (status === 403) {
-                const error = new Error(`Access denied. The IP address (${this.currentProxyIP || 'Unknown'}) is not whitelisted in the Clash of Clans API. Status: ${status}`);
-                this.lastError = error;
-                throw error;
+                throw new Error(`Access denied (403). The IP address (${this.currentProxyIP || 'Unknown'}) may not be whitelisted.`);
             } else if (status === 404) {
-                const error = new Error(`Not found: ${endpoint}. Status: ${status}`);
-                this.lastError = error;
-                throw error;
+                throw new Error(`Not found (404): The requested resource at ${endpoint} does not exist.`);
             } else {
-                const error = new Error(`API error: ${message}. Status: ${status}`);
-                this.lastError = error;
-                throw error;
+                throw new Error(`API error: HTTP ${status} - ${message}`);
             }
+        } else if (lastError.message.includes('timeout')) {
+            throw new Error(`Request timed out after ${this.retryCount} attempts. The Clash of Clans API may be experiencing issues.`);
         } else {
-            const error = new Error(`Network error: ${lastError.message}`);
-            this.lastError = error;
-            throw error;
+            throw new Error(`Network error after ${this.retryCount} attempts: ${lastError.message}`);
         }
     }
 

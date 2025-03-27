@@ -1,5 +1,5 @@
 const { Events } = require('discord.js');
-const statusMonitor = require('../utils/statusMonitor'); // Add statusMonitor import
+const statusMonitor = require('../utils/statusMonitor');
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -52,6 +52,19 @@ module.exports = {
             }
         }
 
+        // Check if command requires database and if database is available
+        if (command.requiresDatabase && !client.databaseAvailable) {
+            try {
+                return await interaction.reply({
+                    content: 'This command requires database access, which is currently unavailable. Please try again later.',
+                    ephemeral: true
+                });
+            } catch (error) {
+                console.error('Failed to reply with database unavailable message:', error);
+                return;
+            }
+        }
+
         try {
             console.log(`Executing command: ${interaction.commandName}`);
 
@@ -73,9 +86,8 @@ module.exports = {
                 }
             }
 
-            // Execute the command
+            // Execute the command with a safe interaction wrapper
             try {
-                // Create a wrapper around the interaction to prevent duplicate replies
                 const safeInteraction = createSafeInteraction(interaction);
                 await command.execute(safeInteraction);
             } catch (execError) {
@@ -147,9 +159,9 @@ function createSafeInteraction(interaction) {
 
             // Wrap methods with additional checks
             return async function(...args) {
+                // For reply/deferReply, check if already replied/deferred
                 if ((prop === 'reply' || prop === 'deferReply') &&
-                    (target.replied || target.deferred || target._wasDeferred)) {
-                    // If attempting to reply/defer when already replied/deferred, log and skip
+                    (target.replied || target.deferred)) {
                     console.warn(`Prevented duplicate ${prop} for command ${target.commandName}`);
 
                     // For reply, try to use followUp instead
@@ -161,7 +173,6 @@ function createSafeInteraction(interaction) {
                             return null;
                         }
                     }
-
                     return null;
                 }
 
@@ -170,7 +181,7 @@ function createSafeInteraction(interaction) {
                     return await target[prop](...args);
                 } catch (error) {
                     // If the error is about already replied/deferred
-                    if (error.message.includes('already been sent')) {
+                    if (error.message && error.message.includes('already been')) {
                         console.warn(`Error in ${prop}: ${error.message}`);
 
                         // Try a fallback for common methods
@@ -179,17 +190,13 @@ function createSafeInteraction(interaction) {
                                 return await target.followUp(...args);
                             } catch (fallbackError) {
                                 console.warn(`Fallback also failed: ${fallbackError.message}`);
-                                return null;
                             }
-                        } else if (prop === 'deferReply') {
-                            // Just mark it as deferred and continue
-                            target._wasDeferred = true;
-                            return null;
                         }
+                    } else {
+                        // Rethrow other errors
+                        throw error;
                     }
-
-                    // Rethrow other errors
-                    throw error;
+                    return null;
                 }
             };
         }
