@@ -174,14 +174,32 @@ async function showActivityOverview(interaction, linkedClan) {
     // Add town hall breakdown
     const thLevels = {};
     clanData.memberList.forEach(member => {
-        const thLevel = member.townhallLevel || 0;
+        // Try multiple property variations and validate the value
+        let thLevel = member.townhallLevel || member.townHallLevel || 0;
+
+        // Ensure it's a valid number between 1-15
+        thLevel = parseInt(thLevel);
+        if (isNaN(thLevel) || thLevel < 1 || thLevel > 15) {
+            // Skip invalid values
+            console.log(`Invalid TH level for member ${member.name}: ${thLevel}`);
+            return;
+        }
+
         thLevels[thLevel] = (thLevels[thLevel] || 0) + 1;
     });
 
     let thBreakdown = '';
-    Object.keys(thLevels).sort((a, b) => b - a).forEach(thLevel => {
-        thBreakdown += `TH${thLevel}: ${thLevels[thLevel]} members\n`;
-    });
+    if (Object.keys(thLevels).length === 0) {
+        thBreakdown = 'Town Hall data not available';
+    } else {
+        // Sort by TH level in descending order (highest first)
+        Object.keys(thLevels)
+            .map(Number)
+            .sort((a, b) => b - a)
+            .forEach(thLevel => {
+                thBreakdown += `TH${thLevel}: ${thLevels[thLevel]} members\n`;
+            });
+    }
 
     embed.addFields({ name: 'Town Hall Breakdown', value: thBreakdown });
 
@@ -329,7 +347,12 @@ async function showInactiveMembers(interaction, linkedClan) {
         }
 
         // Check trophies for potential inactivity
-        const expectedMinTrophies = getTownHallMinTrophies(member.townhallLevel);
+        // Use the same property access pattern as in the town hall breakdown
+        let thLevel = member.townhallLevel || member.townHallLevel || 0;
+        thLevel = parseInt(thLevel);
+        if (isNaN(thLevel)) thLevel = 0;
+
+        const expectedMinTrophies = getTownHallMinTrophies(thLevel);
         if (member.trophies < expectedMinTrophies) {
             inactivityReason.push(`Low trophies (${member.trophies})`);
         }
@@ -339,7 +362,7 @@ async function showInactiveMembers(interaction, linkedClan) {
             inactiveMembers.push({
                 name: member.name,
                 tag: member.tag,
-                townhallLevel: member.townhallLevel,
+                townhallLevel: thLevel,
                 role: member.role,
                 trophies: member.trophies,
                 donations: member.donations || 0,
@@ -517,7 +540,11 @@ function calculateActivityTrend(members, playerStatsMap) {
                 }
             } else {
                 // No stats data, use trophy count as fallback
-                const expectedMinTrophies = getTownHallMinTrophies(member.townhallLevel);
+                let thLevel = member.townhallLevel || member.townHallLevel || 0;
+                thLevel = parseInt(thLevel);
+                if (isNaN(thLevel)) thLevel = 0;
+
+                const expectedMinTrophies = getTownHallMinTrophies(thLevel);
                 if (member.trophies < expectedMinTrophies * 0.8) {
                     inactiveCount++;
                 } else {
