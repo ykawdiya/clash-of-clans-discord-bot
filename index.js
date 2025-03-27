@@ -28,7 +28,10 @@ const databaseService = require('./src/services/databaseService');
 const { loadCommands } = require('./src/handlers/commandHandler');
 const { loadEvents } = require('./src/handlers/eventHandler');
 
-console.log('Starting CoC Discord Bot - Version 1.0.2');
+// Import automation service
+const AutomationService = require('./src/services/automationService');
+
+console.log('Starting CoC Discord Bot - Version 1.0.3');
 console.log('Environment:', {
     nodeEnv: process.env.NODE_ENV || 'development',
     apiKeyConfigured: process.env.COC_API_KEY ? 'Yes' : 'No',
@@ -59,6 +62,9 @@ const client = new Client({
 
 // Create command collection on client
 client.commands = new Collection();
+
+// Initialize the automation service
+const automationService = new AutomationService(client);
 
 // Setup Express server for health checks
 const app = express();
@@ -94,6 +100,14 @@ loadEvents(client);
 // When bot is ready, register commands ONCE
 client.once('ready', async () => {
     console.log(`Bot is online! Logged in as ${client.user.tag}`);
+
+    // Start automation services
+    try {
+        automationService.startAutomation();
+        console.log('Automated services started successfully');
+    } catch (error) {
+        console.error('Failed to start automated services:', error);
+    }
 
     // REGISTER COMMANDS ONCE AFTER BOT IS READY
     console.log('Registering slash commands with Discord API...');
@@ -179,6 +193,11 @@ process.on('uncaughtException', error => {
 // Graceful shutdown
 process.on('SIGINT', async () => {
     console.log('Shutting down...');
+
+    // Stop automation service
+    if (automationService) {
+        automationService.stopAutomation();
+    }
 
     if (databaseService.isConnected) {
         await databaseService.disconnect();

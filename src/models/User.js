@@ -20,7 +20,6 @@ const userSchema = new mongoose.Schema({
         default: false
     },
 
-    // User preferences
     preferences: {
         warNotifications: {
             type: Boolean,
@@ -31,6 +30,19 @@ const userSchema = new mongoose.Schema({
             default: true
         },
         raidWeekendReminders: {
+            type: Boolean,
+            default: true
+        },
+        // Add these new preferences
+        inactivityReminders: {
+            type: Boolean,
+            default: true
+        },
+        attackReminders: {
+            type: Boolean,
+            default: true
+        },
+        progressTracking: {
             type: Boolean,
             default: true
         }

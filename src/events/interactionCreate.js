@@ -1,4 +1,5 @@
 const { Events } = require('discord.js');
+const statusMonitor = require('../utils/statusMonitor'); // Add statusMonitor import
 
 module.exports = {
     name: Events.InteractionCreate,
@@ -8,6 +9,7 @@ module.exports = {
         // Add client-level event listeners
         client.on('error', (error) => {
             console.error('Discord client error:', error);
+            statusMonitor.recordError('client', 'discord_client', error);
         });
 
         client.on('debug', (debugInfo) => {
@@ -53,6 +55,9 @@ module.exports = {
         try {
             console.log(`Executing command: ${interaction.commandName}`);
 
+            // Track command usage at the start
+            statusMonitor.trackCommand(interaction.commandName);
+
             // Important: Add a flag to the interaction to track whether we've deferred already
             interaction._wasDeferred = false;
 
@@ -80,9 +85,16 @@ module.exports = {
             // Log execution time
             const executionTime = Date.now() - startTime;
             console.log(`✅ Command ${interaction.commandName} completed in ${executionTime}ms`);
+
+            // Track successful command execution
+            statusMonitor.trackCommand(interaction.commandName, true, null, executionTime);
+
         } catch (error) {
             console.error(`❌ Error executing ${interaction.commandName}:`, error);
             console.error('Error Stack:', error.stack || 'No stack trace available');
+
+            // Track failed command execution
+            statusMonitor.trackCommand(interaction.commandName, false, error);
 
             // Provide specific error messages for common issues
             let userErrorMessage = 'Sorry, an error occurred while executing this command.';

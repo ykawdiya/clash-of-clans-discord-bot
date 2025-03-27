@@ -2,6 +2,7 @@
 const axios = require('axios');
 const https = require('https');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const cacheService = require('./cacheService'); // Add cache service import
 
 class ClashApiService {
     constructor() {
@@ -310,12 +311,24 @@ class ClashApiService {
         }
     }
 
-    // API methods with shorter timeouts
+    // Modified API methods with caching
     async getClan(clanTag) {
         try {
+            const cacheKey = `clan:${clanTag}`;
+            const cachedData = cacheService.get(cacheKey);
+
+            if (cachedData) {
+                console.log(`Using cached data for clan ${clanTag}`);
+                return cachedData;
+            }
+
             const formattedTag = this.formatTag(clanTag);
             console.log(`Getting clan data for: ${formattedTag}`);
-            return await this.executeRequest(`/clans/${formattedTag}`, { timeout: 3000 });
+            const data = await this.executeRequest(`/clans/${formattedTag}`, { timeout: 3000 });
+
+            // Cache for 5 minutes
+            cacheService.set(cacheKey, data, 300);
+            return data;
         } catch (error) {
             console.error(`Error getting clan data:`, error.message);
             throw error;
@@ -324,9 +337,21 @@ class ClashApiService {
 
     async getPlayer(playerTag) {
         try {
+            const cacheKey = `player:${playerTag}`;
+            const cachedData = cacheService.get(cacheKey);
+
+            if (cachedData) {
+                console.log(`Using cached data for player ${playerTag}`);
+                return cachedData;
+            }
+
             const formattedTag = this.formatTag(playerTag);
             console.log(`Getting player data for: ${formattedTag}`);
-            return await this.executeRequest(`/players/${formattedTag}`, { timeout: 3000 });
+            const data = await this.executeRequest(`/players/${formattedTag}`, { timeout: 3000 });
+
+            // Cache for 5 minutes
+            cacheService.set(cacheKey, data, 300);
+            return data;
         } catch (error) {
             console.error(`Error getting player data:`, error.message);
             throw error;
@@ -348,9 +373,21 @@ class ClashApiService {
 
     async getCurrentWar(clanTag) {
         try {
+            const cacheKey = `currentWar:${clanTag}`;
+            const cachedData = cacheService.get(cacheKey);
+
+            if (cachedData) {
+                console.log(`Using cached data for war ${clanTag}`);
+                return cachedData;
+            }
+
             const formattedTag = this.formatTag(clanTag);
             console.log(`Getting current war for clan: ${formattedTag}`);
-            return await this.executeRequest(`/clans/${formattedTag}/currentwar`, { timeout: 3000 });
+            const data = await this.executeRequest(`/clans/${formattedTag}/currentwar`, { timeout: 3000 });
+
+            // Cache for 2 minutes (wars change more frequently)
+            cacheService.set(cacheKey, data, 120);
+            return data;
         } catch (error) {
             console.error(`Error getting current war:`, error.message);
 
