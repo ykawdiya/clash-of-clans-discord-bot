@@ -27,6 +27,8 @@ module.exports = {
     // Flag to indicate this command requires database access
     requiresDatabase: true,
 
+    manualDeferring: true,
+
     async execute(interaction) {
         // Comprehensive logging
         console.log(`[SETCLAN] Command initiated`);

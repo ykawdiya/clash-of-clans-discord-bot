@@ -151,6 +151,8 @@ module.exports = {
 
     category: 'War',
 
+    manualDeferring: true,
+
     longDescription: 'Track and manage Clan War League performance. Start tracking a new season, record wars, update player statistics, and view current status and roster.',
 
     examples: [

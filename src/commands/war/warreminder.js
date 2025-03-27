@@ -40,6 +40,8 @@ module.exports = {
 
     category: 'War',
 
+    manualDeferring: true,
+
     longDescription: 'Set up and manage war attack reminders. Check which clan members have not used their attacks, send immediate reminders, or schedule automatic reminders for a specific time before war ends.',
 
     examples: [

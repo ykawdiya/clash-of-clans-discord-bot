@@ -5,6 +5,7 @@ const Clan = require('../../models/Clan');
 const User = require('../../models/User');
 const ErrorHandler = require('../../utils/errorHandler');
 
+
 // Define role types and configurations
 const ROLE_TYPES = {
     TH_LEVEL: 'th_level',
@@ -42,6 +43,8 @@ module.exports = {
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageRoles),
 
     category: 'Admin',
+
+    manualDeferring: true,
 
     longDescription: 'Configure automatic role assignments based on Clash of Clans data. Assign roles based on town hall level, clan role (Elder, Co-Leader), war activity, or donation tiers.',
 

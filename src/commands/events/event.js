@@ -293,6 +293,8 @@ module.exports = {
 
     category: 'Events',
 
+    manualDeferring: true,
+
     longDescription: 'Create and manage clan events such as war practice sessions, friendly challenges, tournaments, and more. Schedule events, track participation, and send reminders to participants.',
 
     examples: [

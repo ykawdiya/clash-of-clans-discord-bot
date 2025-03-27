@@ -21,19 +21,10 @@ module.exports = {
                 .setDescription('Clan tag (e.g. #ABC123)')
                 .setRequired(false)),
 
-    /**
-     * Command category for organization
-     */
     category: 'Info',
 
-    /**
-     * Full help description for the help command
-     */
     longDescription: 'Shows detailed information about a clan\'s current war, including opponent, war status, attack stats, and remaining attacks. If no tag is provided, it uses the clan linked to this Discord server.',
 
-    /**
-     * Usage examples
-     */
     examples: [
         '/war',
         '/war tag:#ABC123'

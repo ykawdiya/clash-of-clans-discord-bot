@@ -42,19 +42,12 @@ module.exports = {
                         .setDescription('Player tag to compare with (e.g. #ABC123)')
                         .setRequired(true))),
 
-    /**
-     * Command category for organization
-     */
     category: 'Tracking',
 
-    /**
-     * Full help description for the help command
-     */
+    manualDeferring: true,
+
     longDescription: 'Track and compare your Clash of Clans progress over time. You can update your stats, view your progress history, and compare your stats with other players. If you\'ve linked your account with the `/link` command, your tag will be used automatically.',
 
-    /**
-     * Usage examples
-     */
     examples: [
         '/stats update',
         '/stats update tag:#ABC123',

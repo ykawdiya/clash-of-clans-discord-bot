@@ -181,6 +181,8 @@ module.exports = {
 
     category: 'War',
 
+    manualDeferring: true,
+
     longDescription: 'Plan and coordinate clan war attacks. Create a war plan, assign attackers to enemy bases, update attack results, and view the overall plan. Helps organize war strategy and track attack assignments.',
 
     examples: [

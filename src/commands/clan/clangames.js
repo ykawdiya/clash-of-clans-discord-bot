@@ -112,6 +112,8 @@ module.exports = {
 
     category: 'Clan Management',
 
+    manualDeferring: true,
+
     longDescription: 'Track and manage Clan Games participation and points. Start tracking a new season, update player scores, check clan progress, and view the points leaderboard.',
 
     examples: [

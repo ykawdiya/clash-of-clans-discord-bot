@@ -22,6 +22,8 @@ module.exports = {
                 .setDescription('Discord user to look up (if they have linked their account)')
                 .setRequired(false)),
 
+    manualDeferring: true,
+
     async execute(interaction) {
         await interaction.deferReply();
 

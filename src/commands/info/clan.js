@@ -22,6 +22,8 @@ module.exports = {
                 .setDescription('Search for a clan by name')
                 .setRequired(false)),
 
+    manualDeferring: true,
+
     async execute(interaction) {
         await interaction.deferReply();
 

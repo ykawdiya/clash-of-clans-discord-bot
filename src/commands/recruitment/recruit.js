@@ -197,6 +197,8 @@ module.exports = {
 
     category: 'Recruitment',
 
+    manualDeferring: true,
+
     longDescription: 'Manage clan recruitment with a complete application system. Set up recruitment channels, customize requirements, review applications, and track recruitment statistics.',
 
     examples: [

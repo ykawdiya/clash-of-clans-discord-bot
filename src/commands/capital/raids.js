@@ -23,6 +23,8 @@ module.exports = {
 
     category: 'Clan Capital',
 
+    manualDeferring: true,
+
     longDescription: 'Track and monitor Clan Capital Raid Weekend activity. See the current raid status, member participation rates, and contribution leaderboards.',
 
     examples: [

@@ -39,21 +39,28 @@ module.exports = {
             console.error(`❌ No command matching ${interaction.commandName} was found.`);
             console.log('Available Commands:', Array.from(client.commands.keys()).join(', '));
 
-            return interaction.reply({
-                content: `Command not found. Please try one of these: ${Array.from(client.commands.keys()).join(', ')}`,
-                ephemeral: true
-            }).catch(error => {
+            try {
+                return await interaction.reply({
+                    content: `Command not found. Please try one of these: ${Array.from(client.commands.keys()).join(', ')}`,
+                    ephemeral: true
+                });
+            } catch (error) {
                 console.error('Failed to reply to unknown command:', error);
-            });
+                return;
+            }
         }
 
         try {
             console.log(`Executing command: ${interaction.commandName}`);
 
-            // Only auto-defer if the command doesn't handle it and hasn't been replied to
+            // Important: Add a flag to the interaction to track whether we've deferred already
+            interaction._wasDeferred = false;
+
+            // Only auto-defer if the command doesn't handle it on its own
             if (!command.manualDeferring && !interaction.replied && !interaction.deferred) {
                 try {
                     await interaction.deferReply();
+                    interaction._wasDeferred = true; // Mark that we've deferred
                     console.log(`Auto-deferred reply for ${interaction.commandName}`);
                 } catch (deferError) {
                     // Just log and continue if deferring fails
@@ -62,12 +69,17 @@ module.exports = {
             }
 
             // Execute the command
-            await command.execute(interaction);
+            try {
+                // Create a wrapper around the interaction to prevent duplicate replies
+                const safeInteraction = createSafeInteraction(interaction);
+                await command.execute(safeInteraction);
+            } catch (execError) {
+                throw execError; // Re-throw to be caught by our outer try/catch
+            }
 
             // Log execution time
             const executionTime = Date.now() - startTime;
             console.log(`✅ Command ${interaction.commandName} completed in ${executionTime}ms`);
-
         } catch (error) {
             console.error(`❌ Error executing ${interaction.commandName}:`, error);
             console.error('Error Stack:', error.stack || 'No stack trace available');
@@ -108,3 +120,66 @@ module.exports = {
         }
     },
 };
+
+/**
+ * Creates a safe wrapper around an interaction to prevent duplicate replies
+ */
+function createSafeInteraction(interaction) {
+    // Create a proxy that wraps all interaction methods with error handling
+    return new Proxy(interaction, {
+        get(target, prop) {
+            // If accessing a property that's not a method, return it directly
+            if (typeof target[prop] !== 'function') {
+                return target[prop];
+            }
+
+            // Wrap methods with additional checks
+            return async function(...args) {
+                if ((prop === 'reply' || prop === 'deferReply') &&
+                    (target.replied || target.deferred || target._wasDeferred)) {
+                    // If attempting to reply/defer when already replied/deferred, log and skip
+                    console.warn(`Prevented duplicate ${prop} for command ${target.commandName}`);
+
+                    // For reply, try to use followUp instead
+                    if (prop === 'reply') {
+                        try {
+                            return await target.followUp(...args);
+                        } catch (e) {
+                            console.warn(`Failed to convert reply to followUp: ${e.message}`);
+                            return null;
+                        }
+                    }
+
+                    return null;
+                }
+
+                try {
+                    // Call the original method
+                    return await target[prop](...args);
+                } catch (error) {
+                    // If the error is about already replied/deferred
+                    if (error.message.includes('already been sent')) {
+                        console.warn(`Error in ${prop}: ${error.message}`);
+
+                        // Try a fallback for common methods
+                        if (prop === 'reply') {
+                            try {
+                                return await target.followUp(...args);
+                            } catch (fallbackError) {
+                                console.warn(`Fallback also failed: ${fallbackError.message}`);
+                                return null;
+                            }
+                        } else if (prop === 'deferReply') {
+                            // Just mark it as deferred and continue
+                            target._wasDeferred = true;
+                            return null;
+                        }
+                    }
+
+                    // Rethrow other errors
+                    throw error;
+                }
+            };
+        }
+    });
+}

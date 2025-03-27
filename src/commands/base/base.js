@@ -189,6 +189,8 @@ module.exports = {
 
     category: 'Base Sharing',
 
+    manualDeferring: true,
+
     longDescription: 'Share, search for, and rate base layouts. Add your own layouts, search for layouts by Town Hall level or type, and rate others\' layouts to help clan members find the best bases.',
 
     examples: [

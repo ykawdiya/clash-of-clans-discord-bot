@@ -41,6 +41,8 @@ module.exports = {
 
     category: 'Clan Management',
 
+    manualDeferring: true,
+
     longDescription: 'Track and analyze clan member activity across various aspects. Monitor clan-wide activity, donation statistics, identify inactive members, and check individual member contributions.',
 
     examples: [
