@@ -204,10 +204,10 @@ async function setupTownHallRoles(interaction, linkedClan) {
 async function setupClanRoles(interaction, linkedClan) {
     // Define clan roles with their colors
     const clanRoleDefinitions = [
-        { name: 'CoC Leader', color: '#e74c3c', clanRole: 'leader' },
-        { name: 'CoC Co-Leader', color: '#e67e22', clanRole: 'coLeader' },
-        { name: 'CoC Elder', color: '#f1c40f', clanRole: 'elder' },
-        { name: 'CoC Member', color: '#3498db', clanRole: 'member' }
+        { name: 'Leader', color: '#e74c3c', clanRole: 'leader' },
+        { name: 'Co-Leader', color: '#e67e22', clanRole: 'coLeader' },
+        { name: 'Elder', color: '#f1c40f', clanRole: 'elder' },
+        { name: 'Member', color: '#3498db', clanRole: 'member' }
     ];
 
     const clanRoles = {};
