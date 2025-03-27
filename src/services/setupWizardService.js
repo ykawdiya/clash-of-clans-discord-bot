@@ -290,51 +290,72 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async showFeatureSelection(interaction) {
-        const session = this.activeSessions.get(interaction.guild.id);
-        session.currentState = this.STATES.FEATURES;
-
-        await interaction.deferUpdate();
-
-        const embed = new EmbedBuilder()
-            .setTitle('Step 5: Feature Selection')
-            .setDescription('Select which features you want to enable for your server:')
-            .setColor('#3498db');
-
-        const options = [
-            { value: 'war_announcements', name: 'War Announcements', description: 'Automatic war start/end notifications', defaultChecked: true },
-            { value: 'member_tracking', name: 'Member Tracking', description: 'Track donations, activity, and war performance', defaultChecked: true },
-            { value: 'auto_roles', name: 'Auto Roles', description: 'Automatically assign roles based on clan position', defaultChecked: true },
-            { value: 'welcome_messages', name: 'Welcome Messages', description: 'Automatic welcome messages for new members', defaultChecked: true },
-            { value: 'base_sharing', name: 'Base Sharing', description: 'Enable base sharing and management system', defaultChecked: false }
-        ];
-
-        // Add feature descriptions
-        options.forEach(option => {
-            embed.addFields({ name: option.name, value: option.description });
-        });
-
-        // Create checkboxes (using buttons, as Discord doesn't have actual checkboxes)
-        const rows = options.map(option => {
-            // Store default selections in session
-            if (option.defaultChecked && !session.selections.hasOwnProperty('features')) {
-                session.selections.features = session.selections.features || [];
-                session.selections.features.push(option.value);
+        try {
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                console.error('No active session found');
+                return;
             }
 
-            return new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`setup_feature_toggle_${option.value}`)
-                    .setLabel(option.name)
-                    .setStyle(session.selections.features?.includes(option.value) ? ButtonStyle.Success : ButtonStyle.Secondary)
-                    .setEmoji(session.selections.features?.includes(option.value) ? '✅' : '⬜')
-            );
-        });
+            session.currentState = this.STATES.FEATURES;
+            console.log('Showing feature selection step');
 
-        // Add navigation buttons
-        const navRow = this.createNavigationRow(session);
-        rows.push(navRow);
+            await interaction.deferUpdate().catch(console.error);
 
-        await interaction.editReply({ embeds: [embed], components: rows });
+            const embed = new EmbedBuilder()
+                .setTitle('Step 5: Feature Selection')
+                .setDescription('Select which features you want to enable for your server:')
+                .setColor('#3498db');
+
+            const options = [
+                { value: 'war_announcements', name: 'War Announcements', description: 'Automatic war start/end notifications', defaultChecked: true },
+                { value: 'member_tracking', name: 'Member Tracking', description: 'Track donations, activity, and war performance', defaultChecked: true },
+                { value: 'auto_roles', name: 'Auto Roles', description: 'Automatically assign roles based on clan position', defaultChecked: true },
+                { value: 'welcome_messages', name: 'Welcome Messages', description: 'Automatic welcome messages for new members', defaultChecked: true },
+                { value: 'base_sharing', name: 'Base Sharing', description: 'Enable base sharing and management system', defaultChecked: false }
+            ];
+
+            // Add feature descriptions
+            options.forEach(option => {
+                embed.addFields({ name: option.name, value: option.description });
+            });
+
+            // Initialize the features array if it doesn't exist yet
+            if (!session.selections.hasOwnProperty('features')) {
+                session.selections.features = [];
+
+                // Add default selections
+                options.forEach(option => {
+                    if (option.defaultChecked) {
+                        session.selections.features.push(option.value);
+                    }
+                });
+            }
+
+            // Create checkboxes (using buttons, as Discord doesn't have actual checkboxes)
+            const rows = options.map(option => {
+                const isSelected = session.selections.features?.includes(option.value) || false;
+
+                return new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`setup_feature_toggle_${option.value}`)
+                        .setLabel(option.name)
+                        .setStyle(isSelected ? ButtonStyle.Success : ButtonStyle.Secondary)
+                        .setEmoji(isSelected ? '✅' : '⬜')
+                );
+            });
+
+            // Add navigation buttons
+            const navRow = this.createNavigationRow(session);
+            rows.push(navRow);
+
+            await interaction.editReply({ embeds: [embed], components: rows }).catch(err => {
+                console.error('Error editing reply in showFeatureSelection:', err);
+            });
+        } catch (error) {
+            console.error('Error in showFeatureSelection:', error);
+            await interaction.editReply('An error occurred showing feature selection. Please try again.').catch(console.error);
+        }
     }
 
     /**
@@ -575,56 +596,86 @@ class SetupWizardService {
      * @param {String} direction 'next' or 'prev'
      */
     async navigateStep(interaction, direction) {
-        const session = this.activeSessions.get(interaction.guild.id);
+        try {
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                console.error('No active session found for guild', interaction.guild.id);
+                await interaction.reply({
+                    content: 'Session expired. Please start the setup wizard again.',
+                    ephemeral: true
+                });
+                return;
+            }
 
-        // Define the flow of states
-        const stateFlow = [
-            this.STATES.WELCOME,
-            this.STATES.CLAN_SELECTION,
-            this.STATES.SERVER_STRUCTURE,
-            this.STATES.ROLE_SETUP,
-            this.STATES.PERMISSIONS,
-            this.STATES.FEATURES,
-            this.STATES.CONFIRMATION
-        ];
+            // Define the flow of states
+            const stateFlow = [
+                this.STATES.WELCOME,
+                this.STATES.CLAN_SELECTION,
+                this.STATES.SERVER_STRUCTURE,
+                this.STATES.ROLE_SETUP,
+                this.STATES.PERMISSIONS,
+                this.STATES.FEATURES,
+                this.STATES.CONFIRMATION
+            ];
 
-        // Find current index
-        const currentIndex = stateFlow.indexOf(session.currentState);
-        let nextIndex;
+            // Find current index
+            const currentIndex = stateFlow.indexOf(session.currentState);
+            if (currentIndex === -1) {
+                console.error('Invalid state in session:', session.currentState);
+                return;
+            }
 
-        if (direction === 'next') {
-            nextIndex = Math.min(currentIndex + 1, stateFlow.length - 1);
-        } else {
-            nextIndex = Math.max(currentIndex - 1, 0);
-        }
+            let nextIndex;
+            if (direction === 'next') {
+                nextIndex = Math.min(currentIndex + 1, stateFlow.length - 1);
+            } else {
+                nextIndex = Math.max(currentIndex - 1, 0);
+            }
 
-        // Navigate to the next/previous state
-        const nextState = stateFlow[nextIndex];
-        session.currentState = nextState;
+            // Navigate to the next/previous state
+            const nextState = stateFlow[nextIndex];
+            console.log(`Navigating from ${session.currentState} to ${nextState}`);
+            session.currentState = nextState;
 
-        // Show appropriate screen based on state
-        switch (nextState) {
-            case this.STATES.WELCOME:
-                await this.showWelcomeScreen(interaction);
-                break;
-            case this.STATES.CLAN_SELECTION:
-                await this.showClanSelection(interaction);
-                break;
-            case this.STATES.SERVER_STRUCTURE:
-                await this.showServerStructure(interaction);
-                break;
-            case this.STATES.ROLE_SETUP:
-                await this.showRoleSetup(interaction);
-                break;
-            case this.STATES.PERMISSIONS:
-                await this.showPermissionsSetup(interaction);
-                break;
-            case this.STATES.FEATURES:
-                await this.showFeatureSelection(interaction);
-                break;
-            case this.STATES.CONFIRMATION:
-                await this.showConfirmation(interaction);
-                break;
+            // Debug log the session state
+            console.log(`Session state updated. New state: ${session.currentState}`);
+
+            // Show appropriate screen based on state
+            switch (nextState) {
+                case this.STATES.WELCOME:
+                    await this.showWelcomeScreen(interaction);
+                    break;
+                case this.STATES.CLAN_SELECTION:
+                    await this.showClanSelection(interaction);
+                    break;
+                case this.STATES.SERVER_STRUCTURE:
+                    await this.showServerStructure(interaction);
+                    break;
+                case this.STATES.ROLE_SETUP:
+                    await this.showRoleSetup(interaction);
+                    break;
+                case this.STATES.PERMISSIONS:
+                    await this.showPermissionsSetup(interaction);
+                    break;
+                case this.STATES.FEATURES:
+                    await this.showFeatureSelection(interaction);
+                    break;
+                case this.STATES.CONFIRMATION:
+                    await this.showConfirmation(interaction);
+                    break;
+                default:
+                    console.error('Unknown state:', nextState);
+                    await interaction.update({
+                        content: 'An error occurred while navigating the wizard.',
+                        components: []
+                    });
+            }
+        } catch (error) {
+            console.error('Error navigating steps:', error);
+            await interaction.update({
+                content: 'An error occurred while navigating the wizard. Please try again.',
+                components: []
+            }).catch(console.error);
         }
     }
 
