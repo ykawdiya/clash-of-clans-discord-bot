@@ -6,6 +6,15 @@ const User = require('../../models/User');
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
 
+// Add this at the top of the file
+const { getModel } = require('../../models/modelRegistry');
+
+// Then, instead of:
+// const Base = mongoose.model('Base', baseSchema);
+
+// Use:
+const Base = getModel('Base', baseSchema);
+
 // Scheduled reminders storage (in-memory)
 // In a production environment, consider using a database instead
 const scheduledReminders = new Map();

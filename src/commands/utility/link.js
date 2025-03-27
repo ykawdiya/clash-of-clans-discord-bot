@@ -3,6 +3,15 @@ const clashApiService = require('../../services/clashApiService');
 const User = require('../../models/User');
 const { validateTag } = require('../../utils/validators'); // Import the tag validator
 
+// Add this at the top of the file
+const { getModel } = require('../../models/modelRegistry');
+
+// Then, instead of:
+// const Base = mongoose.model('Base', baseSchema);
+
+// Use:
+const Base = getModel('Base', baseSchema);
+
 const fetchWithTimeout = async (promise, timeout = 5000) => {
     return Promise.race([
         promise,

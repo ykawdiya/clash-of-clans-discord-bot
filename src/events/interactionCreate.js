@@ -50,16 +50,8 @@ module.exports = {
         try {
             console.log(`Executing command: ${interaction.commandName}`);
 
-            // Only auto-defer if the command doesn't handle it and hasn't been replied to
-            if (!command.manualDeferring && !interaction.replied && !interaction.deferred) {
-                try {
-                    await interaction.deferReply();
-                    console.log(`Auto-deferred reply for ${interaction.commandName}`);
-                } catch (deferError) {
-                    // Just log and continue if deferring fails
-                    console.warn(`Could not auto-defer for ${interaction.commandName}:`, deferError.message);
-                }
-            }
+            // IMPORTANT: Remove auto-deferring - let commands handle their own deferring
+            // Do NOT add any interaction.deferReply() here
 
             // Execute the command
             await command.execute(interaction);
@@ -91,16 +83,16 @@ module.exports = {
                     await interaction.followUp({
                         content: userErrorMessage,
                         ephemeral: true
-                    });
+                    }).catch(e => console.error('Could not send followUp:', e));
                 } else if (interaction.deferred) {
                     await interaction.editReply({
                         content: userErrorMessage
-                    });
+                    }).catch(e => console.error('Could not edit reply:', e));
                 } else {
                     await interaction.reply({
                         content: userErrorMessage,
                         ephemeral: true
-                    });
+                    }).catch(e => console.error('Could not reply:', e));
                 }
             } catch (replyError) {
                 console.error('Failed to send error message to user:', replyError);

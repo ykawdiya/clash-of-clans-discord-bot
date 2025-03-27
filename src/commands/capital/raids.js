@@ -4,6 +4,15 @@ const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
 const ErrorHandler = require('../../utils/errorHandler');
 
+// Add this at the top of the file
+const { getModel } = require('../../models/modelRegistry');
+
+// Then, instead of:
+// const Base = mongoose.model('Base', baseSchema);
+
+// Use:
+const Base = getModel('Base', baseSchema);
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('raids')
