@@ -83,12 +83,15 @@ async function getClanTag(interaction) {
     // If no tag provided, check for linked clan
     if (!clanTag) {
         try {
-            const linkedClan = await Clan.findOne({ guildId: interaction.guild.id })
-                .timeout(2000) // Add timeout to prevent hanging
-                .exec();
+            // Use Promise.race to prevent hanging on database query
+            const linkedClan = await Promise.race([
+                Clan.findOne({ guildId: interaction.guild.id }),
+                new Promise((_, reject) => setTimeout(() =>
+                    reject(new Error('Database query timed out')), 2000))
+            ]);
 
             if (!linkedClan) {
-                interaction.editReply("Please provide a clan tag or link a clan to this server using `/setclan` command.");
+                await interaction.editReply("Please provide a clan tag or link a clan to this server using `/setclan` command.");
                 return null;
             }
 
@@ -99,7 +102,8 @@ async function getClanTag(interaction) {
                 clanTag = '#' + clanTag;
             }
         } catch (error) {
-            interaction.editReply("Error retrieving the server's linked clan. Please provide a clan tag directly.");
+            console.error('Database error when finding linked clan:', error);
+            await interaction.editReply("Error retrieving the server's linked clan. Please provide a clan tag directly.");
             return null;
         }
     }
@@ -107,7 +111,7 @@ async function getClanTag(interaction) {
     // Validate tag format
     const validation = validateTag(clanTag);
     if (!validation.valid) {
-        interaction.editReply(validation.message);
+        await interaction.editReply(validation.message);
         return null;
     }
 
