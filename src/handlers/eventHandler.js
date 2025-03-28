@@ -23,11 +23,15 @@ function loadEvents(client) {
             return;
         }
 
+        // Track registered event types to avoid duplicates
+        const registeredEvents = new Map();
+
         for (const file of eventFiles) {
             const filePath = path.join(eventsPath, file);
             try {
                 const event = require(filePath);
 
+                // Skip if missing required properties
                 if (!event.name) {
                     console.warn(`The event at ${filePath} is missing a name property.`);
                     continue;
@@ -38,8 +42,17 @@ function loadEvents(client) {
                     continue;
                 }
 
+                // Use either the specified event or the name as the event type
+                const eventType = event.event || event.name;
+
+                // Check for custom named handlers that actually handle standard events
+                if (event.event) {
+                    console.log(`Registering custom handler "${event.name}" for event: ${eventType}`);
+                }
+
+                // Register the event handler
                 if (event.once) {
-                    client.once(event.name, (...args) => {
+                    client.once(eventType, (...args) => {
                         try {
                             event.execute(client, ...args);
                         } catch (error) {
@@ -47,7 +60,7 @@ function loadEvents(client) {
                         }
                     });
                 } else {
-                    client.on(event.name, (...args) => {
+                    client.on(eventType, (...args) => {
                         try {
                             event.execute(client, ...args);
                         } catch (error) {
@@ -56,9 +69,22 @@ function loadEvents(client) {
                     });
                 }
 
-                console.log(`Loaded event: ${event.name}`);
+                // Record this event type and file
+                if (!registeredEvents.has(eventType)) {
+                    registeredEvents.set(eventType, []);
+                }
+                registeredEvents.get(eventType).push(file);
+
+                console.log(`Loaded event: ${event.name}${event.event ? ` (${event.event})` : ''}`);
             } catch (error) {
                 console.error(`Error loading event from ${filePath}:`, error);
+            }
+        }
+
+        // Log potential duplicate handlers
+        for (const [eventType, files] of registeredEvents.entries()) {
+            if (files.length > 1) {
+                console.warn(`Warning: Multiple handlers for event '${eventType}':`, files.join(', '));
             }
         }
 
