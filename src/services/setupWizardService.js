@@ -939,41 +939,57 @@ class SetupWizardService {
                     components: []
                 });
             } else if (customId.startsWith('setup_role_toggle_')) {
+                const roleType = customId.replace('setup_role_toggle_', '');
+
+                // Initialize roles array if needed
+                if (!session.selections.roles) {
+                    session.selections.roles = [];
+                }
+
+                // Toggle the role selection in the session
+                if (session.selections.roles.includes(roleType)) {
+                    session.selections.roles = session.selections.roles.filter(r => r !== roleType);
+                } else {
+                    session.selections.roles.push(roleType);
+                }
+
                 try {
-                    // Defer the update first to acknowledge the interaction
-                    await interaction.deferUpdate();
+                    // Create a completely new message instead of updating
+                    const reply = {
+                        content: '✅ Role preference updated!',
+                        ephemeral: true
+                    };
 
-                    // Toggle role selection
-                    const roleType = customId.replace('setup_role_toggle_', '');
-
-                    // Initialize roles array if needed
-                    if (!session.selections.roles) {
-                        session.selections.roles = [];
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply(reply);
                     }
 
-                    if (session.selections.roles.includes(roleType)) {
-                        session.selections.roles = session.selections.roles.filter(r => r !== roleType);
-                    } else {
-                        session.selections.roles.push(roleType);
-                    }
+                    // Now immediately refresh the entire setup screen with a new command
+                    const followUp = {
+                        embeds: [],
+                        components: [],
+                        ephemeral: true
+                    };
 
-                    // Show updated role setup - no deferUpdate since we already did it
-                    const embed = new EmbedBuilder()
+                    // Create a new embed for the roles
+                    const setupEmbed = new EmbedBuilder()
                         .setTitle('Step 3: Role Setup')
                         .setDescription('Select the types of roles you want to create for your server:')
                         .setColor('#3498db');
 
                     const options = [
-                        { value: 'clan_roles', name: 'Clan Roles', description: 'Leader, Co-Leader, Elder, Member roles from Clash of Clans', defaultChecked: true },
-                        { value: 'th_roles', name: 'Town Hall Roles', description: 'Roles for each Town Hall level (TH7-TH15)', defaultChecked: true },
-                        { value: 'war_roles', name: 'War Roles', description: 'Roles for war participants, CWL, and war planning', defaultChecked: false },
-                        { value: 'special_roles', name: 'Special Roles', description: 'Bot Admin, Event Manager, and other utility roles', defaultChecked: false }
+                        { value: 'clan_roles', name: 'Clan Roles', description: 'Leader, Co-Leader, Elder, Member roles from Clash of Clans' },
+                        { value: 'th_roles', name: 'Town Hall Roles', description: 'Roles for each Town Hall level (TH7-TH15)' },
+                        { value: 'war_roles', name: 'War Roles', description: 'Roles for war participants, CWL, and war planning' },
+                        { value: 'special_roles', name: 'Special Roles', description: 'Bot Admin, Event Manager, and other utility roles' }
                     ];
 
                     // Add role type descriptions
                     options.forEach(option => {
-                        embed.addFields({ name: option.name, value: option.description });
+                        setupEmbed.addFields({ name: option.name, value: option.description });
                     });
+
+                    followUp.embeds.push(setupEmbed);
 
                     // Create checkboxes (using buttons, as Discord doesn't have actual checkboxes)
                     const rows = options.map(option => {
@@ -990,31 +1006,54 @@ class SetupWizardService {
                     const navRow = this.createNavigationRow(session);
                     rows.push(navRow);
 
-                    await interaction.editReply({ embeds: [embed], components: rows });
+                    followUp.components = rows;
+
+                    // Send a follow-up message with the updated UI
+                    await interaction.followUp(followUp);
                 } catch (error) {
-                    console.error('Error toggling role:', error);
-                    // Don't try to respond to the interaction if it failed
+                    console.error('Error handling role toggle:', error);
+                    // Try to alert the user if we haven't responded yet
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({
+                            content: 'There was an issue updating your role selection. Please try again.',
+                            ephemeral: true
+                        }).catch(e => console.error('Failed to send error message:', e));
+                    }
                 }
             } else if (customId.startsWith('setup_feature_toggle_')) {
+                // Toggle feature selection
+                const featureType = customId.replace('setup_feature_toggle_', '');
+
+                // Initialize features array if needed
+                if (!session.selections.features) {
+                    session.selections.features = [];
+                }
+
+                if (session.selections.features.includes(featureType)) {
+                    session.selections.features = session.selections.features.filter(f => f !== featureType);
+                } else {
+                    session.selections.features.push(featureType);
+                }
+
                 try {
-                    // Defer the update first to acknowledge the interaction
-                    await interaction.deferUpdate();
+                    // Create a completely new message instead of updating
+                    const reply = {
+                        content: '✅ Feature preference updated!',
+                        ephemeral: true
+                    };
 
-                    // Toggle feature selection
-                    const featureType = customId.replace('setup_feature_toggle_', '');
-
-                    // Initialize features array if needed
-                    if (!session.selections.features) {
-                        session.selections.features = [];
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply(reply);
                     }
 
-                    if (session.selections.features.includes(featureType)) {
-                        session.selections.features = session.selections.features.filter(f => f !== featureType);
-                    } else {
-                        session.selections.features.push(featureType);
-                    }
+                    // Now immediately refresh the entire setup screen with a new message
+                    const followUp = {
+                        embeds: [],
+                        components: [],
+                        ephemeral: true
+                    };
 
-                    // Create the embed that was missing in the original code
+                    // Create a new embed for the features
                     const embed = new EmbedBuilder()
                         .setTitle('Step 5: Feature Selection')
                         .setDescription('Select which features you want to enable for your server:')
@@ -1022,6 +1061,8 @@ class SetupWizardService {
                         .addFields(
                             { name: 'Available Features', value: 'Choose from the options below to enhance your server functionality.' }
                         );
+
+                    followUp.embeds.push(embed);
 
                     // Group features into 2 buttons per row
                     const featureOptions = [
@@ -1055,13 +1096,19 @@ class SetupWizardService {
                     const navRow = this.createNavigationRow(session);
                     buttonRows.push(navRow);
 
-                    await interaction.editReply({
-                        embeds: [embed],
-                        components: buttonRows
-                    });
+                    followUp.components = buttonRows;
+
+                    // Send a follow-up message with the updated UI
+                    await interaction.followUp(followUp);
                 } catch (error) {
-                    console.error('Error toggling feature:', error);
-                    // Don't try to respond to the interaction if it failed
+                    console.error('Error handling feature toggle:', error);
+                    // Try to alert the user if we haven't responded yet
+                    if (!interaction.replied && !interaction.deferred) {
+                        await interaction.reply({
+                            content: 'There was an issue updating your feature selection. Please try again.',
+                            ephemeral: true
+                        }).catch(e => console.error('Failed to send error message:', e));
+                    }
                 }
             } else if (customId === 'setup_use_linked_clan' || customId === 'setup_link_clan') {
                 // Handle clan linking
