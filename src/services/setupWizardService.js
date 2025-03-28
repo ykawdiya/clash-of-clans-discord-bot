@@ -251,41 +251,72 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async showPermissionsSetup(interaction) {
-        const session = this.activeSessions.get(interaction.guild.id);
-        session.currentState = this.STATES.PERMISSIONS;
+        try {
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) throw new Error('No active session');
 
-        await interaction.deferUpdate();
+            session.currentState = this.STATES.PERMISSIONS;
+            await interaction.deferUpdate();
 
-        const embed = new EmbedBuilder()
-            .setTitle('Step 4: Permission Setup')
-            .setDescription('Choose how you want to set up channel and role permissions:')
-            .setColor('#3498db')
-            .addFields(
-                { name: 'Standard Permissions', value: 'Recommended permissions based on role hierarchy' },
-                { name: 'Strict Permissions', value: 'More restricted permissions with limited access for lower roles' },
-                { name: 'Open Permissions', value: 'More open permissions with greater access for all members' },
-                { name: 'Custom Permissions', value: 'Set up permissions manually after the wizard' }
+            // Clean embed structure
+            const embed = new EmbedBuilder()
+                .setTitle('🔐 Permission Setup')
+                .setDescription('Select your server\'s permission template:')
+                .setColor('#5865F2')
+                .addFields({
+                    name: 'Template Options',
+                    value: [
+                        '• **Standard**: Role-based hierarchy (Recommended)',
+                        '• **Strict**: Restricted channel access',
+                        '• **Open**: Community-driven permissions',
+                        '• **Custom**: Manual setup later'
+                    ].join('\n')
+                });
+
+            // Simplified select menu
+            const templateSelector = new StringSelectMenuBuilder()
+                .setCustomId('setup_permissions_template')
+                .setPlaceholder('Choose a template...')
+                .addOptions([
+                    { label: 'Standard', value: 'standard', emoji: '⚖️' },
+                    { label: 'Strict', value: 'strict', emoji: '🔒' },
+                    { label: 'Open', value: 'open', emoji: '🌐' },
+                    { label: 'Custom', value: 'custom', emoji: '🛠️' }
+                ]);
+
+            // Optimized navigation buttons
+            const navigationRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('setup_prev')
+                    .setLabel('Back')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('◀️'),
+                new ButtonBuilder()
+                    .setCustomId('setup_next')
+                    .setLabel('Continue')
+                    .setStyle(ButtonStyle.Primary)
+                    .setEmoji('⏭️'),
+                new ButtonBuilder()
+                    .setCustomId('setup_cancel')
+                    .setLabel('Cancel Setup')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('❌')
             );
 
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('setup_permissions_template')
-            .setPlaceholder('Select a permission template')
-            .addOptions([
-                { label: 'Standard Permissions', value: 'standard', description: 'Balanced permissions for most clans' },
-                { label: 'Strict Permissions', value: 'strict', description: 'More controlled environment' },
-                { label: 'Open Permissions', value: 'open', description: 'More community-driven approach' },
-                { label: 'Custom Permissions', value: 'custom', description: 'Set up manually later' }
-            ]);
+            await interaction.editReply({
+                embeds: [embed],
+                components: [
+                    new ActionRowBuilder().addComponents(templateSelector),
+                    navigationRow
+                ]
+            });
 
-        const actionRow = new ActionRowBuilder().addComponents(selectMenu);
-
-        // Modified navigation row - explicitly enable next button
-        const navRow = this.createNavigationRow(session, false, true); // (noNext = false, noPrev = true)
-
-        await interaction.editReply({
-            embeds: [embed],
-            components: [actionRow, navRow]
-        });
+        } catch (error) {
+            console.error('Permission Setup Error:', error);
+            await this.handleNavigationError(interaction,
+                'Failed to load permission settings. Please restart the setup.'
+            );
+        }
     }
 
     /**
@@ -583,16 +614,9 @@ class SetupWizardService {
     async navigateStep(interaction, direction) {
         try {
             const session = this.activeSessions.get(interaction.guild.id);
-            if (!session) {
-                await interaction.reply({
-                    content: 'Session expired. Please start the setup wizard again.',
-                    ephemeral: true
-                });
-                return;
-            }
+            if (!session) throw new Error('Session not found');
 
-            // Define the state progression flow
-            const stateFlow = [
+            const STATE_SEQUENCE = [
                 this.STATES.WELCOME,
                 this.STATES.CLAN_SELECTION,
                 this.STATES.SERVER_STRUCTURE,
@@ -602,23 +626,19 @@ class SetupWizardService {
                 this.STATES.CONFIRMATION
             ];
 
-            // Validate current state
-            const currentIndex = stateFlow.indexOf(session.currentState);
-            if (currentIndex === -1) {
-                throw new Error(`Invalid state: ${session.currentState}`);
-            }
+            const currentIndex = STATE_SEQUENCE.indexOf(session.currentState);
+            if (currentIndex === -1) throw new Error('Invalid state sequence');
 
-            // Calculate next index with boundary checks
             const nextIndex = direction === 'next'
-                ? Math.min(currentIndex + 1, stateFlow.length - 1)
+                ? Math.min(currentIndex + 1, STATE_SEQUENCE.length - 1)
                 : Math.max(currentIndex - 1, 0);
 
-            // Update session state
-            const nextState = stateFlow[nextIndex];
+            const nextState = STATE_SEQUENCE[nextIndex];
+            console.log(`Transition: ${session.currentState} → ${nextState}`);
             session.currentState = nextState;
 
-            // State transition handler with validation
-            const transitionHandler = {
+            // State transition mapping with validation
+            const STATE_HANDLERS = {
                 [this.STATES.WELCOME]: this.showWelcomeScreen,
                 [this.STATES.CLAN_SELECTION]: this.showClanSelection,
                 [this.STATES.SERVER_STRUCTURE]: this.showServerStructure,
@@ -628,39 +648,58 @@ class SetupWizardService {
                 [this.STATES.CONFIRMATION]: this.showConfirmation
             };
 
-            if (!transitionHandler[nextState]) {
-                throw new Error(`No handler for state: ${nextState}`);
-            }
+            const handler = STATE_HANDLERS[nextState];
+            if (!handler) throw new Error(`No handler for state: ${nextState}`);
 
-            // Execute state transition
-            await transitionHandler[nextState].call(this, interaction);
+            // Ensure clean transition
+            await interaction.deferUpdate();
+            await handler.call(this, interaction);
 
         } catch (error) {
-            console.error('Navigation Error:', error);
-            await this.handleNavigationError(interaction, error);
+            console.error('Navigation Failure:', error);
+            await this.handleNavigationError(interaction, error, true);
         }
     }
 
 // Add this new error handling method
-    async handleNavigationError(interaction, error) {
+    async handleNavigationError(interaction, error, isCritical = false) {
         try {
-            const errorMessage = error.message.includes('Invalid state')
-                ? 'Setup wizard encountered an invalid state. Please restart.'
-                : 'An error occurred during navigation. Please try again.';
+            const errorMessage = isCritical
+                ? '🚨 Critical setup error. Please restart the wizard.'
+                : '⚠️ Temporary navigation issue. Try again.';
+
+            const components = [];
+            if (isCritical) {
+                components.push(
+                    new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('setup_restart')
+                            .setLabel('Restart Setup')
+                            .setStyle(ButtonStyle.Danger)
+                            .setEmoji('🔄')
+                    )
+                );
+            }
 
             if (interaction.deferred || interaction.replied) {
                 await interaction.editReply({
-                    content: `❌ ${errorMessage}`,
-                    components: []
+                    content: `${errorMessage}\n\`\`\`${error.message.slice(0, 100)}\`\`\``,
+                    components
                 });
             } else {
                 await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    ephemeral: true
+                    content: errorMessage,
+                    ephemeral: true,
+                    components
                 });
             }
+
+            if (isCritical) {
+                this.activeSessions.delete(interaction.guild.id);
+            }
+
         } catch (err) {
-            console.error('Error handling failure:', err);
+            console.error('Error handler failure:', err);
         }
     }
 
@@ -1170,6 +1209,39 @@ class SetupWizardService {
         }
 
         // Additional features will be configured here
+    }
+
+    async handleNavigationError(interaction, error) {
+        const errorMessage = error.message.includes('Invalid state')
+            ? 'Configuration mismatch. Please restart setup.'
+            : 'Failed to navigate between steps. Try again.';
+
+        try {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({
+                    content: `❌ ${errorMessage}`,
+                    components: [this.createErrorHelpRow()]
+                });
+            } else {
+                await interaction.reply({
+                    content: `❌ ${errorMessage}`,
+                    ephemeral: true,
+                    components: [this.createErrorHelpRow()]
+                });
+            }
+        } catch (err) {
+            console.error('Error handling failure:', err);
+        }
+    }
+
+    createErrorHelpRow() {
+        return new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setStyle(ButtonStyle.Link)
+                .setLabel('Get Help')
+                .setURL('https://support.yourbot.com/setup-issues')
+                .setEmoji('❓')
+        );
     }
 }
 
