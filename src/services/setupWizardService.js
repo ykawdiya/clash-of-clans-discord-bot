@@ -30,22 +30,27 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async startWizard(interaction) {
-        // Create a new session for this guild
-        const session = {
-            guildId: interaction.guild.id,
-            userId: interaction.user.id,
-            startTime: Date.now(),
-            currentState: this.STATES.WELCOME,
-            selections: {},
-            completedSteps: [],
-            channelsCreated: [],
-            rolesCreated: []
-        };
+        try {
+            // Create a new session for this guild
+            const session = {
+                guildId: interaction.guild.id,
+                userId: interaction.user.id,
+                startTime: Date.now(),
+                currentState: this.STATES.WELCOME,
+                selections: {},
+                completedSteps: [],
+                channelsCreated: [],
+                rolesCreated: []
+            };
 
-        this.activeSessions.set(interaction.guild.id, session);
+            this.activeSessions.set(interaction.guild.id, session);
 
-        // Show welcome message
-        await this.showWelcomeScreen(interaction);
+            // Show welcome message
+            await this.showWelcomeScreen(interaction);
+        } catch (error) {
+            console.error('Error starting wizard:', error);
+            await this.handleErrorResponse(interaction, 'Failed to start the setup wizard.');
+        }
     }
 
     /**
@@ -53,36 +58,41 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async showWelcomeScreen(interaction) {
-        const embed = new EmbedBuilder()
-            .setTitle('🏗️ Discord Server Setup Wizard')
-            .setDescription('Welcome to the Clash of Clans Discord Server Setup Wizard! This wizard will guide you through setting up your server with all the categories, channels, and roles needed for a well-organized clan.')
-            .setColor('#f1c40f')
-            .addFields(
-                { name: '📝 What will be set up?', value: '• Server categories and channels\n• Roles based on clan positions\n• Permissions for channels and roles\n• Integrations with your Clash of Clans clan' },
-                { name: '⚠️ Important Notes', value: '• You should have administrator permissions\n• Some steps will modify your server structure\n• You can cancel anytime during the process' }
-            )
-            .setFooter({ text: 'This process will take about 5 minutes to complete' });
+        try {
+            const embed = new EmbedBuilder()
+                .setTitle('🏗️ Discord Server Setup Wizard')
+                .setDescription('Welcome to the Clash of Clans Discord Server Setup Wizard! This wizard will guide you through setting up your server with all the categories, channels, and roles needed for a well-organized clan.')
+                .setColor('#f1c40f')
+                .addFields(
+                    { name: '📝 What will be set up?', value: '• Server categories and channels\n• Roles based on clan positions\n• Permissions for channels and roles\n• Integrations with your Clash of Clans clan' },
+                    { name: '⚠️ Important Notes', value: '• You should have administrator permissions\n• Some steps will modify your server structure\n• You can cancel anytime during the process' }
+                )
+                .setFooter({ text: 'This process will take about 5 minutes to complete' });
 
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('setup_start')
-                    .setLabel('Start Setup')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('🚀'),
-                new ButtonBuilder()
-                    .setCustomId('setup_template')
-                    .setLabel('Use Template')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('📋'),
-                new ButtonBuilder()
-                    .setCustomId('setup_cancel')
-                    .setLabel('Cancel')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
-            );
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('setup_start')
+                        .setLabel('Start Setup')
+                        .setStyle(ButtonStyle.Primary)
+                        .setEmoji('🚀'),
+                    new ButtonBuilder()
+                        .setCustomId('setup_template')
+                        .setLabel('Use Template')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('📋'),
+                    new ButtonBuilder()
+                        .setCustomId('setup_cancel')
+                        .setLabel('Cancel')
+                        .setStyle(ButtonStyle.Danger)
+                        .setEmoji('❌')
+                );
 
-        await interaction.reply({ embeds: [embed], components: [row] });
+            await interaction.reply({ embeds: [embed], components: [row] });
+        } catch (error) {
+            console.error('Error showing welcome screen:', error);
+            await this.handleErrorResponse(interaction, 'Failed to show welcome screen.');
+        }
     }
 
     /**
@@ -90,64 +100,73 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async showClanSelection(interaction) {
-        await interaction.deferUpdate();
+        try {
+            await interaction.deferUpdate();
 
-        // Get the session
-        const session = this.activeSessions.get(interaction.guild.id);
-        session.currentState = this.STATES.CLAN_SELECTION;
+            // Get the session
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                throw new Error('No active session found');
+            }
 
-        // Check if a clan is already linked to this server
-        const linkedClan = await Clan.findOne({ guildId: interaction.guild.id });
+            session.currentState = this.STATES.CLAN_SELECTION;
 
-        const embed = new EmbedBuilder()
-            .setTitle('Step 1: Clan Selection')
-            .setColor('#3498db');
+            // Check if a clan is already linked to this server
+            const linkedClan = await Clan.findOne({ guildId: interaction.guild.id });
 
-        let components = [];
+            const embed = new EmbedBuilder()
+                .setTitle('Step 1: Clan Selection')
+                .setColor('#3498db');
 
-        if (linkedClan) {
-            embed.setDescription(`Your server is currently linked to the clan: **${linkedClan.name}** (${linkedClan.clanTag})\n\nWould you like to use this clan for the setup?`);
+            let components = [];
 
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('setup_use_linked_clan')
-                        .setLabel('Use Linked Clan')
-                        .setStyle(ButtonStyle.Primary),
-                    new ButtonBuilder()
-                        .setCustomId('setup_link_different')
-                        .setLabel('Link Different Clan')
-                        .setStyle(ButtonStyle.Secondary),
-                    new ButtonBuilder()
-                        .setCustomId('setup_skip_clan')
-                        .setLabel('Skip Clan Link')
-                        .setStyle(ButtonStyle.Secondary)
-                );
+            if (linkedClan) {
+                embed.setDescription(`Your server is currently linked to the clan: **${linkedClan.name}** (${linkedClan.clanTag})\n\nWould you like to use this clan for the setup?`);
 
-            components.push(row);
-        } else {
-            embed.setDescription(`No clan is currently linked to this server. You can either link a clan now or skip this step.\n\nLinking a clan will allow the wizard to automatically set up roles based on your clan's structure.`);
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('setup_use_linked_clan')
+                            .setLabel('Use Linked Clan')
+                            .setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder()
+                            .setCustomId('setup_link_different')
+                            .setLabel('Link Different Clan')
+                            .setStyle(ButtonStyle.Secondary),
+                        new ButtonBuilder()
+                            .setCustomId('setup_skip_clan')
+                            .setLabel('Skip Clan Link')
+                            .setStyle(ButtonStyle.Secondary)
+                    );
 
-            const row = new ActionRowBuilder()
-                .addComponents(
-                    new ButtonBuilder()
-                        .setCustomId('setup_link_clan')
-                        .setLabel('Link a Clan')
-                        .setStyle(ButtonStyle.Primary),
-                    new ButtonBuilder()
-                        .setCustomId('setup_skip_clan')
-                        .setLabel('Skip Clan Link')
-                        .setStyle(ButtonStyle.Secondary)
-                );
+                components.push(row);
+            } else {
+                embed.setDescription(`No clan is currently linked to this server. You can either link a clan now or skip this step.\n\nLinking a clan will allow the wizard to automatically set up roles based on your clan's structure.`);
 
-            components.push(row);
+                const row = new ActionRowBuilder()
+                    .addComponents(
+                        new ButtonBuilder()
+                            .setCustomId('setup_link_clan')
+                            .setLabel('Link a Clan')
+                            .setStyle(ButtonStyle.Primary),
+                        new ButtonBuilder()
+                            .setCustomId('setup_skip_clan')
+                            .setLabel('Skip Clan Link')
+                            .setStyle(ButtonStyle.Secondary)
+                    );
+
+                components.push(row);
+            }
+
+            // Add navigation buttons
+            const navRow = this.createNavigationRow(session, false, true);
+            components.push(navRow);
+
+            await interaction.editReply({ embeds: [embed], components: components });
+        } catch (error) {
+            console.error('Error showing clan selection:', error);
+            await this.handleNavigationError(interaction, error);
         }
-
-        // Add navigation buttons
-        const navRow = this.createNavigationRow(session, false, true);
-        components.push(navRow);
-
-        await interaction.editReply({ embeds: [embed], components: components });
     }
 
     /**
@@ -155,44 +174,53 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async showServerStructure(interaction) {
-        const session = this.activeSessions.get(interaction.guild.id);
-        session.currentState = this.STATES.SERVER_STRUCTURE;
+        try {
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                throw new Error('No active session found');
+            }
 
-        await interaction.deferUpdate();
+            session.currentState = this.STATES.SERVER_STRUCTURE;
 
-        const serverTemplates = [
-            { value: 'standard', name: 'Standard Clan', description: 'Basic structure with general, announcement, and war channels' },
-            { value: 'competitive', name: 'Competitive', description: 'Focus on war strategy, CWL, and tournament organization' },
-            { value: 'community', name: 'Community-focused', description: 'More social channels and discussion areas' },
-            { value: 'family', name: 'Clan Family', description: 'For clans with multiple sub-clans or feeder clans' },
-            { value: 'custom', name: 'Custom', description: 'Create a custom structure' }
-        ];
+            await interaction.deferUpdate();
 
-        const embed = new EmbedBuilder()
-            .setTitle('Step 2: Server Structure')
-            .setDescription('Choose a template for your server\'s categories and channels:')
-            .setColor('#3498db');
+            const serverTemplates = [
+                { value: 'standard', name: 'Standard Clan', description: 'Basic structure with general, announcement, and war channels' },
+                { value: 'competitive', name: 'Competitive', description: 'Focus on war strategy, CWL, and tournament organization' },
+                { value: 'community', name: 'Community-focused', description: 'More social channels and discussion areas' },
+                { value: 'family', name: 'Clan Family', description: 'For clans with multiple sub-clans or feeder clans' },
+                { value: 'custom', name: 'Custom', description: 'Create a custom structure' }
+            ];
 
-        // Add description of each template
-        serverTemplates.forEach(template => {
-            embed.addFields({ name: template.name, value: template.description });
-        });
+            const embed = new EmbedBuilder()
+                .setTitle('Step 2: Server Structure')
+                .setDescription('Choose a template for your server\'s categories and channels:')
+                .setColor('#3498db');
 
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('setup_server_template')
-            .setPlaceholder('Select a server template')
-            .addOptions(serverTemplates.map(template => ({
-                label: template.name,
-                value: template.value,
-                description: template.description
-            })));
+            // Add description of each template
+            serverTemplates.forEach(template => {
+                embed.addFields({ name: template.name, value: template.description });
+            });
 
-        const actionRow = new ActionRowBuilder().addComponents(selectMenu);
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId('setup_server_template')
+                .setPlaceholder('Select a server template')
+                .addOptions(serverTemplates.map(template => ({
+                    label: template.name,
+                    value: template.value,
+                    description: template.description
+                })));
 
-        // Add navigation buttons
-        const navRow = this.createNavigationRow(session);
+            const actionRow = new ActionRowBuilder().addComponents(selectMenu);
 
-        await interaction.editReply({ embeds: [embed], components: [actionRow, navRow] });
+            // Add navigation buttons
+            const navRow = this.createNavigationRow(session);
+
+            await interaction.editReply({ embeds: [embed], components: [actionRow, navRow] });
+        } catch (error) {
+            console.error('Error showing server structure:', error);
+            await this.handleNavigationError(interaction, error);
+        }
     }
 
     /**
@@ -200,50 +228,63 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async showRoleSetup(interaction) {
-        const session = this.activeSessions.get(interaction.guild.id);
-        session.currentState = this.STATES.ROLE_SETUP;
-
-        await interaction.deferUpdate();
-
-        const embed = new EmbedBuilder()
-            .setTitle('Step 3: Role Setup')
-            .setDescription('Select the types of roles you want to create for your server:')
-            .setColor('#3498db');
-
-        const options = [
-            { value: 'clan_roles', name: 'Clan Roles', description: 'Leader, Co-Leader, Elder, Member roles from Clash of Clans', defaultChecked: true },
-            { value: 'th_roles', name: 'Town Hall Roles', description: 'Roles for each Town Hall level (TH7-TH15)', defaultChecked: true },
-            { value: 'war_roles', name: 'War Roles', description: 'Roles for war participants, CWL, and war planning', defaultChecked: false },
-            { value: 'special_roles', name: 'Special Roles', description: 'Bot Admin, Event Manager, and other utility roles', defaultChecked: false }
-        ];
-
-        // Add role type descriptions
-        options.forEach(option => {
-            embed.addFields({ name: option.name, value: option.description });
-        });
-
-        // Create checkboxes (using buttons, as Discord doesn't have actual checkboxes)
-        const rows = options.map(option => {
-            // Store default selections in session
-            if (option.defaultChecked && !session.selections.hasOwnProperty('roles')) {
-                session.selections.roles = session.selections.roles || [];
-                session.selections.roles.push(option.value);
+        try {
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                throw new Error('No active session found');
             }
 
-            return new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId(`setup_role_toggle_${option.value}`)
-                    .setLabel(option.name)
-                    .setStyle(session.selections.roles?.includes(option.value) ? ButtonStyle.Success : ButtonStyle.Secondary)
-                    .setEmoji(session.selections.roles?.includes(option.value) ? '✅' : '⬜')
-            );
-        });
+            session.currentState = this.STATES.ROLE_SETUP;
 
-        // Add navigation buttons
-        const navRow = this.createNavigationRow(session);
-        rows.push(navRow);
+            await interaction.deferUpdate();
 
-        await interaction.editReply({ embeds: [embed], components: rows });
+            const embed = new EmbedBuilder()
+                .setTitle('Step 3: Role Setup')
+                .setDescription('Select the types of roles you want to create for your server:')
+                .setColor('#3498db');
+
+            const options = [
+                { value: 'clan_roles', name: 'Clan Roles', description: 'Leader, Co-Leader, Elder, Member roles from Clash of Clans', defaultChecked: true },
+                { value: 'th_roles', name: 'Town Hall Roles', description: 'Roles for each Town Hall level (TH7-TH15)', defaultChecked: true },
+                { value: 'war_roles', name: 'War Roles', description: 'Roles for war participants, CWL, and war planning', defaultChecked: false },
+                { value: 'special_roles', name: 'Special Roles', description: 'Bot Admin, Event Manager, and other utility roles', defaultChecked: false }
+            ];
+
+            // Add role type descriptions
+            options.forEach(option => {
+                embed.addFields({ name: option.name, value: option.description });
+            });
+
+            // Create checkboxes (using buttons, as Discord doesn't have actual checkboxes)
+            const rows = options.map(option => {
+                // Initialize roles array if it doesn't exist
+                if (!session.selections.roles) {
+                    session.selections.roles = [];
+                }
+
+                // Store default selections in session
+                if (option.defaultChecked && !session.selections.roles.includes(option.value)) {
+                    session.selections.roles.push(option.value);
+                }
+
+                return new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`setup_role_toggle_${option.value}`)
+                        .setLabel(option.name)
+                        .setStyle(session.selections.roles.includes(option.value) ? ButtonStyle.Success : ButtonStyle.Secondary)
+                        .setEmoji(session.selections.roles.includes(option.value) ? '✅' : '⬜')
+                );
+            });
+
+            // Add navigation buttons
+            const navRow = this.createNavigationRow(session);
+            rows.push(navRow);
+
+            await interaction.editReply({ embeds: [embed], components: rows });
+        } catch (error) {
+            console.error('Error showing role setup:', error);
+            await this.handleNavigationError(interaction, error);
+        }
     }
 
     /**
@@ -253,7 +294,9 @@ class SetupWizardService {
     async showPermissionsSetup(interaction) {
         try {
             const session = this.activeSessions.get(interaction.guild.id);
-            if (!session) throw new Error('No active session');
+            if (!session) {
+                throw new Error('No active session found');
+            }
 
             session.currentState = this.STATES.PERMISSIONS;
             await interaction.deferUpdate();
@@ -285,23 +328,7 @@ class SetupWizardService {
                 ]);
 
             // Optimized navigation buttons
-            const navigationRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('setup_prev')
-                    .setLabel('Back')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('◀️'),
-                new ButtonBuilder()
-                    .setCustomId('setup_next')
-                    .setLabel('Continue')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('⏭️'),
-                new ButtonBuilder()
-                    .setCustomId('setup_cancel')
-                    .setLabel('Cancel Setup')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
-            );
+            const navigationRow = this.createNavigationRow(session);
 
             await interaction.editReply({
                 embeds: [embed],
@@ -310,12 +337,9 @@ class SetupWizardService {
                     navigationRow
                 ]
             });
-
         } catch (error) {
             console.error('Permission Setup Error:', error);
-            await this.handleNavigationError(interaction,
-                'Failed to load permission settings. Please restart the setup.'
-            );
+            await this.handleNavigationError(interaction, error);
         }
     }
 
@@ -326,11 +350,27 @@ class SetupWizardService {
     async showFeatureSelection(interaction) {
         try {
             const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                throw new Error('No active session found');
+            }
+
             session.currentState = this.STATES.FEATURES;
 
             await interaction.deferUpdate();
 
-            // ... existing embed setup ...
+            // Create the embed that was missing in the original code
+            const embed = new EmbedBuilder()
+                .setTitle('Step 5: Feature Selection')
+                .setDescription('Select which features you want to enable for your server:')
+                .setColor('#3498db')
+                .addFields(
+                    { name: 'Available Features', value: 'Choose from the options below to enhance your server functionality.' }
+                );
+
+            // Initialize features array if it doesn't exist
+            if (!session.selections.features) {
+                session.selections.features = [];
+            }
 
             // Group features into 2 buttons per row
             const featureOptions = [
@@ -347,7 +387,7 @@ class SetupWizardService {
                 const chunk = featureOptions.slice(i, i + 2);
 
                 chunk.forEach(option => {
-                    const isSelected = session.selections.features?.includes(option.value);
+                    const isSelected = session.selections.features.includes(option.value);
                     row.addComponents(
                         new ButtonBuilder()
                             .setCustomId(`setup_feature_toggle_${option.value}`)
@@ -370,7 +410,7 @@ class SetupWizardService {
             });
         } catch (error) {
             console.error('Error in showFeatureSelection:', error);
-            await interaction.editReply('An error occurred showing feature selection.');
+            await this.handleNavigationError(interaction, error);
         }
     }
 
@@ -379,58 +419,73 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async showConfirmation(interaction) {
-        const session = this.activeSessions.get(interaction.guild.id);
-        session.currentState = this.STATES.CONFIRMATION;
+        try {
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                throw new Error('No active session found');
+            }
 
-        await interaction.deferUpdate();
+            session.currentState = this.STATES.CONFIRMATION;
 
-        // Get current server info for comparison
-        const currentCategories = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).size;
-        const currentChannels = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildVoice).size;
-        const currentRoles = interaction.guild.roles.cache.size - 1; // Subtract @everyone
+            await interaction.deferUpdate();
 
-        // Calculate new counts based on template
-        const templateInfo = configManager.getServerTemplate(session.selections.serverTemplate || 'standard');
-        const newCategories = templateInfo.categories.length;
-        const newChannels = templateInfo.categories.reduce((count, category) => count + category.channels.length, 0);
-        const newRoles = (session.selections.roles?.includes('clan_roles') ? 4 : 0) +
-            (session.selections.roles?.includes('th_roles') ? 9 : 0) +
-            (session.selections.roles?.includes('war_roles') ? 3 : 0) +
-            (session.selections.roles?.includes('special_roles') ? 3 : 0);
+            // Ensure all selections have default values
+            if (!session.selections.serverTemplate) session.selections.serverTemplate = 'standard';
+            if (!session.selections.roles) session.selections.roles = ['clan_roles', 'th_roles'];
+            if (!session.selections.permissionTemplate) session.selections.permissionTemplate = 'standard';
+            if (!session.selections.features) session.selections.features = [];
 
-        // Create summary of changes
-        const embed = new EmbedBuilder()
-            .setTitle('Final Confirmation')
-            .setDescription('Review your selections before applying changes to your server:')
-            .setColor('#e74c3c')
-            .addFields(
-                { name: 'Server Template', value: session.selections.serverTemplate ? configManager.getTemplateName(session.selections.serverTemplate) : 'Standard' },
-                { name: 'Roles to Create', value: session.selections.roles ? session.selections.roles.map(r => configManager.getRoleName(r)).join(', ') : 'None' },
-                { name: 'Permission Template', value: session.selections.permissionTemplate ? configManager.getPermissionName(session.selections.permissionTemplate) : 'Standard' },
-                { name: 'Features Enabled', value: session.selections.features ? session.selections.features.map(f => configManager.getFeatureName(f)).join(', ') : 'None' },
-                { name: 'Current Server', value: `Categories: ${currentCategories}\nChannels: ${currentChannels}\nRoles: ${currentRoles}` },
-                { name: 'After Setup', value: `Categories: ${currentCategories + newCategories}\nChannels: ${currentChannels + newChannels}\nRoles: ${currentRoles + newRoles}` }
-            )
-            .setFooter({ text: '⚠️ This will modify your Discord server structure! ⚠️' });
+            // Get current server info for comparison
+            const currentCategories = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).size;
+            const currentChannels = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildVoice).size;
+            const currentRoles = interaction.guild.roles.cache.size - 1; // Subtract @everyone
 
-        const actionRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('setup_confirm')
-                    .setLabel('Apply Changes')
-                    .setStyle(ButtonStyle.Primary)
-                    .setEmoji('✅'),
-                new ButtonBuilder()
-                    .setCustomId('setup_cancel')
-                    .setLabel('Cancel')
-                    .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
-            );
+            // Calculate new counts based on template
+            const templateInfo = configManager.getServerTemplate(session.selections.serverTemplate);
+            const newCategories = templateInfo.categories.length;
+            const newChannels = templateInfo.categories.reduce((count, category) => count + category.channels.length, 0);
+            const newRoles = (session.selections.roles.includes('clan_roles') ? 4 : 0) +
+                (session.selections.roles.includes('th_roles') ? 9 : 0) +
+                (session.selections.roles.includes('war_roles') ? 3 : 0) +
+                (session.selections.roles.includes('special_roles') ? 3 : 0);
 
-        // Add navigation buttons
-        const navRow = this.createNavigationRow(session, true, false);
+            // Create summary of changes
+            const embed = new EmbedBuilder()
+                .setTitle('Final Confirmation')
+                .setDescription('Review your selections before applying changes to your server:')
+                .setColor('#e74c3c')
+                .addFields(
+                    { name: 'Server Template', value: configManager.getTemplateName(session.selections.serverTemplate) },
+                    { name: 'Roles to Create', value: session.selections.roles.length > 0 ? session.selections.roles.map(r => configManager.getRoleName(r)).join(', ') : 'None' },
+                    { name: 'Permission Template', value: configManager.getPermissionName(session.selections.permissionTemplate) },
+                    { name: 'Features Enabled', value: session.selections.features.length > 0 ? session.selections.features.map(f => configManager.getFeatureName(f)).join(', ') : 'None' },
+                    { name: 'Current Server', value: `Categories: ${currentCategories}\nChannels: ${currentChannels}\nRoles: ${currentRoles}` },
+                    { name: 'After Setup', value: `Categories: ${currentCategories + newCategories}\nChannels: ${currentChannels + newChannels}\nRoles: ${currentRoles + newRoles}` }
+                )
+                .setFooter({ text: '⚠️ This will modify your Discord server structure! ⚠️' });
 
-        await interaction.editReply({ embeds: [embed], components: [actionRow, navRow] });
+            const actionRow = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('setup_confirm')
+                        .setLabel('Apply Changes')
+                        .setStyle(ButtonStyle.Primary)
+                        .setEmoji('✅'),
+                    new ButtonBuilder()
+                        .setCustomId('setup_cancel')
+                        .setLabel('Cancel')
+                        .setStyle(ButtonStyle.Danger)
+                        .setEmoji('❌')
+                );
+
+            // Add navigation buttons
+            const navRow = this.createNavigationRow(session, true, false);
+
+            await interaction.editReply({ embeds: [embed], components: [actionRow, navRow] });
+        } catch (error) {
+            console.error('Error showing confirmation:', error);
+            await this.handleNavigationError(interaction, error);
+        }
     }
 
     /**
@@ -438,19 +493,22 @@ class SetupWizardService {
      * @param {Interaction} interaction
      */
     async applyChanges(interaction) {
-        const session = this.activeSessions.get(interaction.guild.id);
-
-        await interaction.deferUpdate();
-
-        const statusEmbed = new EmbedBuilder()
-            .setTitle('🚧 Setting Up Your Server...')
-            .setDescription('Please wait while we apply all changes to your server.')
-            .setColor('#f39c12');
-
-        await interaction.editReply({ embeds: [statusEmbed], components: [] });
-
         try {
-            // Apply changes based on selections
+            const session = this.activeSessions.get(interaction.guild.id);
+            if (!session) {
+                throw new Error('No active session found');
+            }
+
+            await interaction.deferUpdate();
+
+            const statusEmbed = new EmbedBuilder()
+                .setTitle('🚧 Setting Up Your Server...')
+                .setDescription('Please wait while we apply all changes to your server.')
+                .setColor('#f39c12');
+
+            await interaction.editReply({ embeds: [statusEmbed], components: [] });
+
+            // Ensure all selections have default values
             const serverTemplate = session.selections.serverTemplate || 'standard';
             const permissionTemplate = session.selections.permissionTemplate || 'standard';
             const selectedRoles = session.selections.roles || [];
@@ -512,12 +570,13 @@ class SetupWizardService {
             console.error('Error applying changes:', error);
 
             // Show error
-            statusEmbed.setTitle('❌ Setup Error')
+            const errorEmbed = new EmbedBuilder()
+                .setTitle('❌ Setup Error')
                 .setDescription('An error occurred while setting up your server:')
                 .setColor('#e74c3c')
                 .addFields({ name: 'Error Message', value: error.message });
 
-            await interaction.editReply({ embeds: [statusEmbed] });
+            await interaction.editReply({ embeds: [errorEmbed] });
         }
     }
 
@@ -527,39 +586,44 @@ class SetupWizardService {
      * @param {Object} session
      */
     async showCompletion(interaction, session) {
-        session.currentState = this.STATES.COMPLETE;
+        try {
+            session.currentState = this.STATES.COMPLETE;
 
-        const categoriesCreated = session.channelsCreated.filter(c => c.type === 'category').length;
-        const channelsCreated = session.channelsCreated.filter(c => c.type !== 'category').length;
-        const rolesCreated = session.rolesCreated.length;
+            const categoriesCreated = session.channelsCreated.filter(c => c.type === 'category').length;
+            const channelsCreated = session.channelsCreated.filter(c => c.type !== 'category').length;
+            const rolesCreated = session.rolesCreated.length;
 
-        const embed = new EmbedBuilder()
-            .setTitle('✅ Server Setup Complete!')
-            .setDescription('Your Discord server has been successfully set up for Clash of Clans!')
-            .setColor('#2ecc71')
-            .addFields(
-                { name: 'Summary of Changes', value: `Created ${categoriesCreated} categories\nCreated ${channelsCreated} channels\nCreated ${rolesCreated} roles` },
-                { name: 'Next Steps', value: '1. Customize your server icon and banner\n2. Update role colors as desired\n3. Use `/help` to learn more about available commands' }
-            )
-            .setFooter({ text: 'Thank you for using the Discord Server Setup Wizard!' });
+            const embed = new EmbedBuilder()
+                .setTitle('✅ Server Setup Complete!')
+                .setDescription('Your Discord server has been successfully set up for Clash of Clans!')
+                .setColor('#2ecc71')
+                .addFields(
+                    { name: 'Summary of Changes', value: `Created ${categoriesCreated} categories\nCreated ${channelsCreated} channels\nCreated ${rolesCreated} roles` },
+                    { name: 'Next Steps', value: '1. Customize your server icon and banner\n2. Update role colors as desired\n3. Use `/help` to learn more about available commands' }
+                )
+                .setFooter({ text: 'Thank you for using the Discord Server Setup Wizard!' });
 
-        const actionRow = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('setup_complete')
-                    .setLabel('Got it!')
-                    .setStyle(ButtonStyle.Success)
-                    .setEmoji('👍')
-            );
+            const actionRow = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('setup_complete')
+                        .setLabel('Got it!')
+                        .setStyle(ButtonStyle.Success)
+                        .setEmoji('👍')
+                );
 
-        await interaction.editReply({ embeds: [embed], components: [actionRow] });
+            await interaction.editReply({ embeds: [embed], components: [actionRow] });
 
-        // Clean up session after 5 minutes of inactivity
-        setTimeout(() => {
-            if (this.activeSessions.has(interaction.guild.id)) {
-                this.activeSessions.delete(interaction.guild.id);
-            }
-        }, 5 * 60 * 1000);
+            // Clean up session after 5 minutes of inactivity
+            setTimeout(() => {
+                if (this.activeSessions.has(interaction.guild.id)) {
+                    this.activeSessions.delete(interaction.guild.id);
+                }
+            }, 5 * 60 * 1000);
+        } catch (error) {
+            console.error('Error showing completion:', error);
+            await this.handleErrorResponse(interaction, 'Failed to complete the setup process.');
+        }
     }
 
     /**
@@ -614,7 +678,9 @@ class SetupWizardService {
     async navigateStep(interaction, direction) {
         try {
             const session = this.activeSessions.get(interaction.guild.id);
-            if (!session) throw new Error('Session not found');
+            if (!session) {
+                throw new Error('Session not found');
+            }
 
             const STATE_SEQUENCE = [
                 this.STATES.WELCOME,
@@ -627,7 +693,9 @@ class SetupWizardService {
             ];
 
             const currentIndex = STATE_SEQUENCE.indexOf(session.currentState);
-            if (currentIndex === -1) throw new Error('Invalid state sequence');
+            if (currentIndex === -1) {
+                throw new Error(`Invalid state sequence: ${session.currentState}`);
+            }
 
             const nextIndex = direction === 'next'
                 ? Math.min(currentIndex + 1, STATE_SEQUENCE.length - 1)
@@ -637,23 +705,25 @@ class SetupWizardService {
             console.log(`Transition: ${session.currentState} → ${nextState}`);
             session.currentState = nextState;
 
-            // State transition mapping with validation
+            // State transition mapping
             const STATE_HANDLERS = {
-                [this.STATES.WELCOME]: this.showWelcomeScreen,
-                [this.STATES.CLAN_SELECTION]: this.showClanSelection,
-                [this.STATES.SERVER_STRUCTURE]: this.showServerStructure,
-                [this.STATES.ROLE_SETUP]: this.showRoleSetup,
-                [this.STATES.PERMISSIONS]: this.showPermissionsSetup,
-                [this.STATES.FEATURES]: this.showFeatureSelection,
-                [this.STATES.CONFIRMATION]: this.showConfirmation
+                [this.STATES.WELCOME]: this.showWelcomeScreen.bind(this),
+                [this.STATES.CLAN_SELECTION]: this.showClanSelection.bind(this),
+                [this.STATES.SERVER_STRUCTURE]: this.showServerStructure.bind(this),
+                [this.STATES.ROLE_SETUP]: this.showRoleSetup.bind(this),
+                [this.STATES.PERMISSIONS]: this.showPermissionsSetup.bind(this),
+                [this.STATES.FEATURES]: this.showFeatureSelection.bind(this),
+                [this.STATES.CONFIRMATION]: this.showConfirmation.bind(this)
             };
 
             const handler = STATE_HANDLERS[nextState];
-            if (!handler) throw new Error(`No handler for state: ${nextState}`);
+            if (!handler) {
+                throw new Error(`No handler for state: ${nextState}`);
+            }
 
             // Ensure clean transition
             await interaction.deferUpdate();
-            await handler.call(this, interaction);
+            await handler(interaction);
 
         } catch (error) {
             console.error('Navigation Failure:', error);
@@ -661,7 +731,12 @@ class SetupWizardService {
         }
     }
 
-// Add this new error handling method
+    /**
+     * Handle navigation errors
+     * @param {Interaction} interaction
+     * @param {Error} error
+     * @param {boolean} isCritical
+     */
     async handleNavigationError(interaction, error, isCritical = false) {
         try {
             const errorMessage = isCritical
@@ -695,11 +770,33 @@ class SetupWizardService {
             }
 
             if (isCritical) {
-                this.activeSessions.delete(interaction.guild.id);
+                // Clean up session if critical error
+                const guildId = interaction.guild?.id;
+                if (guildId && this.activeSessions.has(guildId)) {
+                    this.activeSessions.delete(guildId);
+                }
             }
-
         } catch (err) {
             console.error('Error handler failure:', err);
+        }
+    }
+
+    /**
+     * Generic error response helper
+     * @param {Interaction} interaction
+     * @param {String} message
+     */
+    async handleErrorResponse(interaction, message) {
+        try {
+            const content = `❌ ${message}`;
+
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ content });
+            } else {
+                await interaction.reply({ content, ephemeral: true });
+            }
+        } catch (err) {
+            console.error('Failed to send error response:', err);
         }
     }
 
@@ -720,93 +817,116 @@ class SetupWizardService {
             return false;
         }
 
-        // Get the session for this guild
-        const session = this.activeSessions.get(interaction.guild.id);
+        try {
+            // Get the session for this guild
+            const session = this.activeSessions.get(interaction.guild.id);
 
-        // If no session, ignore the interaction
-        if (!session) {
-            return false;
-        }
+            // If no session, ignore the interaction
+            if (!session) {
+                // Special case for restart button
+                if (customId === 'setup_restart') {
+                    return await this.startWizard(interaction);
+                }
+                return false;
+            }
 
-        // Check if the user is authorized
-        if (session.userId !== interaction.user.id) {
-            await interaction.reply({
-                content: 'Only the user who started the setup wizard can interact with it.',
-                ephemeral: true
-            });
+            // Check if the user is authorized
+            if (session.userId !== interaction.user.id) {
+                await interaction.reply({
+                    content: 'Only the user who started the setup wizard can interact with it.',
+                    ephemeral: true
+                });
+                return true;
+            }
+
+            // Handle different button actions
+            if (customId === 'setup_start') {
+                await this.showClanSelection(interaction);
+            } else if (customId === 'setup_template') {
+                await this.showServerStructure(interaction);
+            } else if (customId === 'setup_cancel') {
+                this.activeSessions.delete(interaction.guild.id);
+                await interaction.update({
+                    content: 'Setup wizard cancelled.',
+                    embeds: [],
+                    components: []
+                });
+            } else if (customId === 'setup_confirm') {
+                await this.applyChanges(interaction);
+            } else if (customId === 'setup_next') {
+                await this.navigateStep(interaction, 'next');
+            } else if (customId === 'setup_prev') {
+                await this.navigateStep(interaction, 'prev');
+            } else if (customId === 'setup_complete') {
+                this.activeSessions.delete(interaction.guild.id);
+                await interaction.update({
+                    content: 'Your server has been set up successfully!',
+                    embeds: [],
+                    components: []
+                });
+            } else if (customId.startsWith('setup_role_toggle_')) {
+                // Toggle role selection
+                const roleType = customId.replace('setup_role_toggle_', '');
+
+                // Initialize roles array if needed
+                if (!session.selections.roles) {
+                    session.selections.roles = [];
+                }
+
+                if (session.selections.roles.includes(roleType)) {
+                    session.selections.roles = session.selections.roles.filter(r => r !== roleType);
+                } else {
+                    session.selections.roles.push(roleType);
+                }
+
+                await this.showRoleSetup(interaction);
+            } else if (customId.startsWith('setup_feature_toggle_')) {
+                // Toggle feature selection
+                const featureType = customId.replace('setup_feature_toggle_', '');
+
+                // Initialize features array if needed
+                if (!session.selections.features) {
+                    session.selections.features = [];
+                }
+
+                if (session.selections.features.includes(featureType)) {
+                    session.selections.features = session.selections.features.filter(f => f !== featureType);
+                } else {
+                    session.selections.features.push(featureType);
+                }
+
+                await this.showFeatureSelection(interaction);
+            } else if (customId === 'setup_use_linked_clan' || customId === 'setup_link_clan') {
+                // Handle clan linking
+                session.selections.useClan = true;
+                await this.showServerStructure(interaction);
+            } else if (customId === 'setup_skip_clan' || customId === 'setup_link_different') {
+                session.selections.useClan = false;
+                await this.showServerStructure(interaction);
+            } else if (customId === 'setup_restart') {
+                // Clear any existing session
+                this.activeSessions.delete(interaction.guild.id);
+                await this.startWizard(interaction);
+                return true;
+            }
+
+            // Handle select menus
+            if (interaction.isStringSelectMenu()) {
+                if (customId === 'setup_server_template') {
+                    session.selections.serverTemplate = interaction.values[0];
+                    await this.showRoleSetup(interaction);
+                } else if (customId === 'setup_permissions_template') {
+                    session.selections.permissionTemplate = interaction.values[0];
+                    await this.showFeatureSelection(interaction);
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error in handleInteraction:', error);
+            await this.handleNavigationError(interaction, error);
             return true;
         }
-
-        // Handle different button actions
-        if (customId === 'setup_start') {
-            await this.showClanSelection(interaction);
-        } else if (customId === 'setup_template') {
-            await this.showServerStructure(interaction);
-        } else if (customId === 'setup_cancel') {
-            this.activeSessions.delete(interaction.guild.id);
-            await interaction.update({
-                content: 'Setup wizard cancelled.',
-                embeds: [],
-                components: []
-            });
-        } else if (customId === 'setup_confirm') {
-            await this.applyChanges(interaction);
-        } else if (customId === 'setup_next') {
-            await this.navigateStep(interaction, 'next');
-        } else if (customId === 'setup_prev') {
-            await this.navigateStep(interaction, 'prev');
-        } else if (customId === 'setup_complete') {
-            this.activeSessions.delete(interaction.guild.id);
-            await interaction.update({
-                content: 'Your server has been set up successfully!',
-                embeds: [],
-                components: []
-            });
-        } else if (customId.startsWith('setup_role_toggle_')) {
-            // Toggle role selection
-            const roleType = customId.replace('setup_role_toggle_', '');
-            session.selections.roles = session.selections.roles || [];
-
-            if (session.selections.roles.includes(roleType)) {
-                session.selections.roles = session.selections.roles.filter(r => r !== roleType);
-            } else {
-                session.selections.roles.push(roleType);
-            }
-
-            await this.showRoleSetup(interaction);
-        } else if (customId.startsWith('setup_feature_toggle_')) {
-            // Toggle feature selection
-            const featureType = customId.replace('setup_feature_toggle_', '');
-            session.selections.features = session.selections.features || [];
-
-            if (session.selections.features.includes(featureType)) {
-                session.selections.features = session.selections.features.filter(f => f !== featureType);
-            } else {
-                session.selections.features.push(featureType);
-            }
-
-            await this.showFeatureSelection(interaction);
-        } else if (customId === 'setup_use_linked_clan' || customId === 'setup_link_clan') {
-            // Handle clan linking
-            session.selections.useClan = true;
-            await this.showServerStructure(interaction);
-        } else if (customId === 'setup_skip_clan' || customId === 'setup_link_different') {
-            session.selections.useClan = false;
-            await this.showServerStructure(interaction);
-        }
-
-        // Handle select menus
-        if (interaction.isStringSelectMenu()) {
-            if (customId === 'setup_server_template') {
-                session.selections.serverTemplate = interaction.values[0];
-                await this.showRoleSetup(interaction);
-            } else if (customId === 'setup_permissions_template') {
-                session.selections.permissionTemplate = interaction.values[0];
-                await this.showFeatureSelection(interaction);
-            }
-        }
-
-        return true;
     }
 
     /**
@@ -1151,97 +1271,73 @@ class SetupWizardService {
      * @param {Object} session
      */
     async configureFeatures(guild, features, session) {
-        // Configure each selected feature
-        if (features.includes('war_announcements')) {
-            // Find war announcement channel
-            const warChannel = guild.channels.cache.find(c =>
-                c.name.includes('war-announcements') ||
-                c.name.includes('war-log') ||
-                c.name.includes('war-results')
-            );
-
-            if (warChannel) {
-                // Update clan settings if a clan is linked
-                const linkedClan = await Clan.findOne({ guildId: guild.id });
-                if (linkedClan) {
-                    // Ensure settings structure exists
-                    if (!linkedClan.settings) linkedClan.settings = {};
-                    if (!linkedClan.settings.channels) linkedClan.settings.channels = {};
-
-                    // Set war announcements channel
-                    linkedClan.settings.channels.warAnnouncements = warChannel.id;
-
-                    // Enable war notifications
-                    if (!linkedClan.settings.notifications) linkedClan.settings.notifications = {};
-                    linkedClan.settings.notifications.warStart = true;
-                    linkedClan.settings.notifications.warEnd = true;
-
-                    await linkedClan.save();
-                }
-            }
-        }
-
-        if (features.includes('welcome_messages')) {
-            // Find welcome channel
-            const welcomeChannel = guild.channels.cache.find(c =>
-                c.name.includes('welcome') ||
-                c.name.includes('join') ||
-                c.name.includes('intro')
-            );
-
-            if (welcomeChannel) {
-                // Create welcome message
-                const welcomeEmbed = new EmbedBuilder()
-                    .setTitle('Welcome to our Clash of Clans Server!')
-                    .setDescription('Thank you for joining our clan\'s Discord server! Here you can interact with fellow clan members, get war updates, and more.')
-                    .setColor('#2ecc71')
-                    .addFields(
-                        { name: 'Getting Started', value: '1. Check out our rules in the rules channel\n2. Introduce yourself in the introductions channel\n3. Link your Clash of Clans account with `/link`' },
-                        { name: 'Important Channels', value: '• #announcements - Important clan news\n• #war-room - War planning and strategies\n• #general - General chat' }
-                    );
-
-                // Only post it if there are no recent messages
-                const messages = await welcomeChannel.messages.fetch({ limit: 5 });
-                if (messages.size === 0) {
-                    await welcomeChannel.send({ embeds: [welcomeEmbed] });
-                }
-            }
-        }
-
-        // Additional features will be configured here
-    }
-
-    async handleNavigationError(interaction, error) {
-        const errorMessage = error.message.includes('Invalid state')
-            ? 'Configuration mismatch. Please restart setup.'
-            : 'Failed to navigate between steps. Try again.';
-
         try {
-            if (interaction.deferred || interaction.replied) {
-                await interaction.editReply({
-                    content: `❌ ${errorMessage}`,
-                    components: [this.createErrorHelpRow()]
-                });
-            } else {
-                await interaction.reply({
-                    content: `❌ ${errorMessage}`,
-                    ephemeral: true,
-                    components: [this.createErrorHelpRow()]
-                });
-            }
-        } catch (err) {
-            console.error('Error handling failure:', err);
-        }
-    }
+            // Configure each selected feature
+            if (features.includes('war_announcements')) {
+                // Find war announcement channel
+                const warChannel = guild.channels.cache.find(c =>
+                    c.name.includes('war-announcements') ||
+                    c.name.includes('war-log') ||
+                    c.name.includes('war-results')
+                );
 
-    createErrorHelpRow() {
-        return new ActionRowBuilder().addComponents(
-            new ButtonBuilder()
-                .setStyle(ButtonStyle.Link)
-                .setLabel('Get Help')
-                .setURL('https://support.yourbot.com/setup-issues')
-                .setEmoji('❓')
-        );
+                if (warChannel) {
+                    // Update clan settings if a clan is linked
+                    const linkedClan = await Clan.findOne({ guildId: guild.id });
+                    if (linkedClan) {
+                        // Ensure settings structure exists
+                        if (!linkedClan.settings) linkedClan.settings = {};
+                        if (!linkedClan.settings.channels) linkedClan.settings.channels = {};
+
+                        // Set war announcements channel
+                        linkedClan.settings.channels.warAnnouncements = warChannel.id;
+
+                        // Enable war notifications
+                        if (!linkedClan.settings.notifications) linkedClan.settings.notifications = {};
+                        linkedClan.settings.notifications.warStart = true;
+                        linkedClan.settings.notifications.warEnd = true;
+
+                        await linkedClan.save();
+                    }
+                }
+            }
+
+            if (features.includes('welcome_messages')) {
+                // Find welcome channel
+                const welcomeChannel = guild.channels.cache.find(c =>
+                    c.name.includes('welcome') ||
+                    c.name.includes('join') ||
+                    c.name.includes('intro')
+                );
+
+                if (welcomeChannel) {
+                    // Create welcome message
+                    const welcomeEmbed = new EmbedBuilder()
+                        .setTitle('Welcome to our Clash of Clans Server!')
+                        .setDescription('Thank you for joining our clan\'s Discord server! Here you can interact with fellow clan members, get war updates, and more.')
+                        .setColor('#2ecc71')
+                        .addFields(
+                            { name: 'Getting Started', value: '1. Check out our rules in the rules channel\n2. Introduce yourself in the introductions channel\n3. Link your Clash of Clans account with `/link`' },
+                            { name: 'Important Channels', value: '• #announcements - Important clan news\n• #war-room - War planning and strategies\n• #general - General chat' }
+                        );
+
+                    // Only post it if there are no recent messages
+                    try {
+                        const messages = await welcomeChannel.messages.fetch({ limit: 5 });
+                        if (messages.size === 0) {
+                            await welcomeChannel.send({ embeds: [welcomeEmbed] });
+                        }
+                    } catch (error) {
+                        console.error('Error fetching or sending welcome message:', error);
+                    }
+                }
+            }
+
+            // Additional features will be configured here
+        } catch (error) {
+            console.error('Error configuring features:', error);
+            // Continue setup process even if feature configuration fails
+        }
     }
 }
 
