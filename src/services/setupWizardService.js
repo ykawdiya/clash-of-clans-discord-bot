@@ -637,9 +637,10 @@ class SetupWizardService {
      * @param {Object} session Current session
      * @param {Boolean} noNext Don't show next button
      * @param {Boolean} noPrev Don't show previous button
+     * @param {Boolean} noCancel Don't show cancel button (for confirmation screen)
      * @returns {ActionRowBuilder}
      */
-    createNavigationRow(session, noNext = false, noPrev = false) {
+    createNavigationRow(session, noNext = false, noPrev = false, noCancel = false) {
         const row = new ActionRowBuilder();
 
         // Add previous button if not on the welcome screen
@@ -664,14 +665,16 @@ class SetupWizardService {
             );
         }
 
-        // Always add cancel button
-        row.addComponents(
-            new ButtonBuilder()
-                .setCustomId('setup_cancel')
-                .setLabel('Cancel Setup')
-                .setStyle(ButtonStyle.Danger)
-                .setEmoji('❌')
-        );
+        // Add cancel button if not explicitly disabled
+        if (!noCancel) {
+            row.addComponents(
+                new ButtonBuilder()
+                    .setCustomId('setup_cancel')
+                    .setLabel('Cancel Setup')
+                    .setStyle(ButtonStyle.Danger)
+                    .setEmoji('❌')
+            );
+        }
 
         return row;
     }
@@ -1257,8 +1260,8 @@ class SetupWizardService {
                         .setEmoji('❌')
                 );
 
-            // Add navigation buttons
-            const navRow = this.createNavigationRow(session, true, false);
+            // Add navigation buttons without the cancel button (to avoid duplication)
+            const navRow = this.createNavigationRow(session, true, false, true);
 
             await interaction.followUp({
                 embeds: [embed],
