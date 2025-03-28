@@ -1144,6 +1144,13 @@ class SetupWizardService {
                 throw new Error('No active session found');
             }
 
+            console.log('Showing confirmation screen with session data:', JSON.stringify({
+                serverTemplate: session.selections.serverTemplate,
+                roles: session.selections.roles,
+                permissionTemplate: session.selections.permissionTemplate,
+                features: session.selections.features
+            }));
+
             // Ensure all selections have default values
             if (!session.selections.serverTemplate) session.selections.serverTemplate = 'standard';
             if (!session.selections.roles) session.selections.roles = ['clan_roles', 'th_roles'];
@@ -1151,18 +1158,75 @@ class SetupWizardService {
             if (!session.selections.features) session.selections.features = [];
 
             // Get current server info for comparison
-            const currentCategories = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).size;
-            const currentChannels = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildVoice).size;
-            const currentRoles = interaction.guild.roles.cache.size - 1; // Subtract @everyone
+            let currentCategories = 0;
+            let currentChannels = 0;
+            let currentRoles = 0;
 
-            // Calculate new counts based on template
-            const templateInfo = configManager.getServerTemplate(session.selections.serverTemplate);
-            const newCategories = templateInfo.categories.length;
-            const newChannels = templateInfo.categories.reduce((count, category) => count + category.channels.length, 0);
+            try {
+                currentCategories = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory).size;
+                currentChannels = interaction.guild.channels.cache.filter(c => c.type === ChannelType.GuildText || c.type === ChannelType.GuildVoice).size;
+                currentRoles = interaction.guild.roles.cache.size - 1; // Subtract @everyone
+            } catch (err) {
+                console.error('Error getting guild info:', err);
+                // Continue with default values if we can't get channel/role info
+            }
+
+            // Calculate new counts based on template - safely
+            let newCategories = 0;
+            let newChannels = 0;
+
+            try {
+                const templateInfo = configManager.getServerTemplate(session.selections.serverTemplate);
+                newCategories = templateInfo.categories.length;
+                newChannels = templateInfo.categories.reduce((count, category) => count + category.channels.length, 0);
+            } catch (err) {
+                console.error('Error getting template info:', err);
+                // Continue with default values if there's an issue with the template
+            }
+
+            // Calculate roles count safely
             const newRoles = (session.selections.roles.includes('clan_roles') ? 4 : 0) +
                 (session.selections.roles.includes('th_roles') ? 9 : 0) +
                 (session.selections.roles.includes('war_roles') ? 3 : 0) +
                 (session.selections.roles.includes('special_roles') ? 3 : 0);
+
+            // Safe display of role names
+            let roleNames = 'None';
+            if (session.selections.roles && session.selections.roles.length > 0) {
+                try {
+                    roleNames = session.selections.roles.map(r => configManager.getRoleName(r)).join(', ');
+                } catch (err) {
+                    console.error('Error mapping role names:', err);
+                    roleNames = session.selections.roles.join(', ');
+                }
+            }
+
+            // Safe display of feature names
+            let featureNames = 'None';
+            if (session.selections.features && session.selections.features.length > 0) {
+                try {
+                    featureNames = session.selections.features.map(f => configManager.getFeatureName(f)).join(', ');
+                } catch (err) {
+                    console.error('Error mapping feature names:', err);
+                    featureNames = session.selections.features.join(', ');
+                }
+            }
+
+            // Safe display of template name
+            let templateName = 'Standard';
+            try {
+                templateName = configManager.getTemplateName(session.selections.serverTemplate);
+            } catch (err) {
+                console.error('Error getting template name:', err);
+            }
+
+            // Safe display of permission template name
+            let permissionName = 'Standard';
+            try {
+                permissionName = configManager.getPermissionName(session.selections.permissionTemplate);
+            } catch (err) {
+                console.error('Error getting permission name:', err);
+            }
 
             // Create summary of changes
             const embed = new EmbedBuilder()
@@ -1170,10 +1234,10 @@ class SetupWizardService {
                 .setDescription('Review your selections before applying changes to your server:')
                 .setColor('#e74c3c')
                 .addFields(
-                    { name: 'Server Template', value: configManager.getTemplateName(session.selections.serverTemplate) },
-                    { name: 'Roles to Create', value: session.selections.roles.length > 0 ? session.selections.roles.map(r => configManager.getRoleName(r)).join(', ') : 'None' },
-                    { name: 'Permission Template', value: configManager.getPermissionName(session.selections.permissionTemplate) },
-                    { name: 'Features Enabled', value: session.selections.features.length > 0 ? session.selections.features.map(f => configManager.getFeatureName(f)).join(', ') : 'None' },
+                    { name: 'Server Template', value: templateName },
+                    { name: 'Roles to Create', value: roleNames },
+                    { name: 'Permission Template', value: permissionName },
+                    { name: 'Features Enabled', value: featureNames },
                     { name: 'Current Server', value: `Categories: ${currentCategories}\nChannels: ${currentChannels}\nRoles: ${currentRoles}` },
                     { name: 'After Setup', value: `Categories: ${currentCategories + newCategories}\nChannels: ${currentChannels + newChannels}\nRoles: ${currentRoles + newRoles}` }
                 )
@@ -1202,9 +1266,9 @@ class SetupWizardService {
                 ephemeral: true
             });
         } catch (error) {
-            console.error('Error sending confirmation:', error);
+            console.error('Error sending confirmation screen:', error);
             await interaction.followUp({
-                content: 'Error showing confirmation screen. Please try restarting the setup.',
+                content: 'Error showing confirmation screen. Please try restarting the setup.\nDetails: ' + error.message,
                 ephemeral: true
             });
         }
