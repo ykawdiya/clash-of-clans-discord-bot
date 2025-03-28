@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/usr/src/app/data
+      - ./logs:/usr/src/app/logs
+    depends_on:
+      - mongo
+    networks:
+      - coc-bot-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  mongo:
+    image: mongo:6
+    restart: unless-stopped
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME:-root}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD:-password}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - coc-bot-network
+    command: mongod --auth
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  coc-bot-network:
+
+volumes:
+  mongodb_data:

@@ -1,5 +1,6 @@
 // src/services/cacheService.js
 const NodeCache = require('node-cache');
+const { services: log } = require('../utils/logger');
 
 class CacheService {
     constructor(ttlSeconds = 300) {
@@ -8,17 +9,34 @@ class CacheService {
             checkperiod: ttlSeconds * 0.2,
             useClones: false
         });
+
+        // Stats tracking
+        this.stats = {
+            hits: 0,
+            misses: 0,
+            sets: 0,
+            deletes: 0,
+            flushes: 0
+        };
     }
 
     get(key) {
-        return this.cache.get(key);
+        const value = this.cache.get(key);
+        if (value === undefined) {
+            this.stats.misses++;
+            return null;
+        }
+        this.stats.hits++;
+        return value;
     }
 
     set(key, value, ttl = null) {
+        this.stats.sets++;
         return this.cache.set(key, value, ttl);
     }
 
     delete(key) {
+        this.stats.deletes++;
         return this.cache.del(key);
     }
 
@@ -29,11 +47,11 @@ class CacheService {
             const cachedResult = this.get(key);
 
             if (cachedResult) {
-                console.log(`Cache hit for ${key}`);
+                log.debug(`Cache hit for ${key}`);
                 return cachedResult;
             }
 
-            console.log(`Cache miss for ${key}, calling function`);
+            log.debug(`Cache miss for ${key}, calling function`);
             const result = await fn(...args);
             this.set(key, result, ttl);
             return result;
@@ -42,6 +60,7 @@ class CacheService {
 
     // Clear all cache
     flush() {
+        this.stats.flushes++;
         return this.cache.flushAll();
     }
 
@@ -49,7 +68,23 @@ class CacheService {
     flushPattern(pattern) {
         const keys = this.cache.keys();
         const matchingKeys = keys.filter(key => key.includes(pattern));
+        this.stats.deletes += matchingKeys.length;
         return this.cache.del(matchingKeys);
+    }
+
+    // Get cache stats
+    getStats() {
+        const keys = this.cache.keys();
+        const hitRatio = (this.stats.hits + this.stats.misses) > 0
+            ? (this.stats.hits / (this.stats.hits + this.stats.misses) * 100).toFixed(1) + '%'
+            : 'N/A';
+
+        return {
+            ...this.stats,
+            hitRatio,
+            keyCount: keys.length,
+            memoryUsage: this.cache.getStats().vsize
+        };
     }
 }
 

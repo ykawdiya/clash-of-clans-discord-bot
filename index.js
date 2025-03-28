@@ -1,6 +1,9 @@
 require('dotenv').config();
 require('./src/commandModelFix');
 
+// Import logger
+const { system: log, discord: discordLog } = require('./src/utils/logger');
+
 // Comprehensive check for required environment variables
 const requiredEnvVars = [
     'DISCORD_TOKEN',

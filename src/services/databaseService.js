@@ -1,19 +1,26 @@
 const mongoose = require('mongoose');
+const { EventEmitter } = require('events');
+const { db: log } = require('../utils/logger');
 
-class DatabaseService {
+class DatabaseService extends EventEmitter {
     constructor() {
+        super();
         this.isConnected = false;
         this.connection = null;
         this.connectionAttempts = 0;
-        this.maxConnectionAttempts = 3;
+        this.maxConnectionAttempts = 5;
         this.reconnectTimeout = null;
         this.lastError = null;
+        this.metrics = {
+            operations: 0,
+            errors: 0,
+            lastOperation: null
+        };
+
+        // Ping timer to ensure connection stays alive
+        this.pingInterval = null;
     }
 
-    /**
-     * Connect to MongoDB with improved error handling
-     * @returns {Promise<mongoose.Connection>} MongoDB connection
-     */
     async connect(isReconnect = false) {
         try {
             // Quick check for existing connection
@@ -27,14 +34,18 @@ class DatabaseService {
                 this.reconnectTimeout = null;
             }
 
-            console.log(`${isReconnect ? 'Reconnecting' : 'Connecting'} to database...`);
+            log.info(`${isReconnect ? 'Reconnecting' : 'Connecting'} to database...`);
             this.connectionAttempts++;
 
             // Set up connection options with shorter timeouts
             const connectionOptions = {
                 serverSelectionTimeoutMS: 5000,
                 connectTimeoutMS: 5000,
-                socketTimeoutMS: 30000
+                socketTimeoutMS: 30000,
+                maxPoolSize: 10,
+                heartbeatFrequencyMS: 10000,
+                retryWrites: true,
+                w: 'majority'
             };
 
             // Connect to MongoDB with timeout race
@@ -52,52 +63,60 @@ class DatabaseService {
             this.connectionAttempts = 0;
             this.lastError = null;
 
-            console.log('Database connection established');
+            log.info('Database connection established');
 
-            // Set up minimal error handlers
+            // Set up error handlers
             this._setupErrorHandlers();
+
+            // Start the ping timer to keep connection alive
+            this._startPingTimer();
+
+            // Emit connected event
+            this.emit('connected');
 
             return this.connection;
         } catch (error) {
             this.isConnected = false;
             this.lastError = error;
-            console.error('Database connection error:', error.message);
+            log.error('Database connection error', { error: error.message, stack: error.stack });
+
+            // Emit error event
+            this.emit('error', error);
 
             // Only retry if under max attempts
             if (this.connectionAttempts < this.maxConnectionAttempts) {
-                const delay = Math.min(1000 * Math.pow(2, this.connectionAttempts), 10000);
-                console.log(`Retrying in ${delay/1000}s (attempt ${this.connectionAttempts}/${this.maxConnectionAttempts})`);
+                const delay = Math.min(1000 * Math.pow(2, this.connectionAttempts), 30000);
+                log.info(`Retrying in ${delay/1000}s (attempt ${this.connectionAttempts}/${this.maxConnectionAttempts})`);
 
                 this.reconnectTimeout = setTimeout(() => {
                     this.connect(true).catch(() => {});
                 }, delay);
             } else {
-                console.error(`Failed after ${this.maxConnectionAttempts} attempts. Continuing without database.`);
+                log.error(`Failed after ${this.maxConnectionAttempts} attempts. Continuing without database.`);
+                this.emit('failedAfterMaxAttempts');
             }
 
             throw error;
         }
     }
 
-    /**
-     * Set up minimal connection error handlers
-     * @private
-     */
     _setupErrorHandlers() {
         // Remove any existing listeners to prevent duplicates
         mongoose.connection.removeAllListeners('error');
         mongoose.connection.removeAllListeners('disconnected');
 
-        // Add simplified error handlers
+        // Add error handlers
         mongoose.connection.on('error', (error) => {
-            console.error('MongoDB connection error:', error.message);
+            log.error('MongoDB connection error', { error: error.message });
             this.lastError = error;
             this.isConnected = false;
+            this.emit('error', error);
         });
 
         mongoose.connection.on('disconnected', () => {
-            console.log('MongoDB disconnected');
+            log.warn('MongoDB disconnected');
             this.isConnected = false;
+            this.emit('disconnected');
 
             // Simple reconnection logic
             if (!this.reconnectTimeout) {
@@ -107,12 +126,35 @@ class DatabaseService {
                 }, 5000);
             }
         });
+
+        // Add connection monitoring
+        mongoose.connection.on('reconnected', () => {
+            log.info('MongoDB reconnected');
+            this.isConnected = true;
+            this.emit('reconnected');
+        });
     }
 
-    /**
-     * Check if database is connected with improved reliability
-     * @returns {boolean} Connection status
-     */
+    _startPingTimer() {
+        // Clear any existing timer
+        if (this.pingInterval) {
+            clearInterval(this.pingInterval);
+        }
+
+        // Set up a ping every 30 seconds to keep connection alive
+        this.pingInterval = setInterval(async () => {
+            if (this.isConnected) {
+                try {
+                    await mongoose.connection.db.admin().ping();
+                    this.emit('ping');
+                } catch (error) {
+                    log.warn('Database ping failed', { error: error.message });
+                    this.emit('pingFailed', error);
+                }
+            }
+        }, 30000);
+    }
+
     checkConnection() {
         const connected = mongoose.connection && mongoose.connection.readyState === 1;
 
@@ -124,30 +166,30 @@ class DatabaseService {
         return connected;
     }
 
-    /**
-     * Get status information
-     */
     getStatus() {
         return {
             isConnected: this.checkConnection(),
             readyState: mongoose.connection ? mongoose.connection.readyState : -1,
             connectionAttempts: this.connectionAttempts,
             hasError: !!this.lastError,
-            errorMessage: this.lastError ? this.lastError.message : null
+            errorMessage: this.lastError ? this.lastError.message : null,
+            metrics: { ...this.metrics }
         };
     }
 
-    /**
-     * Disconnect from database
-     */
     async disconnect() {
         if (!this.isConnected) return;
 
         try {
-            // Clear any pending reconnection
+            // Clear timers
             if (this.reconnectTimeout) {
                 clearTimeout(this.reconnectTimeout);
                 this.reconnectTimeout = null;
+            }
+
+            if (this.pingInterval) {
+                clearInterval(this.pingInterval);
+                this.pingInterval = null;
             }
 
             // Remove listeners to prevent reconnection attempts
@@ -161,9 +203,10 @@ class DatabaseService {
 
             this.isConnected = false;
             this.connection = null;
-            console.log('Database connection closed');
+            log.info('Database connection closed');
+            this.emit('disconnected');
         } catch (error) {
-            console.error('Error disconnecting from database:', error.message);
+            log.error('Error disconnecting from database', { error: error.message });
             // Force reset connection state
             this.isConnected = false;
             this.connection = null;
