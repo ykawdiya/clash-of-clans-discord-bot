@@ -236,7 +236,10 @@ class SetupWizardService {
 
             session.currentState = this.STATES.ROLE_SETUP;
 
-            await interaction.deferUpdate();
+            // Only defer if not already deferred
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferUpdate();
+            }
 
             const embed = new EmbedBuilder()
                 .setTitle('Step 3: Role Setup')
@@ -356,7 +359,10 @@ class SetupWizardService {
 
             session.currentState = this.STATES.FEATURES;
 
-            await interaction.deferUpdate();
+            // Only defer if not already deferred
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferUpdate();
+            }
 
             // Create the embed that was missing in the original code
             const embed = new EmbedBuilder()
@@ -721,8 +727,11 @@ class SetupWizardService {
                 throw new Error(`No handler for state: ${nextState}`);
             }
 
-            // Ensure clean transition
-            await interaction.deferUpdate();
+            // Only defer if not already deferred
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferUpdate();
+            }
+
             await handler(interaction);
 
         } catch (error) {
@@ -865,37 +874,130 @@ class SetupWizardService {
                     components: []
                 });
             } else if (customId.startsWith('setup_role_toggle_')) {
-                // Toggle role selection
-                const roleType = customId.replace('setup_role_toggle_', '');
+                try {
+                    // Defer the update first to acknowledge the interaction
+                    await interaction.deferUpdate();
 
-                // Initialize roles array if needed
-                if (!session.selections.roles) {
-                    session.selections.roles = [];
+                    // Toggle role selection
+                    const roleType = customId.replace('setup_role_toggle_', '');
+
+                    // Initialize roles array if needed
+                    if (!session.selections.roles) {
+                        session.selections.roles = [];
+                    }
+
+                    if (session.selections.roles.includes(roleType)) {
+                        session.selections.roles = session.selections.roles.filter(r => r !== roleType);
+                    } else {
+                        session.selections.roles.push(roleType);
+                    }
+
+                    // Show updated role setup - no deferUpdate since we already did it
+                    const embed = new EmbedBuilder()
+                        .setTitle('Step 3: Role Setup')
+                        .setDescription('Select the types of roles you want to create for your server:')
+                        .setColor('#3498db');
+
+                    const options = [
+                        { value: 'clan_roles', name: 'Clan Roles', description: 'Leader, Co-Leader, Elder, Member roles from Clash of Clans', defaultChecked: true },
+                        { value: 'th_roles', name: 'Town Hall Roles', description: 'Roles for each Town Hall level (TH7-TH15)', defaultChecked: true },
+                        { value: 'war_roles', name: 'War Roles', description: 'Roles for war participants, CWL, and war planning', defaultChecked: false },
+                        { value: 'special_roles', name: 'Special Roles', description: 'Bot Admin, Event Manager, and other utility roles', defaultChecked: false }
+                    ];
+
+                    // Add role type descriptions
+                    options.forEach(option => {
+                        embed.addFields({ name: option.name, value: option.description });
+                    });
+
+                    // Create checkboxes (using buttons, as Discord doesn't have actual checkboxes)
+                    const rows = options.map(option => {
+                        return new ActionRowBuilder().addComponents(
+                            new ButtonBuilder()
+                                .setCustomId(`setup_role_toggle_${option.value}`)
+                                .setLabel(option.name)
+                                .setStyle(session.selections.roles.includes(option.value) ? ButtonStyle.Success : ButtonStyle.Secondary)
+                                .setEmoji(session.selections.roles.includes(option.value) ? '✅' : '⬜')
+                        );
+                    });
+
+                    // Add navigation buttons
+                    const navRow = this.createNavigationRow(session);
+                    rows.push(navRow);
+
+                    await interaction.editReply({ embeds: [embed], components: rows });
+                } catch (error) {
+                    console.error('Error toggling role:', error);
+                    // Don't try to respond to the interaction if it failed
                 }
-
-                if (session.selections.roles.includes(roleType)) {
-                    session.selections.roles = session.selections.roles.filter(r => r !== roleType);
-                } else {
-                    session.selections.roles.push(roleType);
-                }
-
-                await this.showRoleSetup(interaction);
             } else if (customId.startsWith('setup_feature_toggle_')) {
-                // Toggle feature selection
-                const featureType = customId.replace('setup_feature_toggle_', '');
+                try {
+                    // Defer the update first to acknowledge the interaction
+                    await interaction.deferUpdate();
 
-                // Initialize features array if needed
-                if (!session.selections.features) {
-                    session.selections.features = [];
+                    // Toggle feature selection
+                    const featureType = customId.replace('setup_feature_toggle_', '');
+
+                    // Initialize features array if needed
+                    if (!session.selections.features) {
+                        session.selections.features = [];
+                    }
+
+                    if (session.selections.features.includes(featureType)) {
+                        session.selections.features = session.selections.features.filter(f => f !== featureType);
+                    } else {
+                        session.selections.features.push(featureType);
+                    }
+
+                    // Create the embed that was missing in the original code
+                    const embed = new EmbedBuilder()
+                        .setTitle('Step 5: Feature Selection')
+                        .setDescription('Select which features you want to enable for your server:')
+                        .setColor('#3498db')
+                        .addFields(
+                            { name: 'Available Features', value: 'Choose from the options below to enhance your server functionality.' }
+                        );
+
+                    // Group features into 2 buttons per row
+                    const featureOptions = [
+                        { value: 'war_announcements', name: 'War Announcements' },
+                        { value: 'member_tracking', name: 'Member Tracking' },
+                        { value: 'auto_roles', name: 'Auto Roles' },
+                        { value: 'welcome_messages', name: 'Welcome Messages' },
+                        { value: 'base_sharing', name: 'Base Sharing' }
+                    ];
+
+                    const buttonRows = [];
+                    for (let i = 0; i < featureOptions.length; i += 2) {
+                        const row = new ActionRowBuilder();
+                        const chunk = featureOptions.slice(i, i + 2);
+
+                        chunk.forEach(option => {
+                            const isSelected = session.selections.features.includes(option.value);
+                            row.addComponents(
+                                new ButtonBuilder()
+                                    .setCustomId(`setup_feature_toggle_${option.value}`)
+                                    .setLabel(option.name)
+                                    .setStyle(isSelected ? ButtonStyle.Success : ButtonStyle.Secondary)
+                                    .setEmoji(isSelected ? '✅' : '⬜')
+                            );
+                        });
+
+                        buttonRows.push(row);
+                    }
+
+                    // Add navigation row
+                    const navRow = this.createNavigationRow(session);
+                    buttonRows.push(navRow);
+
+                    await interaction.editReply({
+                        embeds: [embed],
+                        components: buttonRows
+                    });
+                } catch (error) {
+                    console.error('Error toggling feature:', error);
+                    // Don't try to respond to the interaction if it failed
                 }
-
-                if (session.selections.features.includes(featureType)) {
-                    session.selections.features = session.selections.features.filter(f => f !== featureType);
-                } else {
-                    session.selections.features.push(featureType);
-                }
-
-                await this.showFeatureSelection(interaction);
             } else if (customId === 'setup_use_linked_clan' || customId === 'setup_link_clan') {
                 // Handle clan linking
                 session.selections.useClan = true;
