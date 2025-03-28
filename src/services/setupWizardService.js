@@ -741,6 +741,71 @@ class SetupWizardService {
     }
 
     /**
+     * Handle confirmation modal submissions
+     * @param {Interaction} interaction
+     */
+    async handleConfirmationModal(interaction) {
+        try {
+            // Get the session for this guild
+            const session = this.activeSessions.get(interaction.guild.id);
+
+            // If no session, create a temporary one
+            if (!session) {
+                console.log('No active session found for confirmation modal - creating temporary session');
+                // Create a basic session with default values
+                const tempSession = {
+                    guildId: interaction.guild.id,
+                    userId: interaction.user.id,
+                    startTime: Date.now(),
+                    selections: {
+                        serverTemplate: 'standard',
+                        permissionTemplate: 'standard',
+                        roles: ['clan_roles', 'th_roles'],
+                        features: ['war_announcements', 'welcome_messages']
+                    },
+                    channelsCreated: [],
+                    rolesCreated: []
+                };
+
+                this.activeSessions.set(interaction.guild.id, tempSession);
+
+                await interaction.reply({
+                    content: 'Processing your setup confirmation...',
+                    ephemeral: true
+                });
+
+                await this.applyChanges(interaction);
+                return;
+            }
+
+            // Check if the user is authorized
+            if (session.userId !== interaction.user.id) {
+                await interaction.reply({
+                    content: 'Only the user who started the setup wizard can confirm the setup.',
+                    ephemeral: true
+                });
+                return;
+            }
+
+            // Process the confirmation
+            await interaction.reply({
+                content: 'Processing your setup confirmation...',
+                ephemeral: true
+            });
+
+            await this.applyChanges(interaction);
+        } catch (error) {
+            console.error('Error handling confirmation modal:', error);
+            if (!interaction.replied && !interaction.deferred) {
+                await interaction.reply({
+                    content: 'An error occurred while processing your confirmation. Please try again.',
+                    ephemeral: true
+                });
+            }
+        }
+    }
+
+    /**
      * Handle navigation errors
      * @param {Interaction} interaction
      * @param {Error} error
