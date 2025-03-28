@@ -1,3 +1,4 @@
+// jest.config.js
 module.exports = {
     preset: 'ts-jest',
     testEnvironment: 'node',
@@ -13,4 +14,10 @@ module.exports = {
     transform: {
         '^.+\\.tsx?$': 'ts-jest',
     },
+    setupFilesAfterEnv: ['./jest.setup.js'],
+    testTimeout: 10000,
+    verbose: true,
+    forceExit: true,
+    clearMocks: true,
+    restoreMocks: true
 };

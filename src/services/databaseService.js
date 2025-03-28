@@ -50,10 +50,24 @@ class DatabaseService extends EventEmitter {
 
             // Connect to MongoDB with timeout race
             const connectPromise = mongoose.connect(process.env.MONGODB_URI, connectionOptions);
-            const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Connection timed out')), 7000));
 
-            await Promise.race([connectPromise, timeoutPromise]);
+            // Create timeout that won't keep the process alive
+            let timeoutHandle;
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutHandle = setTimeout(() => reject(new Error('Connection timed out')), 7000);
+                // Use unref so this timer doesn't keep the process alive
+                timeoutHandle.unref();
+            });
+
+            try {
+                await Promise.race([connectPromise, timeoutPromise]);
+                // Clear the timeout if connection was successful
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+            } catch (error) {
+                // Clear the timeout if connection failed
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+                throw error;
+            }
 
             // Do a quick check to verify connection
             await mongoose.connection.db.admin().ping();
@@ -91,6 +105,9 @@ class DatabaseService extends EventEmitter {
                 this.reconnectTimeout = setTimeout(() => {
                     this.connect(true).catch(() => {});
                 }, delay);
+
+                // Use unref so this timer doesn't keep the process alive
+                this.reconnectTimeout.unref();
             } else {
                 log.error(`Failed after ${this.maxConnectionAttempts} attempts. Continuing without database.`);
                 this.emit('failedAfterMaxAttempts');
@@ -124,6 +141,9 @@ class DatabaseService extends EventEmitter {
                     this.connectionAttempts = 0;
                     this.connect(true).catch(() => {});
                 }, 5000);
+
+                // Use unref so this timer doesn't keep the process alive
+                this.reconnectTimeout.unref();
             }
         });
 
@@ -153,6 +173,9 @@ class DatabaseService extends EventEmitter {
                 }
             }
         }, 30000);
+
+        // Use unref so this interval doesn't keep the process alive
+        this.pingInterval.unref();
     }
 
     checkConnection() {
@@ -196,10 +219,23 @@ class DatabaseService extends EventEmitter {
             mongoose.connection.removeAllListeners();
 
             // Disconnect with timeout protection
-            await Promise.race([
-                mongoose.disconnect(),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Disconnect timed out')), 5000))
-            ]);
+            let timeoutHandle;
+            const disconnectPromise = mongoose.disconnect();
+            const timeoutPromise = new Promise((_, reject) => {
+                timeoutHandle = setTimeout(() => reject(new Error('Disconnect timed out')), 5000);
+                // Use unref so this timer doesn't keep the process alive
+                timeoutHandle.unref();
+            });
+
+            try {
+                await Promise.race([disconnectPromise, timeoutPromise]);
+                // Clear the timeout if disconnect was successful
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+            } catch (error) {
+                // Clear the timeout if disconnect failed
+                if (timeoutHandle) clearTimeout(timeoutHandle);
+                throw error;
+            }
 
             this.isConnected = false;
             this.connection = null;

@@ -6,9 +6,10 @@
   "scripts": {
     "start": "node index.js",
     "dev": "ts-node-dev --respawn src/index.ts",
-    "test": "jest",
+    "test": "jest --forceExit",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --forceExit",
+    "test:debug": "jest --detectOpenHandles",
     "build": "tsc",
     "start:ts": "node dist/index.js"
   },

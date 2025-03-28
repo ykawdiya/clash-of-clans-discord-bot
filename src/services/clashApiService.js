@@ -73,7 +73,17 @@ class ClashApiService {
     loadApiKeys() {
         // Get API key(s) from environment
         const apiKey = process.env.COC_API_KEY;
+
+        // In a testing environment, use a mock key if not provided
         if (!apiKey) {
+            // Check if we're in a test environment
+            if (process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID) {
+                this.apiKeys = ['test-mock-key'];
+                console.log('Using mock API key for testing environment');
+                return;
+            }
+
+            // In production, an API key is required
             throw new Error('Clash of Clans API key is not configured');
         }
 

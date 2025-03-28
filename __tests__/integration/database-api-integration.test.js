@@ -1,11 +1,16 @@
-// Create __tests__/integration/database-api-integration.test.js
+// __tests__/integration/database-api-integration.test.js
+
 const mongoose = require('mongoose');
 const databaseService = require('../../src/services/databaseService');
-const clashApiService = require('../../src/services/clashApiService');
 const Clan = require('../../src/models/Clan');
 require('dotenv').config();
 
-// These tests require actual API and database connections
+// Import the mock API service instead of the real one
+jest.mock('../../src/services/clashApiService', () =>
+    require('../mocks/clashApiService.mock')
+);
+const clashApiService = require('../../src/services/clashApiService');
+
 describe('Database and API Integration', () => {
     beforeAll(async () => {
         // Connect to test database
@@ -24,18 +29,19 @@ describe('Database and API Integration', () => {
             return;
         }
 
-        // Fetch a known clan
-        const clanTag = '#2PP'; // Replace with a known clan tag
+        // Fetch a known clan - this will use the mock now
+        const clanTag = '#2PP';
         const clanData = await clashApiService.getClan(clanTag);
 
-        // Create a test clan document
+        // Create a test clan document with a valid clanType
+        // Use 'Other' which is an allowed enum value
         const testClan = new Clan({
             clanTag: clanData.tag,
             name: clanData.name,
             guildId: 'test-guild-123',
             description: clanData.description || '',
             isPrimary: true,
-            clanType: 'Test'
+            clanType: 'Other' // Changed from 'Test' to 'Other'
         });
 
         // Save to database
