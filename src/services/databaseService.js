@@ -5,7 +5,7 @@ class DatabaseService {
         this.isConnected = false;
         this.connection = null;
         this.connectionAttempts = 0;
-        this.maxConnectionAttempts = 3; // Reduced from 5
+        this.maxConnectionAttempts = 3;
         this.reconnectTimeout = null;
         this.lastError = null;
     }
@@ -32,11 +32,9 @@ class DatabaseService {
 
             // Set up connection options with shorter timeouts
             const connectionOptions = {
-                useNewUrlParser: true,
-                useUnifiedTopology: true,
-                serverSelectionTimeoutMS: 5000,  // Reduced from 10000
-                connectTimeoutMS: 5000,          // Reduced from 10000
-                socketTimeoutMS: 30000           // Reduced from 45000
+                serverSelectionTimeoutMS: 5000,
+                connectTimeoutMS: 5000,
+                socketTimeoutMS: 30000
             };
 
             // Connect to MongoDB with timeout race
@@ -65,9 +63,8 @@ class DatabaseService {
             this.lastError = error;
             console.error('Database connection error:', error.message);
 
-            // Only retry if under max attempts and not shutting down
+            // Only retry if under max attempts
             if (this.connectionAttempts < this.maxConnectionAttempts) {
-                // Simplified exponential backoff
                 const delay = Math.min(1000 * Math.pow(2, this.connectionAttempts), 10000);
                 console.log(`Retrying in ${delay/1000}s (attempt ${this.connectionAttempts}/${this.maxConnectionAttempts})`);
 
@@ -117,16 +114,11 @@ class DatabaseService {
      * @returns {boolean} Connection status
      */
     checkConnection() {
-        // First check our flag
-        if (!this.isConnected) return false;
-
-        // Then verify the actual connection state
         const connected = mongoose.connection && mongoose.connection.readyState === 1;
 
         // Update our flag if there's a mismatch
-        if (!connected && this.isConnected) {
-            console.warn('Database connection state mismatch! Updating flag to match reality.');
-            this.isConnected = false;
+        if (connected !== this.isConnected) {
+            this.isConnected = connected;
         }
 
         return connected;
@@ -137,7 +129,7 @@ class DatabaseService {
      */
     getStatus() {
         return {
-            isConnected: this.checkConnection(), // Use the check method for accuracy
+            isConnected: this.checkConnection(),
             readyState: mongoose.connection ? mongoose.connection.readyState : -1,
             connectionAttempts: this.connectionAttempts,
             hasError: !!this.lastError,

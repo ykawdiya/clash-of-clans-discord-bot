@@ -5,10 +5,8 @@ const cacheService = require('./cacheService');
 class ClashApiService {
     constructor() {
         this.baseUrl = 'https://api.clashofclans.com/v1';
-        this.retryCount = 1; // Reduced from 2 for better responsiveness
+        this.defaultTimeout = 5000;
         this.proxyConfigured = false;
-        this.currentProxyIP = null;
-        this.lastError = null;
         this.apiStatus = {
             lastSuccessTime: null,
             lastErrorTime: null,
@@ -16,10 +14,6 @@ class ClashApiService {
             successfulRequests: 0,
             failedRequests: 0
         };
-
-        // Default timeout values
-        this.defaultTimeout = 3000;
-        this.verifyProxyTimeout = 3000;
 
         // Check proxy configuration on startup
         console.log('Initializing Clash of Clans API service');
@@ -35,53 +29,9 @@ class ClashApiService {
         if (proxyHost && proxyPort && proxyUser && proxyPass) {
             this.proxyConfigured = true;
             console.log('Proxy configuration is complete');
-
-            // Test proxy connection but don't wait for it
-            this.verifyProxyIP().catch(err => {
-                console.error('Error verifying proxy IP:', err.message);
-            });
         } else {
             this.proxyConfigured = false;
             console.warn('Proxy configuration incomplete - using direct connection');
-        }
-    }
-
-    async verifyProxyIP() {
-        try {
-            const client = this.getProxyOnlyClient();
-            const response = await Promise.race([
-                client.get('https://api.ipify.org?format=json'),
-                new Promise((_, reject) => setTimeout(() =>
-                    reject(new Error('Proxy verification timed out')), this.verifyProxyTimeout))
-            ]);
-
-            this.currentProxyIP = response.data.ip;
-            console.log(`Current proxy IP: ${this.currentProxyIP}`);
-            return this.currentProxyIP;
-        } catch (error) {
-            console.error('Failed to verify proxy IP:', error.message);
-            this.lastError = error;
-            throw error;
-        }
-    }
-
-    getProxyOnlyClient() {
-        const proxyHost = process.env.PROXY_HOST;
-        const proxyPort = process.env.PROXY_PORT;
-        const proxyUser = process.env.PROXY_USERNAME;
-        const proxyPass = process.env.PROXY_PASSWORD;
-
-        if (!(proxyHost && proxyPort && proxyUser && proxyPass)) {
-            throw new Error('Proxy not fully configured');
-        }
-
-        try {
-            const proxyUrl = `http://${proxyUser}:${proxyPass}@${proxyHost}:${proxyPort}`;
-            const httpsAgent = new HttpsProxyAgent(proxyUrl);
-            return axios.create({ httpsAgent, proxy: false, timeout: this.verifyProxyTimeout });
-        } catch (error) {
-            console.error('Error creating proxy client:', error.message);
-            throw error;
         }
     }
 
@@ -134,22 +84,17 @@ class ClashApiService {
 
     async executeRequest(endpoint, options = {}) {
         this.apiStatus.totalRequests++;
-
-        // Use a single attempt first for speed, only retry if needed
         const requestTimeout = options.timeout || this.defaultTimeout;
 
         try {
             const client = this.getClient();
-            const response = await Promise.race([
-                client.request({
-                    url: endpoint,
-                    method: options.method || 'get',
-                    params: options.params,
-                    data: options.data
-                }),
-                new Promise((_, reject) => setTimeout(() =>
-                    reject(new Error(`Request timed out after ${requestTimeout}ms`)), requestTimeout))
-            ]);
+            const response = await client.request({
+                url: endpoint,
+                method: options.method || 'get',
+                params: options.params,
+                data: options.data,
+                timeout: requestTimeout
+            });
 
             // Success case
             this.apiStatus.lastSuccessTime = new Date();
@@ -157,43 +102,9 @@ class ClashApiService {
             return response.data;
 
         } catch (error) {
-            // Retry only on specific errors that might be temporary
-            const shouldRetry =
-                !error.response ||
-                error.response.status === 503 ||
-                error.code === 'ETIMEDOUT' ||
-                error.code === 'ECONNRESET' ||
-                error.message.includes('timeout');
-
-            if (shouldRetry) {
-                try {
-                    // Short delay before retry
-                    await new Promise(resolve => setTimeout(resolve, 300));
-
-                    const client = this.getClient();
-                    const response = await Promise.race([
-                        client.request({
-                            url: endpoint,
-                            method: options.method || 'get',
-                            params: options.params,
-                            data: options.data
-                        }),
-                        new Promise((_, reject) => setTimeout(() =>
-                            reject(new Error(`Retry timed out after ${requestTimeout}ms`)), requestTimeout))
-                    ]);
-
-                    this.apiStatus.lastSuccessTime = new Date();
-                    this.apiStatus.successfulRequests++;
-                    return response.data;
-                } catch (retryError) {
-                    // Use the retry error as the main error
-                    error = retryError;
-                }
-            }
-
-            // Request failed entirely
+            // Request failed
+            this.apiStatus.lastErrorTime = new Date();
             this.apiStatus.failedRequests++;
-            this.lastError = error;
 
             // Create user-friendly error messages
             if (error.response) {
@@ -205,7 +116,7 @@ class ClashApiService {
                 } else {
                     throw new Error(`API error: HTTP ${status}`);
                 }
-            } else if (error.message.includes('timeout')) {
+            } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
                 throw new Error(`Request timed out. The API may be experiencing issues.`);
             } else {
                 throw new Error(`Network error: ${error.message}`);
@@ -223,7 +134,7 @@ class ClashApiService {
             const formattedTag = this.formatTag(clanTag);
             const data = await this.executeRequest(`/clans/${formattedTag}`);
 
-            // Cache for 10 minutes instead of 5 to reduce API calls
+            // Cache for 10 minutes
             cacheService.set(cacheKey, data, 600);
             return data;
         } catch (error) {
@@ -271,19 +182,47 @@ class ClashApiService {
         }
     }
 
-    // Helper methods and other API endpoints remain the same
+    async searchClans(params = {}) {
+        try {
+            const cacheKey = `clanSearch:${JSON.stringify(params)}`;
+            const cachedData = cacheService.get(cacheKey);
+            if (cachedData) return cachedData;
+
+            const data = await this.executeRequest('/clans', { params });
+
+            // Cache for 10 minutes
+            cacheService.set(cacheKey, data, 600);
+            return data;
+        } catch (error) {
+            console.error(`Error searching clans:`, error.message);
+            throw error;
+        }
+    }
+
+    // Test the API connection
+    async testProxyConnection() {
+        try {
+            await this.executeRequest('/locations', { timeout: 3000 });
+            return { success: true };
+        } catch (error) {
+            return {
+                success: false,
+                message: error.message
+            };
+        }
+    }
+
+    // Get service status
     getStatus() {
         return {
             apiKey: !!process.env.COC_API_KEY,
             proxyConfigured: this.proxyConfigured,
-            proxyIP: this.currentProxyIP,
             lastSuccessTime: this.apiStatus.lastSuccessTime,
             lastErrorTime: this.apiStatus.lastErrorTime,
             totalRequests: this.apiStatus.totalRequests,
             successRate: this.apiStatus.totalRequests > 0
                 ? (this.apiStatus.successfulRequests / this.apiStatus.totalRequests * 100).toFixed(1) + '%'
-                : 'N/A',
-            lastError: this.lastError ? this.lastError.message : null
+                : 'N/A'
         };
     }
 }

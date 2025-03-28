@@ -34,10 +34,7 @@ module.exports = {
                         await recruitmentCommand.handleApplicationSubmit(interaction);
                     } else {
                         console.error('handleApplicationSubmit function not found');
-                        await interaction.reply({
-                            content: 'Error processing your application. Please contact an administrator.',
-                            ephemeral: true
-                        }).catch(() => {});
+                        await this._safeReply(interaction, 'Error processing your application. Please contact an administrator.', true);
                     }
                 } catch (error) {
                     console.error('Error handling application submission:', error);
@@ -80,7 +77,7 @@ module.exports = {
 
         if (!command) {
             console.error(`No command matching ${interaction.commandName} was found.`);
-            this._safeReply(interaction, `Command not found. Try one of these: ${Array.from(client.commands.keys()).slice(0, 5).join(', ')}...`);
+            this._safeReply(interaction, `Command not found. Try using /help to see available commands.`);
             return;
         }
 
@@ -98,15 +95,13 @@ module.exports = {
             if (!command.manualDeferring && !interaction.replied && !interaction.deferred) {
                 try {
                     await interaction.deferReply();
-                    interaction._wasDeferred = true;
                 } catch (deferError) {
                     console.warn(`Could not auto-defer for ${interaction.commandName}:`, deferError.message);
                 }
             }
 
-            // Execute the command with safety wrapper
-            const safeInteraction = this._createSafeInteraction(interaction);
-            await command.execute(safeInteraction);
+            // Execute the command
+            await command.execute(interaction);
 
             // Log success
             const executionTime = Date.now() - startTime;
@@ -147,48 +142,5 @@ module.exports = {
         } catch (error) {
             console.error('Error sending reply:', error);
         }
-    },
-
-    // Create a safe wrapper around interaction methods
-    _createSafeInteraction(interaction) {
-        return new Proxy(interaction, {
-            get(target, prop) {
-                if (typeof target[prop] !== 'function') {
-                    return target[prop];
-                }
-
-                return async function(...args) {
-                    if ((prop === 'reply' || prop === 'deferReply') &&
-                        (target.replied || target.deferred)) {
-                        if (prop === 'reply') {
-                            try {
-                                return await target.followUp(...args);
-                            } catch (e) {
-                                console.warn(`Failed to convert reply to followUp: ${e.message}`);
-                            }
-                        }
-                        return null;
-                    }
-
-                    try {
-                        return await target[prop](...args);
-                    } catch (error) {
-                        if (error.message && error.message.includes('already been')) {
-                            console.warn(`Error in ${prop}: ${error.message}`);
-                            if (prop === 'reply') {
-                                try {
-                                    return await target.followUp(...args);
-                                } catch (fallbackError) {
-                                    console.warn(`Fallback failed: ${fallbackError.message}`);
-                                }
-                            }
-                        } else {
-                            throw error;
-                        }
-                        return null;
-                    }
-                };
-            }
-        });
     }
 };

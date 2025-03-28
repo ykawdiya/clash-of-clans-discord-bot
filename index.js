@@ -93,14 +93,6 @@ const server = app.listen(PORT, () => {
     console.log(`Health check server running on port ${PORT}`);
 });
 
-// Load commands ONCE
-console.log('Loading commands...');
-const { commandFiles } = loadCommands();
-commandFiles.forEach((command, name) => {
-    client.commands.set(name, command);
-});
-console.log(`Loaded ${client.commands.size} commands into client collection`);
-
 // Load all event handlers
 console.log('Loading event handlers...');
 loadEvents(client);
@@ -108,6 +100,14 @@ loadEvents(client);
 // When bot is ready, register commands ONCE
 client.once('ready', async () => {
     console.log(`Bot is online! Logged in as ${client.user.tag}`);
+
+    // Load commands and register them with the client
+    console.log('Loading commands...');
+    const { commandFiles } = loadCommands();
+    commandFiles.forEach((command, name) => {
+        client.commands.set(name, command);
+    });
+    console.log(`Loaded ${client.commands.size} commands into client collection`);
 
     // Start automation services
     try {
@@ -117,7 +117,7 @@ client.once('ready', async () => {
         console.error('Failed to start automated services:', error);
     }
 
-    // REGISTER COMMANDS ONCE AFTER BOT IS READY
+    // Register commands with Discord API
     console.log('Registering slash commands with Discord API...');
     try {
         const { registerCommands } = require('./src/handlers/commandHandler');
