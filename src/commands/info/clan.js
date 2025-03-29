@@ -155,16 +155,22 @@ async function sendClanEmbed(interaction, clanData) {
 
         // Count members by role
         clanData.memberList.forEach(member => {
-            if (member.role && roles[member.role] !== undefined) {
-                roles[member.role]++;
-            } else if (member.role === 'admin') {
-                roles.coLeader++; // Count admins as co-leaders
+            const roleKey = (member.role || '').toLowerCase();
+            if (roleKey === 'leader') {
+                roles.leader++;
+            } else if (roleKey === 'coleader' || roleKey === 'co-leader' || roleKey === 'admin') {
+                roles.coLeader++;
+            } else if (roleKey === 'elder') {
+                roles.elder++;
             } else {
-                roles.member++; // Default to member if unknown role
+                roles.member++;
             }
         });
 
         memberBreakdown = `👑 Leader: ${roles.leader}\n⭐ Co-Leaders: ${roles.coLeader}\n🔶 Elders: ${roles.elder}\n👤 Members: ${roles.member}`;
+    } else {
+        // If memberList isn't available, just show the total member count
+        memberBreakdown = `Total Members: ${clanData.members}/50`;
     }
 
     // Create the embed
@@ -213,17 +219,26 @@ async function sendClanEmbed(interaction, clanData) {
     if (clanData.clanCapital && clanData.clanCapital.capitalHallLevel > 0) {
         let capitalInfo = `Capital Hall: Level ${clanData.clanCapital.capitalHallLevel}\n`;
         capitalInfo += `Districts: ${clanData.clanCapital.districts?.length || 0}\n`;
-        capitalInfo += `Capital Points: ${clanData.clanCapital.capitalPoints || 0}\n`;
+        capitalInfo += `Capital Points: ${clanData.clanCapital.capitalPoints || 0}`;
 
         // Add district details if available
         if (clanData.clanCapital.districts && clanData.clanCapital.districts.length > 0) {
-            capitalInfo += '\n**District Levels:**\n';
+            // Create a separate field for districts to improve formatting
+            let districtInfo = '';
             clanData.clanCapital.districts.forEach(district => {
-                capitalInfo += `- ${district.name}: Level ${district.level}\n`;
+                const districtLevel = district.level || district.districtHallLevel || '?';
+                districtInfo += `• ${district.name}: Level ${districtLevel}\n`;
             });
-        }
 
-        embed.addFields({ name: 'Clan Capital', value: capitalInfo });
+            if (districtInfo) {
+                embed.addFields({ name: 'Clan Capital', value: capitalInfo });
+                embed.addFields({ name: 'District Levels', value: districtInfo });
+            } else {
+                embed.addFields({ name: 'Clan Capital', value: capitalInfo });
+            }
+        } else {
+            embed.addFields({ name: 'Clan Capital', value: capitalInfo });
+        }
     }
 
     // Add public war log status
