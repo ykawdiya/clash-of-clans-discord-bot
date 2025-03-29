@@ -1,5 +1,5 @@
 require('dotenv').config();
-require('./src/utils/commandModelFix');
+require('./src/commandModelFix'); // Fixed path - removed utils/ directory
 
 // Import logger
 const { system: log, discord: discordLog } = require('./src/utils/logger');
