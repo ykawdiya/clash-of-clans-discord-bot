@@ -213,22 +213,24 @@ async function setupTownHallRoles(interaction, linkedClan) {
     }
 
     // Save to database - assign directly
-    linkedClan.settings.roles.townHall = thRoles;
+    linkedClan.settings.roles.townHallRoles = thRoles;
 
     try {
-        // Log the data we're trying to save
         console.log('Saving TH role configuration to database:', JSON.stringify(thRoles));
 
-        // Use save() to ensure the document is updated
-        await linkedClan.save();
+        // Use updateOne with $set to ensure proper saving
+        await Clan.updateOne(
+            { _id: linkedClan._id },
+            { $set: { 'settings.roles.townHallRoles': thRoles } }
+        );
 
-        // Verify the save was successful by printing the saved data
-        console.log('Saved configuration:', JSON.stringify(linkedClan.settings.roles.townHall));
+        // Update our local reference
+        linkedClan.settings.roles.townHallRoles = thRoles;
 
-        // Double-check by fetching fresh from DB
+        // Verify the save was successful
         const refreshedClan = await Clan.findOne({ _id: linkedClan._id });
         console.log('Configuration in DB after save:',
-            JSON.stringify(refreshedClan.settings?.roles?.townHall || 'Not found'));
+            JSON.stringify(refreshedClan.settings?.roles?.townHallRoles || 'Not found'));
     } catch (saveError) {
         console.error('Error saving clan settings:', saveError);
         throw new Error(`Database error: ${saveError.message}`);
@@ -401,7 +403,12 @@ async function setupWarActivityRoles(interaction, linkedClan) {
 
     // Save to database
     linkedClan.settings.roles = linkedClan.settings.roles || {};
-    linkedClan.settings.roles.warActivity = warRoles;
+    linkedClan.settings.roles.warActivityRoles = warRoles;
+
+    await Clan.updateOne(
+        { _id: linkedClan._id },
+        { $set: { 'settings.roles.warActivityRoles': warRoles } }
+    );
 
     try {
         await linkedClan.save();
@@ -477,7 +484,12 @@ async function setupDonationRoles(interaction, linkedClan) {
 
     // Save to database
     linkedClan.settings.roles = linkedClan.settings.roles || {};
-    linkedClan.settings.roles.donationTier = donationRoles;
+    linkedClan.settings.roles.donationTierRoles = donationRoles;
+
+    await Clan.updateOne(
+        { _id: linkedClan._id },
+        { $set: { 'settings.roles.donationTierRoles': donationRoles } }
+    );
 
     try {
         await linkedClan.save();
@@ -703,9 +715,6 @@ async function syncRoles(interaction, linkedClan) {
     }
 }
 
-/**
- * Show current role configuration
- */
 async function showRoleConfig(interaction, linkedClan) {
     // Check if role settings exist
     if (!linkedClan.settings || !linkedClan.settings.roles) {
@@ -718,9 +727,9 @@ async function showRoleConfig(interaction, linkedClan) {
         .setDescription(`Role configuration for ${linkedClan.name} (${linkedClan.clanTag})`);
 
     // Add Town Hall roles if configured
-    if (linkedClan.settings.roles.townHall) {
+    if (linkedClan.settings.roles.townHallRoles) {
         let thRolesText = '';
-        for (const [level, config] of Object.entries(linkedClan.settings.roles.townHall)) {
+        for (const [level, config] of Object.entries(linkedClan.settings.roles.townHallRoles)) {
             try {
                 const role = interaction.guild.roles.cache.get(config.id);
                 if (role) {
@@ -765,9 +774,9 @@ async function showRoleConfig(interaction, linkedClan) {
     }
 
     // Add war activity roles if configured
-    if (linkedClan.settings.roles.warActivity) {
+    if (linkedClan.settings.roles.warActivityRoles) {
         let warRolesText = '';
-        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.warActivity)) {
+        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.warActivityRoles)) {
             try {
                 const role = interaction.guild.roles.cache.get(roleId);
                 if (role) {
@@ -784,9 +793,9 @@ async function showRoleConfig(interaction, linkedClan) {
     }
 
     // Add donation tier roles if configured
-    if (linkedClan.settings.roles.donationTier) {
+    if (linkedClan.settings.roles.donationTierRoles) {
         let donationRolesText = '';
-        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.donationTier)) {
+        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.donationTierRoles)) {
             try {
                 const role = interaction.guild.roles.cache.get(roleId);
                 if (role) {
@@ -818,36 +827,36 @@ async function assignAllRoles(member, playerData, clanMemberData, roleConfig) {
         console.log(`Starting role assignment for ${member.user.tag}`);
 
         // Handle TH level roles
-        if (roleConfig.townHall) {
+        if (roleConfig.townHallRoles) {
             console.log(`Assigning TH${playerData.townHallLevel} role to ${member.user.tag}`);
-            await assignTownHallRole(member, playerData.townHallLevel, roleConfig.townHall);
+            await assignTownHallRole(member, playerData.townHallLevel, roleConfig.townHallRoles);
         } else {
             console.log('Town Hall roles not configured, skipping');
         }
 
         // Handle clan roles
-        if (roleConfig.clanRole) {
+        if (roleConfig.leader || roleConfig.coLeader || roleConfig.elder || roleConfig.everyone) {
             const role = playerData.role || 'member';
             console.log(`Assigning clan role "${role}" to ${member.user.tag}`);
-            await assignClanRole(member, role, roleConfig.clanRole);
+            await assignClanRole(member, role, roleConfig);
         } else {
             console.log('Clan roles not configured, skipping');
         }
 
         // Handle war activity roles
-        if (roleConfig.warActivity) {
+        if (roleConfig.warActivityRoles) {
             const warStars = playerData.warStars || 0;
             console.log(`Assigning war activity role based on ${warStars} stars to ${member.user.tag}`);
-            await assignWarActivityRole(member, warStars, roleConfig.warActivity);
+            await assignWarActivityRole(member, warStars, roleConfig.warActivityRoles);
         } else {
             console.log('War activity roles not configured, skipping');
         }
 
         // Handle donation tier roles
-        if (roleConfig.donationTier && clanMemberData) {
+        if (roleConfig.donationTierRolesRoles && clanMemberData) {
             const donations = clanMemberData.donations || 0;
             console.log(`Assigning donation tier role based on ${donations} donations to ${member.user.tag}`);
-            await assignDonationRole(member, donations, roleConfig.donationTier);
+            await assignDonationRole(member, donations, roleConfig.donationTierRoles);
         } else {
             console.log('Donation tier roles not configured or no clan member data, skipping');
         }
@@ -868,8 +877,8 @@ async function removeAllClanRoles(member, roleConfig) {
         const rolesToRemove = new Set();
 
         // Add town hall roles
-        if (roleConfig.townHall) {
-            Object.values(roleConfig.townHall).forEach(config => {
+        if (roleConfig.townHallRoles) {
+            Object.values(roleConfig.townHallRoles).forEach(config => {
                 if (config && config.id) rolesToRemove.add(config.id);
             });
         }
@@ -882,15 +891,15 @@ async function removeAllClanRoles(member, roleConfig) {
         }
 
         // Add war activity roles
-        if (roleConfig.warActivity) {
-            Object.keys(roleConfig.warActivity).forEach(roleId => {
+        if (roleConfig.warActivityRoles) {
+            Object.keys(roleConfig.warActivityRoles).forEach(roleId => {
                 if (roleId) rolesToRemove.add(roleId);
             });
         }
 
         // Add donation tier roles
-        if (roleConfig.donationTier) {
-            Object.keys(roleConfig.donationTier).forEach(roleId => {
+        if (roleConfig.donationTierRoles) {
+            Object.keys(roleConfig.donationTierRoles).forEach(roleId => {
                 if (roleId) rolesToRemove.add(roleId);
             });
         }
