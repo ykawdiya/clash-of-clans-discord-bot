@@ -148,24 +148,36 @@ async function sendClanEmbed(interaction, clanData) {
         const roles = {
             leader: 0,
             coLeader: 0,
-            admin: 0, // Some APIs use "admin" instead of "coLeader"
             elder: 0,
             member: 0
         };
 
-        // Count members by role
+        // Debug the roles
+        console.log('Member roles in clan:');
         clanData.memberList.forEach(member => {
-            const roleKey = (member.role || '').toLowerCase();
+            console.log(`${member.name}: ${member.role || 'unknown'}`);
+        });
+
+        // Count members by role with strict checks
+        clanData.memberList.forEach(member => {
+            const roleKey = (member.role || '').toLowerCase().trim();
             if (roleKey === 'leader') {
                 roles.leader++;
             } else if (roleKey === 'coleader' || roleKey === 'co-leader' || roleKey === 'admin') {
                 roles.coLeader++;
-            } else if (roleKey === 'elder') {
+            } else if (roleKey === 'elder' || roleKey === 'admin elder') {
                 roles.elder++;
             } else {
                 roles.member++;
             }
         });
+
+        // Double-check total count
+        const totalCounted = roles.leader + roles.coLeader + roles.elder + roles.member;
+        if (totalCounted !== clanData.members && totalCounted !== clanData.memberList.length) {
+            console.log(`Warning: Counted ${totalCounted} members, but clan has ${clanData.members} members`);
+            console.log(`Member list has ${clanData.memberList.length} entries`);
+        }
 
         memberBreakdown = `👑 Leader: ${roles.leader}\n⭐ Co-Leaders: ${roles.coLeader}\n🔶 Elders: ${roles.elder}\n👤 Members: ${roles.member}`;
     } else {
@@ -198,6 +210,11 @@ async function sendClanEmbed(interaction, clanData) {
     // Add member breakdown if available
     if (memberBreakdown) {
         embed.addFields({ name: 'Member Breakdown', value: memberBreakdown });
+
+        // Add an additional field for more accurate member count if there's a discrepancy
+        if (clanData.members > 0) {
+            embed.addFields({ name: 'Total Members', value: `${clanData.members}/50` });
+        }
     }
 
     // Add clan labels if available
