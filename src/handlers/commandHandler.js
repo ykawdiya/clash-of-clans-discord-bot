@@ -9,6 +9,8 @@ function loadCommands() {
     // Collection to store commands
     const commands = [];
     const commandFiles = new Map();
+    // Track command names to detect duplicates
+    const commandNames = new Set();
 
     try {
         const commandsPath = path.join(__dirname, '../commands');
@@ -50,12 +52,23 @@ function loadCommands() {
                         continue;
                     }
 
+                    // Check for duplicate command names
+                    const commandName = command.data.name;
+                    if (commandNames.has(commandName)) {
+                        console.warn(`⚠️ DUPLICATE COMMAND DETECTED: "${commandName}" in ${file}`);
+                        console.warn(`Another file already registered this command name. Skipping to avoid conflicts.`);
+                        continue; // Skip this command
+                    }
+
+                    // Add to tracking set
+                    commandNames.add(commandName);
+
                     try {
                         // Convert command data to JSON
                         const jsonData = command.data.toJSON();
                         commands.push(jsonData);
-                        commandFiles.set(command.data.name, command);
-                        console.log(`Loaded command: ${command.data.name}`);
+                        commandFiles.set(commandName, command);
+                        console.log(`Loaded command: ${commandName} from ${folder}/${file}`);
                     } catch (error) {
                         console.error(`Error loading ${file}: ${error.message}`);
                     }

@@ -23,49 +23,6 @@ module.exports = {
     },
 
     async execute(client, interaction) {
-        // Handle Modal Submissions
-        if (interaction.isModalSubmit()) {
-            console.log(`Modal submitted: ${interaction.customId}`);
-
-            if (interaction.customId === 'recruitment_application') {
-                try {
-                    const recruitmentCommand = require('../commands/recruitment/recruit');
-                    if (recruitmentCommand.handleApplicationSubmit) {
-                        await recruitmentCommand.handleApplicationSubmit(interaction);
-                    } else {
-                        console.error('handleApplicationSubmit function not found');
-                        await this._safeReply(interaction, 'Error processing your application. Please contact an administrator.', true);
-                    }
-                } catch (error) {
-                    console.error('Error handling application submission:', error);
-                    this._safeReply(interaction, 'Error processing your application. Please try again later.');
-                }
-                return;
-            }
-        }
-
-        // Handle Button/Select Menu interactions
-        if (interaction.isButton() || interaction.isStringSelectMenu()) {
-            // Check for recruitment-related interactions
-            if (interaction.customId.startsWith('apply_') ||
-                interaction.customId.startsWith('approve_') ||
-                interaction.customId.startsWith('reject_') ||
-                interaction.customId.startsWith('waitlist_') ||
-                interaction.customId.startsWith('view_') ||
-                interaction.customId === 'apply_button') {
-
-                try {
-                    const recruitmentCommand = require('../commands/recruitment/recruit');
-                    if (recruitmentCommand.handleRecruitmentButton) {
-                        const handled = await recruitmentCommand.handleRecruitmentButton(interaction);
-                        if (handled) return;
-                    }
-                } catch (error) {
-                    console.error('Error handling recruitment button:', error);
-                }
-            }
-        }
-
         // Skip if not a command interaction
         if (!interaction.isChatInputCommand()) return;
 
