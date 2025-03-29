@@ -362,6 +362,8 @@ async function sendStatsSummary(interaction, playerData, statsHistory) {
     await interaction.editReply({ embeds: [embed] });
 }
 
+// Update the sendProgressVisualization function in src/commands/tracking/stats.js
+
 /**
  * Send progress visualization
  * @param {CommandInteraction} interaction
@@ -386,11 +388,29 @@ async function sendProgressVisualization(interaction, playerData, statsHistory, 
         'all': 'All Time'
     }[period] || period;
 
+    // Format clan role if available
+    let clanInfo = '';
+    if (playerData.clan) {
+        // Get the proper role name with capitalization
+        const roleMap = {
+            'leader': 'Leader',
+            'coLeader': 'Co-Leader',
+            'admin': 'Co-Leader', // Some APIs use 'admin' instead of 'coLeader'
+            'elder': 'Elder',
+            'member': 'Member'
+        };
+
+        const roleName = roleMap[playerData.role] || 'Member';
+        clanInfo = `${roleName} of ${playerData.clan.name}`;
+    } else {
+        clanInfo = 'Not in a clan';
+    }
+
     // Create the progress embed
     const embed = new EmbedBuilder()
         .setColor('#e74c3c')
         .setTitle(`${playerData.name} - Progress (${periodName})`)
-        .setDescription(`Progress tracked over ${daysBetween} days${playerData.clan ? ` • Member of ${playerData.clan.name}` : ''}`)
+        .setDescription(`Progress tracked over ${daysBetween} days • ${clanInfo}`)
         .setFooter({ text: `First tracked: ${new Date(oldestStats.timestamp).toLocaleDateString()}`, iconURL: interaction.client.user.displayAvatarURL() })
         .setTimestamp();
 
