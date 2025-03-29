@@ -142,55 +142,6 @@ async function sendClanEmbed(interaction, clanData) {
     // Format clan creation date if available
     const createdDate = clanData.createdDate ? new Date(clanData.createdDate).toLocaleDateString() : 'Unknown';
 
-    // Get membership breakdown by role if available
-    let memberBreakdown = '';
-    if (clanData.memberList && clanData.memberList.length > 0) {
-        const roles = {
-            leader: 0,
-            coLeader: 0,
-            elder: 0,
-            member: 0
-        };
-
-        // Debug the roles
-        console.log('Member roles in clan:');
-        clanData.memberList.forEach(member => {
-            console.log(`${member.name}: role="${member.role || 'unknown'}"`);
-        });
-
-        // Count members by role with precise checks
-        clanData.memberList.forEach(member => {
-            const role = (member.role || '').toLowerCase().trim();
-
-            // Very specific role checks
-            if (role === 'leader') {
-                roles.leader++;
-            } else if (role === 'coleader') {
-                roles.coLeader++;
-            } else if (role === 'elder') {
-                roles.elder++;
-            } else if (role === 'member') {
-                roles.member++;
-            } else {
-                // Fallback checks for non-standard role naming
-                if (role.includes('lead') && !role.includes('co')) {
-                    roles.leader++;
-                } else if (role.includes('co') || role === 'admin') {
-                    roles.coLeader++;
-                } else if (role.includes('eld')) {
-                    roles.elder++;
-                } else {
-                    roles.member++;
-                }
-            }
-        });
-
-        memberBreakdown = `👑 Leader: ${roles.leader}\n⭐ Co-Leaders: ${roles.coLeader}\n🔶 Elders: ${roles.elder}\n👤 Members: ${roles.member}`;
-    } else {
-        // If memberList isn't available, just show the total member count
-        memberBreakdown = `Total Members: ${clanData.members}/50`;
-    }
-
     // Create the embed
     const embed = new EmbedBuilder()
         .setColor('#3498db')
@@ -213,15 +164,7 @@ async function sendClanEmbed(interaction, clanData) {
         { name: 'War Statistics', value: `Win Streak: ${clanData.warWinStreak}\nWins: ${clanData.warWins}\nLosses: ${clanData.warLosses || 'N/A'}\nTies: ${clanData.warTies || 'N/A'}\nWin Rate: ${winRate}` }
     );
 
-    // Add member breakdown if available
-    if (memberBreakdown) {
-        embed.addFields({ name: 'Member Breakdown', value: memberBreakdown });
-
-        // Add an additional field for more accurate member count if there's a discrepancy
-        if (clanData.members > 0) {
-            embed.addFields({ name: 'Total Members', value: `${clanData.members}/50` });
-        }
-    }
+    // NOTE: Member breakdown section has been removed as requested
 
     // Add clan labels if available
     if (clanData.labels && clanData.labels.length > 0) {
