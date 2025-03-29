@@ -40,4 +40,16 @@ async function cleanupCommands() {
     }
 }
 
+
+// Add this to ensure we clear both global and guild commands
+// Get all guilds the bot is in
+const guilds = await client.guilds.fetch();
+// Clear commands in each guild
+for (const [guildId, _] of guilds) {
+    console.log(`Removing guild commands from guild ${guildId}...`);
+    await rest.put(
+        Routes.applicationGuildCommands(clientId, guildId),
+        { body: [] }
+    );
+}
 cleanupCommands();
