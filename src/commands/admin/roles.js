@@ -308,8 +308,10 @@ async function setupClanRoles(interaction, linkedClan) {
         linkedClan.settings.roles = {};
     }
 
-    // Save to database - assign directly
-    linkedClan.settings.roles.clanRole = clanRoles;
+    linkedClan.settings.roles.leader = clanRoles.leader;
+    linkedClan.settings.roles.coLeader = clanRoles.coLeader;
+    linkedClan.settings.roles.elder = clanRoles.elder;
+    linkedClan.settings.roles.everyone = clanRoles.member;
 
     try {
         // Log the data we're trying to save
@@ -735,16 +737,25 @@ async function showRoleConfig(interaction, linkedClan) {
     }
 
     // Add clan roles if configured
-    if (linkedClan.settings.roles.clanRole) {
+    if (linkedClan.settings.roles) {
         let clanRolesText = '';
-        for (const [role, id] of Object.entries(linkedClan.settings.roles.clanRole)) {
-            try {
-                const discordRole = interaction.guild.roles.cache.get(id);
-                if (discordRole) {
-                    clanRolesText += `${role.charAt(0).toUpperCase() + role.slice(1)}: ${discordRole.name} <@&${discordRole.id}>\n`;
+        const roleMap = {
+            'leader': linkedClan.settings.roles.leader,
+            'coLeader': linkedClan.settings.roles.coLeader,
+            'elder': linkedClan.settings.roles.elder,
+            'member': linkedClan.settings.roles.everyone
+        };
+
+        for (const [role, id] of Object.entries(roleMap)) {
+            if (id) {
+                try {
+                    const discordRole = interaction.guild.roles.cache.get(id);
+                    if (discordRole) {
+                        clanRolesText += `${role.charAt(0).toUpperCase() + role.slice(1)}: ${discordRole.name} <@&${discordRole.id}>\n`;
+                    }
+                } catch (error) {
+                    console.error(`Error getting role for ${role}:`, error);
                 }
-            } catch (error) {
-                console.error(`Error getting role for ${role}:`, error);
             }
         }
 
