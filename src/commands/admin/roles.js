@@ -1,10 +1,9 @@
-// src/commands/admin/roles.js
+// src/commands/admin/roles.js - Improved version
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const clashApiService = require('../../services/clashApiService');
 const Clan = require('../../models/Clan');
 const User = require('../../models/User');
 const ErrorHandler = require('../../utils/errorHandler');
-
 
 // Define role types and configurations
 const ROLE_TYPES = {
@@ -61,7 +60,19 @@ module.exports = {
         try {
             // Check if bot has permission to manage roles
             if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
-                return interaction.editReply('I do not have permission to manage roles in this server.');
+                return interaction.editReply({
+                    content: '❌ I do not have permission to manage roles in this server. Please give me the "Manage Roles" permission.',
+                    ephemeral: true
+                });
+            }
+
+            // Check if bot role is high enough in hierarchy
+            const botRolePosition = interaction.guild.members.me.roles.highest.position;
+            if (botRolePosition < 1) {
+                return interaction.editReply({
+                    content: '❌ My role is too low in the server hierarchy. Please move my role higher to allow me to manage other roles.',
+                    ephemeral: true
+                });
             }
 
             const subcommand = interaction.options.getSubcommand();
@@ -69,7 +80,15 @@ module.exports = {
             // Find linked clan for this Discord server
             const linkedClan = await Clan.findOne({ guildId: interaction.guild.id });
             if (!linkedClan) {
-                return interaction.editReply("This server doesn't have a linked clan. Use `/setclan` first.");
+                return interaction.editReply({
+                    content: "This server doesn't have a linked clan. Use `/setclan` first.",
+                    ephemeral: true
+                });
+            }
+
+            // Make sure settings object exists
+            if (!linkedClan.settings) {
+                linkedClan.settings = {};
             }
 
             switch (subcommand) {
@@ -103,21 +122,26 @@ async function setupRoles(interaction, linkedClan) {
         linkedClan.settings.roles = {};
     }
 
-    switch (roleType) {
-        case ROLE_TYPES.TH_LEVEL:
-            await setupTownHallRoles(interaction, linkedClan);
-            break;
-        case ROLE_TYPES.CLAN_ROLE:
-            await setupClanRoles(interaction, linkedClan);
-            break;
-        case ROLE_TYPES.WAR_ACTIVITY:
-            await setupWarActivityRoles(interaction, linkedClan);
-            break;
-        case ROLE_TYPES.DONATION_TIER:
-            await setupDonationRoles(interaction, linkedClan);
-            break;
-        default:
-            return interaction.editReply('Invalid role type selected.');
+    try {
+        switch (roleType) {
+            case ROLE_TYPES.TH_LEVEL:
+                await setupTownHallRoles(interaction, linkedClan);
+                break;
+            case ROLE_TYPES.CLAN_ROLE:
+                await setupClanRoles(interaction, linkedClan);
+                break;
+            case ROLE_TYPES.WAR_ACTIVITY:
+                await setupWarActivityRoles(interaction, linkedClan);
+                break;
+            case ROLE_TYPES.DONATION_TIER:
+                await setupDonationRoles(interaction, linkedClan);
+                break;
+            default:
+                return interaction.editReply('Invalid role type selected.');
+        }
+    } catch (error) {
+        console.error(`Error in setupRoles (${roleType}):`, error);
+        throw new Error(`Failed to set up ${roleType} roles: ${error.message}`);
     }
 }
 
@@ -141,13 +165,16 @@ async function setupTownHallRoles(interaction, linkedClan) {
         15: '1️⃣5️⃣'
     };
 
+    // Status update to user
+    await interaction.editReply('Creating Town Hall roles... This may take a moment.');
+
     // Create or find roles for each TH level
     for (let thLevel = 7; thLevel <= 15; thLevel++) {
         const roleName = `TH${thLevel}`;
-        let role = interaction.guild.roles.cache.find(r => r.name === roleName);
+        try {
+            let role = interaction.guild.roles.cache.find(r => r.name === roleName);
 
-        if (!role) {
-            try {
+            if (!role) {
                 // Create a new role with a color based on TH level (increasingly vibrant)
                 // Color hue shifts from red (0) to yellow (60) as TH level increases
                 const hue = Math.min(60, (thLevel - 7) * 10);
@@ -161,22 +188,31 @@ async function setupTownHallRoles(interaction, linkedClan) {
                 });
 
                 console.log(`Created role ${roleName} with color ${color}`);
-            } catch (error) {
-                console.error(`Failed to create role ${roleName}:`, error);
-                return interaction.editReply(`Error creating role ${roleName}: ${error.message}`);
+            } else {
+                console.log(`Using existing role ${roleName}`);
             }
-        }
 
-        // Store role ID with emoji
-        thRoles[thLevel] = {
-            id: role.id,
-            emoji: thEmojis[thLevel] || `TH${thLevel}`
-        };
+            // Store role ID with emoji
+            thRoles[thLevel] = {
+                id: role.id,
+                emoji: thEmojis[thLevel] || `TH${thLevel}`
+            };
+        } catch (roleError) {
+            console.error(`Failed to create/find role ${roleName}:`, roleError);
+            // Continue with other roles
+        }
     }
 
     // Save to database
+    linkedClan.settings.roles = linkedClan.settings.roles || {};
     linkedClan.settings.roles.townHall = thRoles;
-    await linkedClan.save();
+
+    try {
+        await linkedClan.save();
+    } catch (saveError) {
+        console.error('Error saving clan settings:', saveError);
+        throw new Error(`Database error: ${saveError.message}`);
+    }
 
     // Create a response embed
     const embed = new EmbedBuilder()
@@ -188,11 +224,13 @@ async function setupTownHallRoles(interaction, linkedClan) {
     // Add each role to the embed
     for (let thLevel = 7; thLevel <= 15; thLevel++) {
         const role = thRoles[thLevel];
-        embed.addFields({
-            name: `${role.emoji} Town Hall ${thLevel}`,
-            value: `<@&${role.id}>`,
-            inline: true
-        });
+        if (role && role.id) {
+            embed.addFields({
+                name: `${role.emoji} Town Hall ${thLevel}`,
+                value: `<@&${role.id}>`,
+                inline: true
+            });
+        }
     }
 
     return interaction.editReply({ embeds: [embed] });
@@ -212,12 +250,15 @@ async function setupClanRoles(interaction, linkedClan) {
 
     const clanRoles = {};
 
+    // Status update to user
+    await interaction.editReply('Creating Clan roles... This may take a moment.');
+
     // Create or find roles
     for (const roleDef of clanRoleDefinitions) {
-        let role = interaction.guild.roles.cache.find(r => r.name === roleDef.name);
+        try {
+            let role = interaction.guild.roles.cache.find(r => r.name === roleDef.name);
 
-        if (!role) {
-            try {
+            if (!role) {
                 role = await interaction.guild.roles.create({
                     name: roleDef.name,
                     color: roleDef.color,
@@ -226,32 +267,49 @@ async function setupClanRoles(interaction, linkedClan) {
                 });
 
                 console.log(`Created role ${roleDef.name}`);
-            } catch (error) {
-                console.error(`Failed to create role ${roleDef.name}:`, error);
-                return interaction.editReply(`Error creating role ${roleDef.name}: ${error.message}`);
+            } else {
+                console.log(`Using existing role ${roleDef.name}`);
             }
-        }
 
-        // Store role ID
-        clanRoles[roleDef.clanRole] = role.id;
+            // Store role ID
+            clanRoles[roleDef.clanRole] = role.id;
+        } catch (roleError) {
+            console.error(`Failed to create/find role ${roleDef.name}:`, roleError);
+            // Continue with other roles
+        }
     }
 
     // Save to database
+    linkedClan.settings.roles = linkedClan.settings.roles || {};
     linkedClan.settings.roles.clanRole = clanRoles;
-    await linkedClan.save();
+
+    try {
+        await linkedClan.save();
+    } catch (saveError) {
+        console.error('Error saving clan settings:', saveError);
+        throw new Error(`Database error: ${saveError.message}`);
+    }
 
     // Create a response embed
     const embed = new EmbedBuilder()
         .setColor('#00ff00')
         .setTitle('Clan Roles Setup Complete')
         .setDescription('I have set up the following clan roles:')
-        .addFields(
-            { name: 'Leader', value: `<@&${clanRoles.leader}>`, inline: true },
-            { name: 'Co-Leader', value: `<@&${clanRoles.coLeader}>`, inline: true },
-            { name: 'Elder', value: `<@&${clanRoles.elder}>`, inline: true },
-            { name: 'Member', value: `<@&${clanRoles.member}>`, inline: true }
-        )
         .setFooter({ text: 'Use /roles sync to assign these roles to members' });
+
+    // Add fields for roles that were successfully created
+    if (clanRoles.leader) {
+        embed.addFields({ name: 'Leader', value: `<@&${clanRoles.leader}>`, inline: true });
+    }
+    if (clanRoles.coLeader) {
+        embed.addFields({ name: 'Co-Leader', value: `<@&${clanRoles.coLeader}>`, inline: true });
+    }
+    if (clanRoles.elder) {
+        embed.addFields({ name: 'Elder', value: `<@&${clanRoles.elder}>`, inline: true });
+    }
+    if (clanRoles.member) {
+        embed.addFields({ name: 'Member', value: `<@&${clanRoles.member}>`, inline: true });
+    }
 
     return interaction.editReply({ embeds: [embed] });
 }
@@ -270,12 +328,15 @@ async function setupWarActivityRoles(interaction, linkedClan) {
 
     const warRoles = {};
 
+    // Status update to user
+    await interaction.editReply('Creating War Activity roles... This may take a moment.');
+
     // Create or find roles
     for (const roleDef of warRoleDefinitions) {
-        let role = interaction.guild.roles.cache.find(r => r.name === roleDef.name);
+        try {
+            let role = interaction.guild.roles.cache.find(r => r.name === roleDef.name);
 
-        if (!role) {
-            try {
+            if (!role) {
                 role = await interaction.guild.roles.create({
                     name: roleDef.name,
                     color: roleDef.color,
@@ -284,25 +345,35 @@ async function setupWarActivityRoles(interaction, linkedClan) {
                 });
 
                 console.log(`Created role ${roleDef.name}`);
-            } catch (error) {
-                console.error(`Failed to create role ${roleDef.name}:`, error);
-                return interaction.editReply(`Error creating role ${roleDef.name}: ${error.message}`);
+            } else {
+                console.log(`Using existing role ${roleDef.name}`);
             }
-        }
 
-        // Store role ID with minimum stars
-        warRoles[role.id] = { minStars: roleDef.minStars };
+            // Store role ID with minimum stars
+            warRoles[role.id] = { minStars: roleDef.minStars };
+        } catch (roleError) {
+            console.error(`Failed to create/find role ${roleDef.name}:`, roleError);
+            // Continue with other roles
+        }
     }
 
     // Save to database
+    linkedClan.settings.roles = linkedClan.settings.roles || {};
     linkedClan.settings.roles.warActivity = warRoles;
-    await linkedClan.save();
+
+    try {
+        await linkedClan.save();
+    } catch (saveError) {
+        console.error('Error saving clan settings:', saveError);
+        throw new Error(`Database error: ${saveError.message}`);
+    }
 
     // Create a response embed
     const embed = new EmbedBuilder()
         .setColor('#00ff00')
         .setTitle('War Activity Roles Setup Complete')
-        .setDescription('I have set up the following war activity roles:');
+        .setDescription('I have set up the following war activity roles:')
+        .setFooter({ text: 'Use /roles sync to assign these roles to members' });
 
     // Add each role to the embed
     for (const [roleId, config] of Object.entries(warRoles)) {
@@ -315,8 +386,6 @@ async function setupWarActivityRoles(interaction, linkedClan) {
             });
         }
     }
-
-    embed.setFooter({ text: 'Use /roles sync to assign these roles to members' });
 
     return interaction.editReply({ embeds: [embed] });
 }
@@ -335,12 +404,15 @@ async function setupDonationRoles(interaction, linkedClan) {
 
     const donationRoles = {};
 
+    // Status update to user
+    await interaction.editReply('Creating Donation Tier roles... This may take a moment.');
+
     // Create or find roles
     for (const roleDef of donationRoleDefinitions) {
-        let role = interaction.guild.roles.cache.find(r => r.name === roleDef.name);
+        try {
+            let role = interaction.guild.roles.cache.find(r => r.name === roleDef.name);
 
-        if (!role) {
-            try {
+            if (!role) {
                 role = await interaction.guild.roles.create({
                     name: roleDef.name,
                     color: roleDef.color,
@@ -349,25 +421,35 @@ async function setupDonationRoles(interaction, linkedClan) {
                 });
 
                 console.log(`Created role ${roleDef.name}`);
-            } catch (error) {
-                console.error(`Failed to create role ${roleDef.name}:`, error);
-                return interaction.editReply(`Error creating role ${roleDef.name}: ${error.message}`);
+            } else {
+                console.log(`Using existing role ${roleDef.name}`);
             }
-        }
 
-        // Store role ID with minimum donations
-        donationRoles[role.id] = { minDonations: roleDef.minDonations };
+            // Store role ID with minimum donations
+            donationRoles[role.id] = { minDonations: roleDef.minDonations };
+        } catch (roleError) {
+            console.error(`Failed to create/find role ${roleDef.name}:`, roleError);
+            // Continue with other roles
+        }
     }
 
     // Save to database
+    linkedClan.settings.roles = linkedClan.settings.roles || {};
     linkedClan.settings.roles.donationTier = donationRoles;
-    await linkedClan.save();
+
+    try {
+        await linkedClan.save();
+    } catch (saveError) {
+        console.error('Error saving clan settings:', saveError);
+        throw new Error(`Database error: ${saveError.message}`);
+    }
 
     // Create a response embed
     const embed = new EmbedBuilder()
         .setColor('#00ff00')
         .setTitle('Donation Tier Roles Setup Complete')
-        .setDescription('I have set up the following donation tier roles:');
+        .setDescription('I have set up the following donation tier roles:')
+        .setFooter({ text: 'Use /roles sync to assign these roles to members' });
 
     // Add each role to the embed
     for (const [roleId, config] of Object.entries(donationRoles)) {
@@ -381,8 +463,6 @@ async function setupDonationRoles(interaction, linkedClan) {
         }
     }
 
-    embed.setFooter({ text: 'Use /roles sync to assign these roles to members' });
-
     return interaction.editReply({ embeds: [embed] });
 }
 
@@ -391,85 +471,100 @@ async function setupDonationRoles(interaction, linkedClan) {
  */
 async function syncRoles(interaction, linkedClan) {
     // Check if role settings exist
-    if (!linkedClan.settings.roles) {
+    if (!linkedClan.settings || !linkedClan.settings.roles) {
         return interaction.editReply('No role configuration found. Use `/roles setup` first.');
     }
 
-    // Get all linked users
-    const linkedUsers = await User.find({ discordId: { $exists: true } });
-    if (linkedUsers.length === 0) {
-        return interaction.editReply('No linked users found. Members need to use `/link` to connect their accounts.');
-    }
-
-    // Create a progress embed
+    // Status update to user
     await interaction.editReply('Starting role synchronization...');
 
-    // Track results
-    const results = {
-        success: 0,
-        failed: 0,
-        notInServer: 0,
-        notInClan: 0
-    };
-
-    // Get clan data
-    const clanData = await clashApiService.getClan(linkedClan.clanTag);
-
-    // Process each linked user
-    for (const user of linkedUsers) {
-        if (!user.playerTag) continue;
-
-        try {
-            // Get member from the guild
-            const member = await interaction.guild.members.fetch(user.discordId).catch(() => null);
-
-            if (!member) {
-                results.notInServer++;
-                continue;
-            }
-
-            // Get player data
-            const playerData = await clashApiService.getPlayer(user.playerTag);
-
-            // Check if player is in the linked clan
-            const isInClan = playerData.clan && playerData.clan.tag === linkedClan.clanTag;
-
-            // Find the player in the clan members list to get donations
-            let clanMemberData = null;
-            if (isInClan && clanData.memberList) {
-                clanMemberData = clanData.memberList.find(m => m.tag === playerData.tag);
-            }
-
-            if (!isInClan) {
-                results.notInClan++;
-                // Remove clan-related roles if configured
-                await removeAllClanRoles(member, linkedClan.settings.roles);
-                continue;
-            }
-
-            // Assign roles based on configurations
-            await assignAllRoles(member, playerData, clanMemberData, linkedClan.settings.roles);
-
-            results.success++;
-        } catch (error) {
-            console.error(`Failed to sync roles for user ${user.discordId}:`, error);
-            results.failed++;
+    try {
+        // Get all linked users
+        const linkedUsers = await User.find({ discordId: { $exists: true } });
+        if (linkedUsers.length === 0) {
+            return interaction.editReply('No linked users found. Members need to use `/link` to connect their accounts.');
         }
+
+        // Get clan data
+        const clanData = await clashApiService.getClan(linkedClan.clanTag);
+        if (!clanData) {
+            return interaction.editReply('Could not fetch clan data. Please try again later.');
+        }
+
+        // Track results
+        const results = {
+            success: 0,
+            failed: 0,
+            notInServer: 0,
+            notInClan: 0
+        };
+
+        // Progress update
+        await interaction.editReply(`Found ${linkedUsers.length} linked users. Synchronizing roles...`);
+
+        // Process each linked user
+        for (const user of linkedUsers) {
+            if (!user.playerTag) continue;
+
+            try {
+                // Get member from the guild
+                const member = await interaction.guild.members.fetch(user.discordId).catch(() => null);
+
+                if (!member) {
+                    results.notInServer++;
+                    continue;
+                }
+
+                // Get player data
+                const playerData = await clashApiService.getPlayer(user.playerTag);
+                if (!playerData) {
+                    results.failed++;
+                    continue;
+                }
+
+                // Check if player is in the linked clan
+                const isInClan = playerData.clan && playerData.clan.tag === linkedClan.clanTag;
+
+                // Find the player in the clan members list to get donations
+                let clanMemberData = null;
+                if (isInClan && clanData.memberList) {
+                    clanMemberData = clanData.memberList.find(m => m.tag === playerData.tag);
+                }
+
+                if (!isInClan) {
+                    results.notInClan++;
+                    // Remove clan-related roles if configured
+                    await removeAllClanRoles(member, linkedClan.settings.roles);
+                    continue;
+                }
+
+                // Assign roles based on configurations
+                await assignAllRoles(member, playerData, clanMemberData, linkedClan.settings.roles);
+
+                results.success++;
+            } catch (error) {
+                console.error(`Failed to sync roles for user ${user.discordId}:`, error);
+                results.failed++;
+            }
+        }
+
+        // Create result embed
+        const embed = new EmbedBuilder()
+            .setColor('#00ff00')
+            .setTitle('Role Synchronization Complete')
+            .setDescription(`Synchronized roles for ${results.success} members`)
+            .addFields(
+                { name: 'Successful', value: results.success.toString(), inline: true },
+                { name: 'Failed', value: results.failed.toString(), inline: true },
+                { name: 'Not in Server', value: results.notInServer.toString(), inline: true },
+                { name: 'Not in Clan', value: results.notInClan.toString(), inline: true }
+            );
+
+        return interaction.editReply({ content: null, embeds: [embed] });
+    } catch (error) {
+        console.error('Error in syncRoles:', error);
+        throw new Error(`Failed to sync roles: ${error.message}`);
     }
-
-    // Create result embed
-    const embed = new EmbedBuilder()
-        .setColor('#00ff00')
-        .setTitle('Role Synchronization Complete')
-        .setDescription(`Synchronized roles for ${results.success} members`)
-        .addFields(
-            { name: 'Successful', value: results.success.toString(), inline: true },
-            { name: 'Failed', value: results.failed.toString(), inline: true },
-            { name: 'Not in Server', value: results.notInServer.toString(), inline: true },
-            { name: 'Not in Clan', value: results.notInClan.toString(), inline: true }
-        );
-
-    return interaction.editReply({ content: null, embeds: [embed] });
 }
 
 /**
@@ -477,7 +572,7 @@ async function syncRoles(interaction, linkedClan) {
  */
 async function showRoleConfig(interaction, linkedClan) {
     // Check if role settings exist
-    if (!linkedClan.settings.roles) {
+    if (!linkedClan.settings || !linkedClan.settings.roles) {
         return interaction.editReply('No role configuration found. Use `/roles setup` first.');
     }
 
@@ -490,9 +585,13 @@ async function showRoleConfig(interaction, linkedClan) {
     if (linkedClan.settings.roles.townHall) {
         let thRolesText = '';
         for (const [level, config] of Object.entries(linkedClan.settings.roles.townHall)) {
-            const role = interaction.guild.roles.cache.get(config.id);
-            if (role) {
-                thRolesText += `TH${level}: ${role.name} <@&${role.id}>\n`;
+            try {
+                const role = interaction.guild.roles.cache.get(config.id);
+                if (role) {
+                    thRolesText += `TH${level}: ${role.name} <@&${role.id}>\n`;
+                }
+            } catch (error) {
+                console.error(`Error getting role for TH${level}:`, error);
             }
         }
 
@@ -505,9 +604,13 @@ async function showRoleConfig(interaction, linkedClan) {
     if (linkedClan.settings.roles.clanRole) {
         let clanRolesText = '';
         for (const [role, id] of Object.entries(linkedClan.settings.roles.clanRole)) {
-            const discordRole = interaction.guild.roles.cache.get(id);
-            if (discordRole) {
-                clanRolesText += `${role.charAt(0).toUpperCase() + role.slice(1)}: ${discordRole.name} <@&${discordRole.id}>\n`;
+            try {
+                const discordRole = interaction.guild.roles.cache.get(id);
+                if (discordRole) {
+                    clanRolesText += `${role.charAt(0).toUpperCase() + role.slice(1)}: ${discordRole.name} <@&${discordRole.id}>\n`;
+                }
+            } catch (error) {
+                console.error(`Error getting role for ${role}:`, error);
             }
         }
 
@@ -520,9 +623,13 @@ async function showRoleConfig(interaction, linkedClan) {
     if (linkedClan.settings.roles.warActivity) {
         let warRolesText = '';
         for (const [roleId, config] of Object.entries(linkedClan.settings.roles.warActivity)) {
-            const role = interaction.guild.roles.cache.get(roleId);
-            if (role) {
-                warRolesText += `${role.name}: ${config.minStars}+ war stars\n`;
+            try {
+                const role = interaction.guild.roles.cache.get(roleId);
+                if (role) {
+                    warRolesText += `${role.name}: ${config.minStars}+ war stars\n`;
+                }
+            } catch (error) {
+                console.error(`Error getting war activity role:`, error);
             }
         }
 
@@ -535,9 +642,13 @@ async function showRoleConfig(interaction, linkedClan) {
     if (linkedClan.settings.roles.donationTier) {
         let donationRolesText = '';
         for (const [roleId, config] of Object.entries(linkedClan.settings.roles.donationTier)) {
-            const role = interaction.guild.roles.cache.get(roleId);
-            if (role) {
-                donationRolesText += `${role.name}: ${config.minDonations}+ donations\n`;
+            try {
+                const role = interaction.guild.roles.cache.get(roleId);
+                if (role) {
+                    donationRolesText += `${role.name}: ${config.minDonations}+ donations\n`;
+                }
+            } catch (error) {
+                console.error(`Error getting donation tier role:`, error);
             }
         }
 
@@ -557,24 +668,29 @@ async function showRoleConfig(interaction, linkedClan) {
  * Assign all applicable roles to a member
  */
 async function assignAllRoles(member, playerData, clanMemberData, roleConfig) {
-    // Handle TH level roles
-    if (roleConfig.townHall) {
-        await assignTownHallRole(member, playerData.townHallLevel, roleConfig.townHall);
-    }
+    try {
+        // Handle TH level roles
+        if (roleConfig.townHall) {
+            await assignTownHallRole(member, playerData.townHallLevel, roleConfig.townHall);
+        }
 
-    // Handle clan roles
-    if (roleConfig.clanRole) {
-        await assignClanRole(member, playerData.role || 'member', roleConfig.clanRole);
-    }
+        // Handle clan roles
+        if (roleConfig.clanRole) {
+            await assignClanRole(member, playerData.role || 'member', roleConfig.clanRole);
+        }
 
-    // Handle war activity roles
-    if (roleConfig.warActivity) {
-        await assignWarActivityRole(member, playerData.warStars || 0, roleConfig.warActivity);
-    }
+        // Handle war activity roles
+        if (roleConfig.warActivity) {
+            await assignWarActivityRole(member, playerData.warStars || 0, roleConfig.warActivity);
+        }
 
-    // Handle donation tier roles
-    if (roleConfig.donationTier && clanMemberData) {
-        await assignDonationRole(member, clanMemberData.donations || 0, roleConfig.donationTier);
+        // Handle donation tier roles
+        if (roleConfig.donationTier && clanMemberData) {
+            await assignDonationRole(member, clanMemberData.donations || 0, roleConfig.donationTier);
+        }
+    } catch (error) {
+        console.error(`Error in assignAllRoles for ${member.user.tag}:`, error);
+        throw new Error(`Role assignment failed: ${error.message}`);
     }
 }
 
@@ -582,36 +698,50 @@ async function assignAllRoles(member, playerData, clanMemberData, roleConfig) {
  * Remove all clan-related roles when a player is no longer in the clan
  */
 async function removeAllClanRoles(member, roleConfig) {
-    // Get all role IDs to remove
-    const rolesToRemove = new Set();
+    try {
+        // Get all role IDs to remove
+        const rolesToRemove = new Set();
 
-    // Add town hall roles
-    if (roleConfig.townHall) {
-        Object.values(roleConfig.townHall).forEach(config => rolesToRemove.add(config.id));
-    }
+        // Add town hall roles
+        if (roleConfig.townHall) {
+            Object.values(roleConfig.townHall).forEach(config => {
+                if (config && config.id) rolesToRemove.add(config.id);
+            });
+        }
 
-    // Add clan roles
-    if (roleConfig.clanRole) {
-        Object.values(roleConfig.clanRole).forEach(roleId => rolesToRemove.add(roleId));
-    }
+        // Add clan roles
+        if (roleConfig.clanRole) {
+            Object.values(roleConfig.clanRole).forEach(roleId => {
+                if (roleId) rolesToRemove.add(roleId);
+            });
+        }
 
-    // Add war activity roles
-    if (roleConfig.warActivity) {
-        Object.keys(roleConfig.warActivity).forEach(roleId => rolesToRemove.add(roleId));
-    }
+        // Add war activity roles
+        if (roleConfig.warActivity) {
+            Object.keys(roleConfig.warActivity).forEach(roleId => {
+                if (roleId) rolesToRemove.add(roleId);
+            });
+        }
 
-    // Add donation tier roles
-    if (roleConfig.donationTier) {
-        Object.keys(roleConfig.donationTier).forEach(roleId => rolesToRemove.add(roleId));
-    }
+        // Add donation tier roles
+        if (roleConfig.donationTier) {
+            Object.keys(roleConfig.donationTier).forEach(roleId => {
+                if (roleId) rolesToRemove.add(roleId);
+            });
+        }
 
-    // Remove roles that the member has
-    const rolesToActuallyRemove = member.roles.cache
-        .filter(role => rolesToRemove.has(role.id))
-        .map(role => role.id);
+        // Remove roles that the member has
+        const rolesToActuallyRemove = member.roles.cache
+            .filter(role => rolesToRemove.has(role.id))
+            .map(role => role.id);
 
-    if (rolesToActuallyRemove.length > 0) {
-        await member.roles.remove(rolesToActuallyRemove);
+        if (rolesToActuallyRemove.length > 0) {
+            await member.roles.remove(rolesToActuallyRemove, 'Player no longer in clan');
+            console.log(`Removed ${rolesToActuallyRemove.length} roles from ${member.user.tag}`);
+        }
+    } catch (error) {
+        console.error(`Error in removeAllClanRoles for ${member.user.tag}:`, error);
+        throw new Error(`Role removal failed: ${error.message}`);
     }
 }
 
@@ -619,21 +749,27 @@ async function removeAllClanRoles(member, roleConfig) {
  * Assign appropriate town hall role
  */
 async function assignTownHallRole(member, townHallLevel, thRoleConfig) {
-    // Get all TH role IDs
-    const allThRoleIds = Object.values(thRoleConfig).map(config => config.id);
+    try {
+        // Get all TH role IDs
+        const allThRoleIds = Object.values(thRoleConfig)
+            .filter(config => config && config.id) // Filter out any invalid configs
+            .map(config => config.id);
 
-    // Remove all TH roles first
-    const currentThRoles = member.roles.cache
-        .filter(role => allThRoleIds.includes(role.id))
-        .map(role => role.id);
+        // Remove all TH roles first
+        const currentThRoles = member.roles.cache
+            .filter(role => allThRoleIds.includes(role.id))
+            .map(role => role.id);
 
-    if (currentThRoles.length > 0) {
-        await member.roles.remove(currentThRoles);
-    }
+        if (currentThRoles.length > 0) {
+            await member.roles.remove(currentThRoles, 'Updating TH roles');
+        }
 
-    // Assign the current TH role if it exists in our config
-    if (thRoleConfig[townHallLevel]) {
-        await member.roles.add(thRoleConfig[townHallLevel].id);
+        // Assign the current TH role if it exists in our config
+        if (thRoleConfig[townHallLevel] && thRoleConfig[townHallLevel].id) {
+            await member.roles.add(thRoleConfig[townHallLevel].id, `TH${townHallLevel} role assignment`);
+        }
+    } catch (error) {
+        console.error(`Error in assignTownHallRole for TH${townHallLevel}:`, error);
     }
 }
 
@@ -641,32 +777,38 @@ async function assignTownHallRole(member, townHallLevel, thRoleConfig) {
  * Assign appropriate clan role
  */
 async function assignClanRole(member, clanRole, clanRoleConfig) {
-    // Map the CoC role to our config key
-    const roleMap = {
-        leader: 'leader',
-        coLeader: 'coLeader',
-        admin: 'coLeader', // Some versions use admin instead of coLeader
-        elder: 'elder',
-        member: 'member'
-    };
+    try {
+        // Map the CoC role to our config key
+        const roleMap = {
+            'leader': 'leader',
+            'coLeader': 'coLeader',
+            'co-leader': 'coLeader',
+            'admin': 'coLeader', // Some versions use admin instead of coLeader
+            'elder': 'elder',
+            'member': 'member'
+        };
 
-    const roleKey = roleMap[clanRole.toLowerCase()] || 'member';
+        // Convert to lowercase for case-insensitive matching
+        const roleKey = roleMap[clanRole.toLowerCase()] || 'member';
 
-    // Get all clan role IDs
-    const allClanRoleIds = Object.values(clanRoleConfig);
+        // Get all clan role IDs
+        const allClanRoleIds = Object.values(clanRoleConfig).filter(id => id);
 
-    // Remove all clan roles first
-    const currentClanRoles = member.roles.cache
-        .filter(role => allClanRoleIds.includes(role.id))
-        .map(role => role.id);
+        // Remove all clan roles first
+        const currentClanRoles = member.roles.cache
+            .filter(role => allClanRoleIds.includes(role.id))
+            .map(role => role.id);
 
-    if (currentClanRoles.length > 0) {
-        await member.roles.remove(currentClanRoles);
-    }
+        if (currentClanRoles.length > 0) {
+            await member.roles.remove(currentClanRoles, 'Updating clan roles');
+        }
 
-    // Assign the current clan role
-    if (clanRoleConfig[roleKey]) {
-        await member.roles.add(clanRoleConfig[roleKey]);
+        // Assign the current clan role
+        if (clanRoleConfig[roleKey]) {
+            await member.roles.add(clanRoleConfig[roleKey], `${roleKey} role assignment`);
+        }
+    } catch (error) {
+        console.error(`Error in assignClanRole for ${clanRole}:`, error);
     }
 }
 
@@ -674,32 +816,36 @@ async function assignClanRole(member, clanRole, clanRoleConfig) {
  * Assign appropriate war activity role
  */
 async function assignWarActivityRole(member, warStars, warActivityConfig) {
-    // Get all war role IDs
-    const allWarRoleIds = Object.keys(warActivityConfig);
+    try {
+        // Get all war role IDs
+        const allWarRoleIds = Object.keys(warActivityConfig).filter(id => id);
 
-    // Remove all war roles first
-    const currentWarRoles = member.roles.cache
-        .filter(role => allWarRoleIds.includes(role.id))
-        .map(role => role.id);
+        // Remove all war roles first
+        const currentWarRoles = member.roles.cache
+            .filter(role => allWarRoleIds.includes(role.id))
+            .map(role => role.id);
 
-    if (currentWarRoles.length > 0) {
-        await member.roles.remove(currentWarRoles);
-    }
-
-    // Find the highest tier role the player qualifies for
-    let highestQualifyingRoleId = null;
-    let highestStarRequirement = 0;
-
-    for (const [roleId, config] of Object.entries(warActivityConfig)) {
-        if (warStars >= config.minStars && config.minStars >= highestStarRequirement) {
-            highestQualifyingRoleId = roleId;
-            highestStarRequirement = config.minStars;
+        if (currentWarRoles.length > 0) {
+            await member.roles.remove(currentWarRoles, 'Updating war activity roles');
         }
-    }
 
-    // Assign the highest qualifying role
-    if (highestQualifyingRoleId) {
-        await member.roles.add(highestQualifyingRoleId);
+        // Find the highest tier role the player qualifies for
+        let highestQualifyingRoleId = null;
+        let highestStarRequirement = 0;
+
+        for (const [roleId, config] of Object.entries(warActivityConfig)) {
+            if (roleId && config && warStars >= config.minStars && config.minStars >= highestStarRequirement) {
+                highestQualifyingRoleId = roleId;
+                highestStarRequirement = config.minStars;
+            }
+        }
+
+        // Assign the highest qualifying role
+        if (highestQualifyingRoleId) {
+            await member.roles.add(highestQualifyingRoleId, `War activity role assignment (${warStars} stars)`);
+        }
+    } catch (error) {
+        console.error(`Error in assignWarActivityRole for ${warStars} stars:`, error);
     }
 }
 
@@ -707,32 +853,36 @@ async function assignWarActivityRole(member, warStars, warActivityConfig) {
  * Assign appropriate donation tier role
  */
 async function assignDonationRole(member, donations, donationConfig) {
-    // Get all donation role IDs
-    const allDonationRoleIds = Object.keys(donationConfig);
+    try {
+        // Get all donation role IDs
+        const allDonationRoleIds = Object.keys(donationConfig).filter(id => id);
 
-    // Remove all donation roles first
-    const currentDonationRoles = member.roles.cache
-        .filter(role => allDonationRoleIds.includes(role.id))
-        .map(role => role.id);
+        // Remove all donation roles first
+        const currentDonationRoles = member.roles.cache
+            .filter(role => allDonationRoleIds.includes(role.id))
+            .map(role => role.id);
 
-    if (currentDonationRoles.length > 0) {
-        await member.roles.remove(currentDonationRoles);
-    }
-
-    // Find the highest tier role the player qualifies for
-    let highestQualifyingRoleId = null;
-    let highestDonationRequirement = 0;
-
-    for (const [roleId, config] of Object.entries(donationConfig)) {
-        if (donations >= config.minDonations && config.minDonations >= highestDonationRequirement) {
-            highestQualifyingRoleId = roleId;
-            highestDonationRequirement = config.minDonations;
+        if (currentDonationRoles.length > 0) {
+            await member.roles.remove(currentDonationRoles, 'Updating donation roles');
         }
-    }
 
-    // Assign the highest qualifying role
-    if (highestQualifyingRoleId) {
-        await member.roles.add(highestQualifyingRoleId);
+        // Find the highest tier role the player qualifies for
+        let highestQualifyingRoleId = null;
+        let highestDonationRequirement = 0;
+
+        for (const [roleId, config] of Object.entries(donationConfig)) {
+            if (roleId && config && donations >= config.minDonations && config.minDonations >= highestDonationRequirement) {
+                highestQualifyingRoleId = roleId;
+                highestDonationRequirement = config.minDonations;
+            }
+        }
+
+        // Assign the highest qualifying role
+        if (highestQualifyingRoleId) {
+            await member.roles.add(highestQualifyingRoleId, `Donation role assignment (${donations} donations)`);
+        }
+    } catch (error) {
+        console.error(`Error in assignDonationRole for ${donations} donations:`, error);
     }
 }
 
