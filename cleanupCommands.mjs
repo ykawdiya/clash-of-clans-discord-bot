@@ -1,7 +1,7 @@
-// Save this as cleanupCommands.js in your project root
-require('dotenv').config();
-const { REST } = require('@discordjs/rest');
-const { Routes } = require('discord-api-types/v9');
+// Save this as cleanupCommands.mjs in your project root
+import 'dotenv/config';
+import { REST } from '@discordjs/rest';
+import { Routes } from 'discord-api-types/v9';
 
 // Your bot's client ID from the .env file
 const clientId = process.env.CLIENT_ID;
@@ -40,16 +40,4 @@ async function cleanupCommands() {
     }
 }
 
-
-// Add this to ensure we clear both global and guild commands
-// Get all guilds the bot is in
-const guilds = await client.guilds.fetch();
-// Clear commands in each guild
-for (const [guildId, _] of guilds) {
-    console.log(`Removing guild commands from guild ${guildId}...`);
-    await rest.put(
-        Routes.applicationGuildCommands(clientId, guildId),
-        { body: [] }
-    );
-}
 cleanupCommands();
