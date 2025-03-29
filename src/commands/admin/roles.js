@@ -203,12 +203,32 @@ async function setupTownHallRoles(interaction, linkedClan) {
         }
     }
 
-    // Save to database
-    linkedClan.settings.roles = linkedClan.settings.roles || {};
+    // Make sure settings object exists with necessary structure
+    if (!linkedClan.settings) {
+        linkedClan.settings = {};
+    }
+
+    if (!linkedClan.settings.roles) {
+        linkedClan.settings.roles = {};
+    }
+
+    // Save to database - assign directly
     linkedClan.settings.roles.townHall = thRoles;
 
     try {
+        // Log the data we're trying to save
+        console.log('Saving TH role configuration to database:', JSON.stringify(thRoles));
+
+        // Use save() to ensure the document is updated
         await linkedClan.save();
+
+        // Verify the save was successful by printing the saved data
+        console.log('Saved configuration:', JSON.stringify(linkedClan.settings.roles.townHall));
+
+        // Double-check by fetching fresh from DB
+        const refreshedClan = await Clan.findOne({ _id: linkedClan._id });
+        console.log('Configuration in DB after save:',
+            JSON.stringify(refreshedClan.settings?.roles?.townHall || 'Not found'));
     } catch (saveError) {
         console.error('Error saving clan settings:', saveError);
         throw new Error(`Database error: ${saveError.message}`);
@@ -279,12 +299,32 @@ async function setupClanRoles(interaction, linkedClan) {
         }
     }
 
-    // Save to database
-    linkedClan.settings.roles = linkedClan.settings.roles || {};
+    // Make sure settings object exists with necessary structure
+    if (!linkedClan.settings) {
+        linkedClan.settings = {};
+    }
+
+    if (!linkedClan.settings.roles) {
+        linkedClan.settings.roles = {};
+    }
+
+    // Save to database - assign directly
     linkedClan.settings.roles.clanRole = clanRoles;
 
     try {
+        // Log the data we're trying to save
+        console.log('Saving clan role configuration to database:', JSON.stringify(clanRoles));
+
+        // Use save() to ensure the document is updated
         await linkedClan.save();
+
+        // Verify the save was successful by printing the saved data
+        console.log('Saved configuration:', JSON.stringify(linkedClan.settings.roles.clanRole));
+
+        // Double-check by fetching fresh from DB
+        const refreshedClan = await Clan.findOne({ _id: linkedClan._id });
+        console.log('Configuration in DB after save:',
+            JSON.stringify(refreshedClan.settings?.roles?.clanRole || 'Not found'));
     } catch (saveError) {
         console.error('Error saving clan settings:', saveError);
         throw new Error(`Database error: ${saveError.message}`);
@@ -486,10 +526,16 @@ function canManageRolesFor(botMember, targetMember) {
  * Sync roles for all linked members
  */
 async function syncRoles(interaction, linkedClan) {
+    // Log the whole linkedClan to debug
+    console.log('Clan settings object:', JSON.stringify(linkedClan.settings || {}));
+
     // Check if role settings exist
     if (!linkedClan.settings || !linkedClan.settings.roles) {
         return interaction.editReply('No role configuration found. Use `/roles setup` first.');
     }
+
+    // Log the roles configuration specifically
+    console.log('Roles configuration:', JSON.stringify(linkedClan.settings.roles));
 
     // Status update to user
     await interaction.editReply('Starting role synchronization...');
@@ -542,10 +588,10 @@ async function syncRoles(interaction, linkedClan) {
 
         // Log role configurations
         console.log('Role configurations:');
-        console.log('TH Roles:', JSON.stringify(linkedClan.settings.roles.townHall || 'Not configured'));
-        console.log('Clan Roles:', JSON.stringify(linkedClan.settings.roles.clanRole || 'Not configured'));
-        console.log('War Roles:', JSON.stringify(linkedClan.settings.roles.warActivity || 'Not configured'));
-        console.log('Donation Roles:', JSON.stringify(linkedClan.settings.roles.donationTier || 'Not configured'));
+        console.log('TH Roles:', JSON.stringify(linkedClan.settings.roles.townHall || {}));
+        console.log('Clan Roles:', JSON.stringify(linkedClan.settings.roles.clanRole || {}));
+        console.log('War Roles:', JSON.stringify(linkedClan.settings.roles.warActivity || {}));
+        console.log('Donation Roles:', JSON.stringify(linkedClan.settings.roles.donationTier || {}));
 
         // Process each linked user
         for (const user of linkedUsers) {
