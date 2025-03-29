@@ -155,29 +155,35 @@ async function sendClanEmbed(interaction, clanData) {
         // Debug the roles
         console.log('Member roles in clan:');
         clanData.memberList.forEach(member => {
-            console.log(`${member.name}: ${member.role || 'unknown'}`);
+            console.log(`${member.name}: role="${member.role || 'unknown'}"`);
         });
 
-        // Count members by role with strict checks
+        // Count members by role with precise checks
         clanData.memberList.forEach(member => {
-            const roleKey = (member.role || '').toLowerCase().trim();
-            if (roleKey === 'leader') {
+            const role = (member.role || '').toLowerCase().trim();
+
+            // Very specific role checks
+            if (role === 'leader') {
                 roles.leader++;
-            } else if (roleKey === 'coleader' || roleKey === 'co-leader' || roleKey === 'admin') {
+            } else if (role === 'coleader') {
                 roles.coLeader++;
-            } else if (roleKey === 'elder' || roleKey === 'admin elder') {
+            } else if (role === 'elder') {
                 roles.elder++;
-            } else {
+            } else if (role === 'member') {
                 roles.member++;
+            } else {
+                // Fallback checks for non-standard role naming
+                if (role.includes('lead') && !role.includes('co')) {
+                    roles.leader++;
+                } else if (role.includes('co') || role === 'admin') {
+                    roles.coLeader++;
+                } else if (role.includes('eld')) {
+                    roles.elder++;
+                } else {
+                    roles.member++;
+                }
             }
         });
-
-        // Double-check total count
-        const totalCounted = roles.leader + roles.coLeader + roles.elder + roles.member;
-        if (totalCounted !== clanData.members && totalCounted !== clanData.memberList.length) {
-            console.log(`Warning: Counted ${totalCounted} members, but clan has ${clanData.members} members`);
-            console.log(`Member list has ${clanData.memberList.length} entries`);
-        }
 
         memberBreakdown = `👑 Leader: ${roles.leader}\n⭐ Co-Leaders: ${roles.coLeader}\n🔶 Elders: ${roles.elder}\n👤 Members: ${roles.member}`;
     } else {
