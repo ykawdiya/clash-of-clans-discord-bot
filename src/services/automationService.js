@@ -1,23 +1,27 @@
+// Enhanced AutomationService with automatic stats tracking
 // src/services/automationService.js
-const { EmbedBuilder } = require('discord.js');
-const clashApiService = require('./clashApiService');
-const Clan = require('../models/Clan');
-const cacheService = require('./cacheService');
 
 class AutomationService {
     constructor(client) {
         this.client = client;
         this.checkInterval = 10 * 60 * 1000; // 10 minutes
         this.warCheckInterval = null;
+        this.statsUpdateInterval = null;
         this.lastWarStates = new Map(); // Store last war states
+        this.lastStatsUpdate = new Map(); // Track when stats were last updated
 
         // CoC-themed channel names for lookups
         this.channelMappings = {
             war: ['war-log', 'war-announcements', 'warAnnouncements'],
             general: ['town-hall', 'clan-announcements', 'general'],
             raid: ['capital-raids', 'raid-weekend', 'raidWeekend'],
-            clanGames: ['clan-games', 'clanGames']
+            clanGames: ['clan-games', 'clanGames'],
+            stats: ['stats', 'player-stats', 'tracking']
         };
+
+        // Stats update config
+        this.statsUpdateFrequency = 6 * 60 * 60 * 1000; // 6 hours
+        this.statsUpdateBatchSize = 5; // Process 5 players at a time to avoid rate limits
     }
 
     // Start all automated checks
@@ -28,7 +32,13 @@ class AutomationService {
         // Set new intervals
         this.warCheckInterval = setInterval(() => this.checkWars(), this.checkInterval);
 
-        console.log('Automation service started');
+        // Add stats update interval
+        this.statsUpdateInterval = setInterval(() => this.updatePlayerStats(), this.statsUpdateFrequency);
+
+        // Run an initial stats update after 1 minute to allow for bot startup
+        setTimeout(() => this.updatePlayerStats(), 60000);
+
+        console.log('Automation service started with stats tracking');
     }
 
     // Stop all automated checks
@@ -36,6 +46,132 @@ class AutomationService {
         if (this.warCheckInterval) {
             clearInterval(this.warCheckInterval);
             this.warCheckInterval = null;
+        }
+
+        if (this.statsUpdateInterval) {
+            clearInterval(this.statsUpdateInterval);
+            this.statsUpdateInterval = null;
+        }
+    }
+
+    // Automatic player stats update
+    async updatePlayerStats() {
+        try {
+            console.log('Starting automatic player stats update...');
+
+            // Load required models
+            const User = require('../models/User');
+            const PlayerStats = require('../models/PlayerStats');
+            const clashApiService = require('./clashApiService');
+
+            // Get all linked users
+            const linkedUsers = await User.find({
+                playerTag: { $exists: true, $ne: null },
+                "preferences.progressTracking": { $ne: false } // Include users who haven't explicitly disabled tracking
+            });
+
+            if (linkedUsers.length === 0) {
+                console.log('No linked users found for stats update');
+                return;
+            }
+
+            console.log(`Found ${linkedUsers.length} linked users for stats update`);
+
+            // Process users in batches to avoid API rate limits
+            for (let i = 0; i < linkedUsers.length; i += this.statsUpdateBatchSize) {
+                const batch = linkedUsers.slice(i, i + this.statsUpdateBatchSize);
+
+                // Process each user in the batch with a small delay between each
+                for (const user of batch) {
+                    try {
+                        // Skip if updated recently (last 4 hours)
+                        const lastUpdate = this.lastStatsUpdate.get(user.playerTag);
+                        const fourHoursAgo = Date.now() - (4 * 60 * 60 * 1000);
+
+                        if (lastUpdate && lastUpdate > fourHoursAgo) {
+                            console.log(`Skipping recent update for ${user.playerTag}`);
+                            continue;
+                        }
+
+                        // Get player data from API
+                        const playerData = await clashApiService.getPlayer(user.playerTag);
+
+                        if (!playerData) {
+                            console.log(`No data returned for player ${user.playerTag}, skipping`);
+                            continue;
+                        }
+
+                        // Create stats object
+                        const stats = {
+                            playerTag: playerData.tag,
+                            discordId: user.discordId,
+                            timestamp: new Date(),
+                            name: playerData.name,
+                            townHallLevel: playerData.townHallLevel,
+                            expLevel: playerData.expLevel,
+                            trophies: playerData.trophies,
+                            bestTrophies: playerData.bestTrophies,
+                            warStars: playerData.warStars,
+                            attackWins: playerData.attackWins,
+                            defenseWins: playerData.defenseWins,
+                            builderHallLevel: playerData.builderHallLevel || 0,
+                            versusTrophies: playerData.versusTrophies || 0,
+                            clanName: playerData.clan?.name || 'No Clan',
+                            clanTag: playerData.clan?.tag || '',
+                            heroes: playerData.heroes?.map(hero => ({
+                                name: hero.name,
+                                level: hero.level,
+                                maxLevel: hero.maxLevel
+                            })) || [],
+                            troops: playerData.troops?.filter(troop => !troop.village || troop.village === 'home')
+                                .map(troop => ({
+                                    name: troop.name,
+                                    level: troop.level,
+                                    maxLevel: troop.maxLevel
+                                })) || [],
+                            builderBaseTroops: playerData.troops?.filter(troop => troop.village === 'builderBase')
+                                .map(troop => ({
+                                    name: troop.name,
+                                    level: troop.level,
+                                    maxLevel: troop.maxLevel
+                                })) || [],
+                            spells: playerData.spells?.map(spell => ({
+                                name: spell.name,
+                                level: spell.level,
+                                maxLevel: spell.maxLevel
+                            })) || [],
+                            donations: playerData.donations || 0,
+                            donationsReceived: playerData.donationsReceived || 0
+                        };
+
+                        // Save to database
+                        await PlayerStats.create(stats);
+
+                        // Update tracking
+                        this.lastStatsUpdate.set(user.playerTag, Date.now());
+
+                        console.log(`Updated stats for ${playerData.name} (${playerData.tag})`);
+
+                        // Add a small delay to avoid hitting API rate limits
+                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                    } catch (error) {
+                        console.error(`Error updating stats for ${user.playerTag}:`, error);
+                        // Continue with next user
+                    }
+                }
+
+                // Add a delay between batches
+                if (i + this.statsUpdateBatchSize < linkedUsers.length) {
+                    console.log(`Waiting before processing next batch of users...`);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+            }
+
+            console.log('Automatic player stats update completed');
+
+        } catch (error) {
+            console.error('Error in automatic stats update:', error);
         }
     }
 
@@ -98,6 +234,7 @@ class AutomationService {
     async checkWars() {
         try {
             console.log('Checking war states for all linked clans');
+            const Clan = require('../models/Clan');
             const clans = await Clan.find({});
 
             if (!clans || clans.length === 0) {
@@ -130,6 +267,9 @@ class AutomationService {
         // Get war data
         let warData;
         try {
+            const clashApiService = require('./clashApiService');
+            const cacheService = require('./cacheService');
+
             // Clear cache to get fresh data
             cacheService.delete(`currentWar:${clan.clanTag}`);
             warData = await clashApiService.getCurrentWar(clan.clanTag);
@@ -178,6 +318,7 @@ class AutomationService {
                 return;
             }
 
+            const { EmbedBuilder } = require('discord.js');
             let embed;
 
             // War started notifications

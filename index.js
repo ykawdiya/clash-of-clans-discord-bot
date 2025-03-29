@@ -1,5 +1,5 @@
 require('dotenv').config();
-require('./src/commandModelFix');
+require('./src/utils/commandModelFix');
 
 // Import logger
 const { system: log, discord: discordLog } = require('./src/utils/logger');
@@ -31,10 +31,10 @@ const databaseService = require('./src/services/databaseService');
 const { loadCommands } = require('./src/handlers/commandHandler');
 const { loadEvents } = require('./src/handlers/eventHandler');
 
-// Import automation service
+// Import enhanced automation service
 const AutomationService = require('./src/services/automationService');
 
-console.log('Starting CoC Discord Bot - Version 1.0.4');
+console.log('Starting CoC Discord Bot - Version 1.1.0');
 console.log('Environment:', {
     nodeEnv: process.env.NODE_ENV || 'development',
     apiKeyConfigured: process.env.COC_API_KEY ? 'Yes' : 'No',
@@ -74,7 +74,7 @@ global.client = client;
 // Export client for use in other modules
 module.exports.client = client;
 
-// Initialize the automation service
+// Initialize the enhanced automation service
 const automationService = new AutomationService(client);
 
 // Setup Express server for health checks
@@ -112,10 +112,10 @@ client.once('ready', async () => {
     });
     console.log(`Loaded ${client.commands.size} commands into client collection`);
 
-    // Start automation services
+    // Start automation services including automatic stats tracking
     try {
         automationService.startAutomation();
-        console.log('Automated services started successfully');
+        console.log('Automated services started successfully, including stats tracking');
     } catch (error) {
         console.error('Failed to start automated services:', error);
     }
