@@ -132,15 +132,47 @@ module.exports = {
  * @param {Object} clanData
  */
 async function sendClanEmbed(interaction, clanData) {
-    // Convert clan level to emojis (just for fun)
+    // Convert clan level to emojis
     const levelStars = '⭐'.repeat(Math.min(clanData.clanLevel, 10));
+
+    // Calculate war stats
+    const totalWars = (clanData.warWins || 0) + (clanData.warLosses || 0) + (clanData.warTies || 0);
+    const winRate = totalWars > 0 ? ((clanData.warWins / totalWars) * 100).toFixed(1) + '%' : 'N/A';
+
+    // Format clan creation date if available
+    const createdDate = clanData.createdDate ? new Date(clanData.createdDate).toLocaleDateString() : 'Unknown';
+
+    // Get membership breakdown by role if available
+    let memberBreakdown = '';
+    if (clanData.memberList && clanData.memberList.length > 0) {
+        const roles = {
+            leader: 0,
+            coLeader: 0,
+            admin: 0, // Some APIs use "admin" instead of "coLeader"
+            elder: 0,
+            member: 0
+        };
+
+        // Count members by role
+        clanData.memberList.forEach(member => {
+            if (member.role && roles[member.role] !== undefined) {
+                roles[member.role]++;
+            } else if (member.role === 'admin') {
+                roles.coLeader++; // Count admins as co-leaders
+            } else {
+                roles.member++; // Default to member if unknown role
+            }
+        });
+
+        memberBreakdown = `👑 Leader: ${roles.leader}\n⭐ Co-Leaders: ${roles.coLeader}\n🔶 Elders: ${roles.elder}\n👤 Members: ${roles.member}`;
+    }
 
     // Create the embed
     const embed = new EmbedBuilder()
         .setColor('#3498db')
         .setTitle(`${clanData.name} (${clanData.tag})`)
         .setDescription(clanData.description || 'No description')
-        .setThumbnail(clanData.badgeUrls.medium)
+        .setThumbnail(clanData.badgeUrls?.medium)
         .addFields(
             { name: 'Level', value: `${clanData.clanLevel} ${levelStars}`, inline: true },
             { name: 'Members', value: `${clanData.members}/50`, inline: true },
@@ -148,12 +180,25 @@ async function sendClanEmbed(interaction, clanData) {
             { name: 'War League', value: clanData.warLeague?.name || 'None', inline: true },
             { name: 'Location', value: clanData.location?.name || 'International', inline: true },
             { name: 'War Frequency', value: capitalize(clanData.warFrequency) || 'Unknown', inline: true },
-            { name: 'War Win Streak', value: clanData.warWinStreak.toString(), inline: true },
-            { name: 'War Wins', value: clanData.warWins.toString(), inline: true },
-            { name: 'War Losses', value: (clanData.warLosses || 'N/A').toString(), inline: true },
         )
         .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
         .setTimestamp();
+
+    // Add war statistics
+    embed.addFields(
+        { name: 'War Statistics', value: `Win Streak: ${clanData.warWinStreak}\nWins: ${clanData.warWins}\nLosses: ${clanData.warLosses || 'N/A'}\nTies: ${clanData.warTies || 'N/A'}\nWin Rate: ${winRate}` }
+    );
+
+    // Add member breakdown if available
+    if (memberBreakdown) {
+        embed.addFields({ name: 'Member Breakdown', value: memberBreakdown });
+    }
+
+    // Add clan labels if available
+    if (clanData.labels && clanData.labels.length > 0) {
+        const labelNames = clanData.labels.map(label => label.name).join(', ');
+        embed.addFields({ name: 'Clan Labels', value: labelNames });
+    }
 
     // Add requirements
     const requirementsText = [
@@ -164,13 +209,28 @@ async function sendClanEmbed(interaction, clanData) {
 
     embed.addFields({ name: 'Requirements', value: requirementsText });
 
-    // Add clan capital info if available
+    // Add clan capital info with enhanced details if available
     if (clanData.clanCapital && clanData.clanCapital.capitalHallLevel > 0) {
-        embed.addFields({
-            name: 'Clan Capital',
-            value: `Capital Hall: Level ${clanData.clanCapital.capitalHallLevel}\nDistricts: ${clanData.clanCapital.districts?.length || 0}\nTotal Capital Points: ${clanData.clanCapital.capitalPoints || 0}`
-        });
+        let capitalInfo = `Capital Hall: Level ${clanData.clanCapital.capitalHallLevel}\n`;
+        capitalInfo += `Districts: ${clanData.clanCapital.districts?.length || 0}\n`;
+        capitalInfo += `Capital Points: ${clanData.clanCapital.capitalPoints || 0}\n`;
+
+        // Add district details if available
+        if (clanData.clanCapital.districts && clanData.clanCapital.districts.length > 0) {
+            capitalInfo += '\n**District Levels:**\n';
+            clanData.clanCapital.districts.forEach(district => {
+                capitalInfo += `- ${district.name}: Level ${district.level}\n`;
+            });
+        }
+
+        embed.addFields({ name: 'Clan Capital', value: capitalInfo });
     }
+
+    // Add public war log status
+    embed.addFields({
+        name: 'War Log',
+        value: clanData.isWarLogPublic ? '🟢 Public' : '🔴 Private'
+    });
 
     return interaction.editReply({ embeds: [embed] });
 }
