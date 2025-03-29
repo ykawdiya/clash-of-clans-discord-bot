@@ -66,7 +66,6 @@ npm start
 
 ### Admin Commands
 - `/setclan` - Link your Discord server to a clan
-- `/clans` - Manage multiple clans in one server
 - `/roles` - Set up automatic role assignment
 
 ### Player Commands
@@ -76,7 +75,6 @@ npm start
 
 ### War Commands
 - `/war` - View current war information
-- `/plan` - Plan and coordinate war attacks
 - `/warreminder` - Set up attack reminders
 - `/cwl` - Track and manage Clan War League
 
