@@ -405,8 +405,8 @@ async function showInactiveMembers(interaction, linkedClan) {
 }
 
 /**
- * Show detailed activity for a specific member
- */
+* Show detailed activity for a specific member
+*/
 async function showMemberActivity(interaction, linkedClan) {
     // Determine which player to check
     let playerTag = interaction.options.getString('tag');
@@ -450,11 +450,14 @@ async function showMemberActivity(interaction, linkedClan) {
     // Get player stats history
     const playerStats = await PlayerStats.find({ playerTag: playerData.tag }).sort({ timestamp: -1 }).limit(5);
 
+    // Normalize town hall level property - handle both possible property names
+    const townHallLevel = playerData.townHallLevel || playerData.townhallLevel || 'Unknown';
+
     // Create the embed
     const embed = new EmbedBuilder()
         .setColor('#2ecc71')
         .setTitle(`${playerData.name} - Activity Profile`)
-        .setDescription(`Player Tag: ${playerData.tag}\nTown Hall: ${playerData.townhallLevel}\nClan: ${playerData.clan?.name || 'None'}`)
+        .setDescription(`Player Tag: ${playerData.tag}\nTown Hall: ${townHallLevel}\nClan: ${playerData.clan?.name || 'None'}`)
         .addFields(
             { name: 'Trophies', value: `${playerData.trophies} / ${playerData.bestTrophies} (best)`, inline: true },
             { name: 'War Stars', value: playerData.warStars.toString(), inline: true },
@@ -489,9 +492,10 @@ async function showMemberActivity(interaction, linkedClan) {
                 progressText += `Trophies: ${trophyChange > 0 ? '+' : ''}${trophyChange}\n`;
                 progressText += `War Stars: ${warStarChange > 0 ? '+' : ''}${warStarChange}\n`;
 
-                // Add town hall change if applicable
-                if (playerData.townhallLevel !== oldestInSample.townHallLevel) {
-                    progressText += `Town Hall: ${oldestInSample.townHallLevel} → ${playerData.townhallLevel}\n`;
+                // Add town hall change if applicable - handle both property names
+                const oldTownHallLevel = oldestInSample.townHallLevel || oldestInSample.townhallLevel || 0;
+                if (townHallLevel !== oldTownHallLevel && oldTownHallLevel !== 0) {
+                    progressText += `Town Hall: ${oldTownHallLevel} → ${townHallLevel}\n`;
                 }
 
                 embed.addFields({ name: 'Recent Progress', value: progressText });

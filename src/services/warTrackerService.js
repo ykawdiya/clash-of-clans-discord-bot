@@ -235,7 +235,7 @@ class WarTrackerService {
             totalWars: recentWars.length,
             attacksUsed: 0,
             totalPossibleAttacks: recentWars.length * 2,
-            starsEarned: 0,
+            starsEarned: 0, // This will now be the sum of max stars per war (max 3 per war)
             totalDestruction: 0,
             averageDestruction: 0,
             averageStars: 0,
@@ -256,9 +256,10 @@ class WarTrackerService {
             warStats.attacksUsed += attackCount;
             warStats.missedAttacks += (2 - attackCount);
 
-            if (member.attacks) {
+            // Track attack stats (stars per attack, destruction, etc.)
+            if (member.attacks && member.attacks.length > 0) {
+                // For detailed attack statistics (per attack)
                 member.attacks.forEach(attack => {
-                    warStats.starsEarned += attack.stars;
                     warStats.totalDestruction += attack.destructionPercentage;
 
                     if (attack.stars === 3) warStats.threeStarAttacks++;
@@ -266,13 +267,29 @@ class WarTrackerService {
                     else if (attack.stars === 1) warStats.oneStarAttacks++;
                     else warStats.zeroStarAttacks++;
                 });
+
+                // For war stars calculation (max 3 per war)
+                // Group attacks by defender to find the max stars per base
+                const attacksByDefender = {};
+                member.attacks.forEach(attack => {
+                    const defenderId = attack.defenderTag;
+                    if (!attacksByDefender[defenderId] || attacksByDefender[defenderId] < attack.stars) {
+                        attacksByDefender[defenderId] = attack.stars;
+                    }
+                });
+
+                // Sum the max stars per base (max 3 per war)
+                const warStars = Object.values(attacksByDefender).reduce((sum, stars) => sum + stars, 0);
+                // Cap at 3 stars per war (CoC rules)
+                warStats.starsEarned += Math.min(warStars, 3);
             }
         });
 
         // Calculate averages
         if (warStats.attacksUsed > 0) {
-            warStats.averageStars = warStats.starsEarned / warStats.attacksUsed;
             warStats.averageDestruction = warStats.totalDestruction / warStats.attacksUsed;
+            // Average stars per attack (not per war)
+            warStats.averageStars = (warStats.threeStarAttacks * 3 + warStats.twoStarAttacks * 2 + warStats.oneStarAttacks * 1) / warStats.attacksUsed;
         }
 
         return warStats;
