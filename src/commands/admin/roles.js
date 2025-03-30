@@ -727,13 +727,15 @@ async function showRoleConfig(interaction, linkedClan) {
         .setDescription(`Role configuration for ${linkedClan.name} (${linkedClan.clanTag})`);
 
     // Add Town Hall roles if configured
-    if (linkedClan.settings.roles.townHall) {
+    if (linkedClan.settings.roles.townHall && Object.keys(linkedClan.settings.roles.townHall).length > 0) {
         let thRolesText = '';
         for (const [level, config] of Object.entries(linkedClan.settings.roles.townHall)) {
             try {
-                const role = interaction.guild.roles.cache.get(config.id);
-                if (role) {
-                    thRolesText += `TH${level}: ${role.name} <@&${role.id}>\n`;
+                if (config && config.id) {
+                    const role = interaction.guild.roles.cache.get(config.id);
+                    if (role) {
+                        thRolesText += `TH${level}: ${role.name} <@&${role.id}>\n`;
+                    }
                 }
             } catch (error) {
                 console.error(`Error getting role for TH${level}:`, error);
@@ -748,23 +750,58 @@ async function showRoleConfig(interaction, linkedClan) {
     // Add clan roles if configured
     if (linkedClan.settings.roles) {
         let clanRolesText = '';
-        const roleMap = {
-            'leader': linkedClan.settings.roles.leader,
-            'coLeader': linkedClan.settings.roles.coLeader,
-            'elder': linkedClan.settings.roles.elder,
-            'member': linkedClan.settings.roles.everyone
-        };
-
-        for (const [role, id] of Object.entries(roleMap)) {
-            if (id) {
-                try {
-                    const discordRole = interaction.guild.roles.cache.get(id);
-                    if (discordRole) {
-                        clanRolesText += `${role.charAt(0).toUpperCase() + role.slice(1)}: ${discordRole.name} <@&${discordRole.id}>\n`;
-                    }
-                } catch (error) {
-                    console.error(`Error getting role for ${role}:`, error);
+        
+        // Get role IDs from the settings object
+        const leaderRole = linkedClan.settings.roles.leader;
+        const coLeaderRole = linkedClan.settings.roles.coLeader;
+        const elderRole = linkedClan.settings.roles.elder;
+        const memberRole = linkedClan.settings.roles.everyone || linkedClan.settings.roles.member;
+        
+        // Add Leader role if configured
+        if (leaderRole) {
+            try {
+                const role = interaction.guild.roles.cache.get(leaderRole);
+                if (role) {
+                    clanRolesText += `Leader: ${role.name} <@&${role.id}>\n`;
                 }
+            } catch (error) {
+                console.error('Error getting Leader role:', error);
+            }
+        }
+        
+        // Add Co-Leader role if configured
+        if (coLeaderRole) {
+            try {
+                const role = interaction.guild.roles.cache.get(coLeaderRole);
+                if (role) {
+                    clanRolesText += `Co-Leader: ${role.name} <@&${role.id}>\n`;
+                }
+            } catch (error) {
+                console.error('Error getting Co-Leader role:', error);
+            }
+        }
+        
+        // Add Elder role if configured
+        if (elderRole) {
+            try {
+                const role = interaction.guild.roles.cache.get(elderRole);
+                if (role) {
+                    clanRolesText += `Elder: ${role.name} <@&${role.id}>\n`;
+                }
+            } catch (error) {
+                console.error('Error getting Elder role:', error);
+            }
+        }
+        
+        // Add Member role if configured
+        if (memberRole) {
+            try {
+                const role = interaction.guild.roles.cache.get(memberRole);
+                if (role) {
+                    clanRolesText += `Member: ${role.name} <@&${role.id}>\n`;
+                }
+            } catch (error) {
+                console.error('Error getting Member role:', error);
             }
         }
 
@@ -774,12 +811,12 @@ async function showRoleConfig(interaction, linkedClan) {
     }
 
     // Add war activity roles if configured
-    if (linkedClan.settings.roles.warActivity) {
+    if (linkedClan.settings.roles.warActivity && Object.keys(linkedClan.settings.roles.warActivity).length > 0) {
         let warRolesText = '';
         for (const [roleId, config] of Object.entries(linkedClan.settings.roles.warActivity)) {
             try {
                 const role = interaction.guild.roles.cache.get(roleId);
-                if (role) {
+                if (role && config && config.minStars !== undefined) {
                     warRolesText += `${role.name}: ${config.minStars}+ war stars\n`;
                 }
             } catch (error) {
@@ -793,12 +830,12 @@ async function showRoleConfig(interaction, linkedClan) {
     }
 
     // Add donation tier roles if configured
-    if (linkedClan.settings.roles.donationTier) {
+    if (linkedClan.settings.roles.donationTier && Object.keys(linkedClan.settings.roles.donationTier).length > 0) {
         let donationRolesText = '';
         for (const [roleId, config] of Object.entries(linkedClan.settings.roles.donationTier)) {
             try {
                 const role = interaction.guild.roles.cache.get(roleId);
-                if (role) {
+                if (role && config && config.minDonations !== undefined) {
                     donationRolesText += `${role.name}: ${config.minDonations}+ donations\n`;
                 }
             } catch (error) {
