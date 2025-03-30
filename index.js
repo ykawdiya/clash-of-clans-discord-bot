@@ -19,7 +19,7 @@ if (missingVars.length > 0) {
     process.exit(1);
 }
 
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -133,14 +133,28 @@ client.once('ready', async () => {
     console.log('Registering slash commands with Discord API...');
     try {
         const { registerCommands } = require('./src/handlers/commandHandler');
-        // Use guild commands in development for faster updates
+        const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+        // Use guild commands in development for faster updates, but not both!
         const isDev = process.env.NODE_ENV === 'development';
         if (isDev && process.env.GUILD_ID) {
             console.log(`Development mode: Registering commands to guild ${process.env.GUILD_ID}`);
             await registerCommands(client.user.id, process.env.GUILD_ID);
+
+            // IMPORTANT: In development mode, remove global commands to prevent duplicates
+            console.log('Removing global commands in development mode to prevent duplicates');
+            await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
+            console.log('Successfully removed global commands to prevent duplicates');
         } else {
             console.log('Production mode: Registering global commands');
             await registerCommands(client.user.id);
+
+            // IMPORTANT: In production mode, remove guild-specific commands to prevent duplicates
+            if (process.env.GUILD_ID) {
+                console.log(`Removing guild-specific commands from guild ${process.env.GUILD_ID} to prevent duplicates`);
+                await rest.put(Routes.applicationGuildCommands(client.user.id, process.env.GUILD_ID), { body: [] });
+                console.log('Successfully removed guild commands to prevent duplicates');
+            }
         }
     } catch (error) {
         console.error('Error registering commands:', error);
@@ -212,7 +226,7 @@ async function init() {
 // Error handling
 process.on('unhandledRejection', (error, promise) => {
     console.error('Unhandled promise rejection:', error);
-    console.error('Promclient.onceise:', promise);
+    console.error('Promise:', promise);
     console.error('Stack trace:', error.stack);
 });
 
