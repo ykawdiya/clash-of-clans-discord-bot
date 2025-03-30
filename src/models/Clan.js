@@ -59,7 +59,21 @@ const clanSchema = new mongoose.Schema({
             everyone: {
                 type: String,
                 default: null
+            ,
+            // Added role type fields
+            townHall: {
+                type: mongoose.Schema.Types.Mixed,
+                default: {}
             },
+            warActivity: {
+                type: mongoose.Schema.Types.Mixed,
+                default: {}
+            },
+            donationTier: {
+                type: mongoose.Schema.Types.Mixed,
+                default: {}
+            }
+          },
             elder: {
                 type: String,
                 default: null
