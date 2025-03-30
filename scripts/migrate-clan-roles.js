@@ -1,11 +1,42 @@
 // scripts/migrate-clan-roles.js
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+
+// Path resolution for .env file
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+    // Load .env file from the parent directory
+    require('dotenv').config({ path: envPath });
+    console.log('Loaded environment from ../.env');
+} else {
+    // Try loading from current directory as fallback
+    require('dotenv').config();
+    console.log('Attempted to load environment from default location');
+}
+
 const mongoose = require('mongoose');
 
 async function migrateClanRoles() {
+    let mongoUri = process.env.MONGODB_URI;
+
+    // Check for MongoDB URI from command line arguments
+    const args = process.argv.slice(2);
+    const uriArg = args.find(arg => arg.startsWith('--uri='));
+    if (uriArg) {
+        mongoUri = uriArg.split('=')[1];
+        console.log('Using MongoDB URI from command line argument');
+    }
+
+    if (!mongoUri) {
+        console.error('Missing MongoDB URI. Please ensure MONGODB_URI is set in your .env file.');
+        console.log('Alternatively, you can provide it directly:');
+        console.log('node migrate-clan-roles.js --uri=mongodb://your-connection-string');
+        process.exit(1);
+    }
+
     try {
         console.log('Connecting to database...');
-        await mongoose.connect(process.env.MONGODB_URI);
+        await mongoose.connect(mongoUri);
         console.log('Connected to MongoDB!');
 
         console.log('Starting clan document migration...');
@@ -22,7 +53,7 @@ async function migrateClanRoles() {
         for (const clan of clans) {
             // Only process clans with the old roles structure
             if (clan.settings && clan.settings.roles) {
-                console.log(`Migrating clan: ${clan.name} (${clan.clanTag})`);
+                console.log(`Migrating clan: ${clan.name || clan.clanTag}`);
 
                 // Create the new mentionRoles structure
                 const mentionRoles = {
@@ -60,10 +91,15 @@ async function migrateClanRoles() {
     } catch (error) {
         console.error('Error during migration:', error);
     } finally {
-        await mongoose.disconnect();
-        console.log('Disconnected from database');
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.disconnect();
+            console.log('Disconnected from database');
+        }
     }
 }
 
 // Run the migration
-migrateClanRoles().catch(console.error);
+migrateClanRoles().catch(error => {
+    console.error('Unhandled error during migration:', error);
+    process.exit(1);
+});
