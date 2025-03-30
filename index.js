@@ -104,6 +104,15 @@ loadEvents(client);
 client.once('ready', async () => {
     console.log(`Bot is online! Logged in as ${client.user.tag}`);
 
+    // Clean up any orphaned commands first
+    try {
+        const { cleanupOrphanedCommands } = require('./src/handlers/commandHandler');
+        await cleanupOrphanedCommands(client.user.id);
+        console.log('Completed command cleanup check');
+    } catch (error) {
+        console.error('Error during command cleanup:', error);
+    }
+
     // Load commands and register them with the client
     console.log('Loading commands...');
     const { commandFiles } = loadCommands();
@@ -203,7 +212,7 @@ async function init() {
 // Error handling
 process.on('unhandledRejection', (error, promise) => {
     console.error('Unhandled promise rejection:', error);
-    console.error('Promise:', promise);
+    console.error('Promclient.onceise:', promise);
     console.error('Stack trace:', error.stack);
 });
 

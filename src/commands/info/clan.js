@@ -54,6 +54,26 @@ const clanSchema = new mongoose.Schema({
             }
         },
 
+        // Basic role mentions (simplified from previous version)
+        mentionRoles: {
+            everyone: {
+                type: String,
+                default: null
+            },
+            elder: {
+                type: String,
+                default: null
+            },
+            coLeader: {
+                type: String,
+                default: null
+            },
+            leader: {
+                type: String,
+                default: null
+            }
+        },
+
         // Automatic notifications
         notifications: {
             warStart: {
