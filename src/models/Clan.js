@@ -59,21 +59,7 @@ const clanSchema = new mongoose.Schema({
             everyone: {
                 type: String,
                 default: null
-            ,
-            // Added role type fields
-            townHall: {
-                type: mongoose.Schema.Types.Mixed,
-                default: {}
             },
-            warActivity: {
-                type: mongoose.Schema.Types.Mixed,
-                default: {}
-            },
-            donationTier: {
-                type: mongoose.Schema.Types.Mixed,
-                default: {}
-            }
-          },
             elder: {
                 type: String,
                 default: null
@@ -85,6 +71,38 @@ const clanSchema = new mongoose.Schema({
             leader: {
                 type: String,
                 default: null
+            }
+        },
+
+        // Added mentionRoles properly structured
+        mentionRoles: {
+            everyone: {
+                type: String,
+                default: null
+            },
+            elder: {
+                type: String,
+                default: null
+            },
+            coLeader: {
+                type: String,
+                default: null
+            },
+            leader: {
+                type: String,
+                default: null
+            },
+            townHall: {
+                type: mongoose.Schema.Types.Mixed,
+                default: {}
+            },
+            warActivity: {
+                type: mongoose.Schema.Types.Mixed,
+                default: {}
+            },
+            donationTier: {
+                type: mongoose.Schema.Types.Mixed,
+                default: {}
             }
         },
 
