@@ -1,4 +1,4 @@
-// Enhanced AutomationService with automatic stats tracking
+// Enhanced AutomationService with automatic stats tracking and war history
 // src/services/automationService.js
 
 class AutomationService {
@@ -38,7 +38,7 @@ class AutomationService {
         // Run an initial stats update after 1 minute to allow for bot startup
         setTimeout(() => this.updatePlayerStats(), 60000);
 
-        console.log('Automation service started with stats tracking');
+        console.log('Automation service started with stats tracking and war history');
     }
 
     // Stop all automated checks
@@ -412,6 +412,20 @@ class AutomationService {
                 }
 
                 await channel.send({ embeds: [embed] });
+
+                // NEW CODE: Track war history in database
+                try {
+                    const warTrackerService = require('./warTrackerService');
+                    await warTrackerService.trackWarEnd(warData, clan);
+                    console.log(`Tracked war history for ${clan.name} vs ${warData.opponent?.name || 'opponent'}`);
+
+                    // Add a note to the channel about war history being available
+                    await channel.send({
+                        content: `📊 **War history has been recorded!** Use \`/warhistory\` to view detailed stats from this and past wars.`
+                    });
+                } catch (error) {
+                    console.error('Failed to track war history:', error);
+                }
             }
 
         } catch (error) {
