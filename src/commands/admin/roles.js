@@ -213,7 +213,7 @@ async function setupTownHallRoles(interaction, linkedClan) {
     }
 
     // Save to database - assign directly
-    linkedClan.settings.roles.townHallRoles = thRoles;
+    linkedClan.settings.roles.townHall = thRoles;
 
     try {
         console.log('Saving TH role configuration to database:', JSON.stringify(thRoles));
@@ -225,7 +225,7 @@ async function setupTownHallRoles(interaction, linkedClan) {
         );
 
         // Update our local reference
-        linkedClan.settings.roles.townHallRoles = thRoles;
+        linkedClan.settings.roles.townHall = thRoles;
 
         // Verify the save was successful
         const refreshedClan = await Clan.findOne({ _id: linkedClan._id });
@@ -403,7 +403,7 @@ async function setupWarActivityRoles(interaction, linkedClan) {
 
     // Save to database
     linkedClan.settings.roles = linkedClan.settings.roles || {};
-    linkedClan.settings.roles.warActivityRoles = warRoles;
+    linkedClan.settings.roles.warActivity = warRoles;
 
     await Clan.updateOne(
         { _id: linkedClan._id },
@@ -484,7 +484,7 @@ async function setupDonationRoles(interaction, linkedClan) {
 
     // Save to database
     linkedClan.settings.roles = linkedClan.settings.roles || {};
-    linkedClan.settings.roles.donationTierRoles = donationRoles;
+    linkedClan.settings.roles.donationTier = donationRoles;
 
     await Clan.updateOne(
         { _id: linkedClan._id },
@@ -603,7 +603,7 @@ async function syncRoles(interaction, linkedClan) {
         // Log role configurations
         console.log('Role configurations:');
         console.log('TH Roles:', JSON.stringify(linkedClan.settings.roles.townHall || {}));
-        console.log('Clan Roles:', JSON.stringify(linkedClan.settings.roles.clanRole || {}));
+        console.log('Clan Roles:', JSON.stringify({leader: linkedClan.settings.roles.leader, coLeader: linkedClan.settings.roles.coLeader, elder: linkedClan.settings.roles.elder, member: linkedClan.settings.roles.everyone}));
         console.log('War Roles:', JSON.stringify(linkedClan.settings.roles.warActivity || {}));
         console.log('Donation Roles:', JSON.stringify(linkedClan.settings.roles.donationTier || {}));
 
@@ -727,9 +727,9 @@ async function showRoleConfig(interaction, linkedClan) {
         .setDescription(`Role configuration for ${linkedClan.name} (${linkedClan.clanTag})`);
 
     // Add Town Hall roles if configured
-    if (linkedClan.settings.roles.townHallRoles) {
+    if (linkedClan.settings.roles.townHall) {
         let thRolesText = '';
-        for (const [level, config] of Object.entries(linkedClan.settings.roles.townHallRoles)) {
+        for (const [level, config] of Object.entries(linkedClan.settings.roles.townHall)) {
             try {
                 const role = interaction.guild.roles.cache.get(config.id);
                 if (role) {
@@ -774,9 +774,9 @@ async function showRoleConfig(interaction, linkedClan) {
     }
 
     // Add war activity roles if configured
-    if (linkedClan.settings.roles.warActivityRoles) {
+    if (linkedClan.settings.roles.warActivity) {
         let warRolesText = '';
-        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.warActivityRoles)) {
+        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.warActivity)) {
             try {
                 const role = interaction.guild.roles.cache.get(roleId);
                 if (role) {
@@ -793,9 +793,9 @@ async function showRoleConfig(interaction, linkedClan) {
     }
 
     // Add donation tier roles if configured
-    if (linkedClan.settings.roles.donationTierRoles) {
+    if (linkedClan.settings.roles.donationTier) {
         let donationRolesText = '';
-        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.donationTierRoles)) {
+        for (const [roleId, config] of Object.entries(linkedClan.settings.roles.donationTier)) {
             try {
                 const role = interaction.guild.roles.cache.get(roleId);
                 if (role) {
@@ -827,9 +827,9 @@ async function assignAllRoles(member, playerData, clanMemberData, roleConfig) {
         console.log(`Starting role assignment for ${member.user.tag}`);
 
         // Handle TH level roles
-        if (roleConfig.townHallRoles) {
+        if (roleConfig.townHall) {
             console.log(`Assigning TH${playerData.townHallLevel} role to ${member.user.tag}`);
-            await assignTownHallRole(member, playerData.townHallLevel, roleConfig.townHallRoles);
+            await assignTownHallRole(member, playerData.townHallLevel, roleConfig.townHall);
         } else {
             console.log('Town Hall roles not configured, skipping');
         }
@@ -844,10 +844,10 @@ async function assignAllRoles(member, playerData, clanMemberData, roleConfig) {
         }
 
         // Handle war activity roles
-        if (roleConfig.warActivityRoles) {
+        if (roleConfig.warActivity) {
             const warStars = playerData.warStars || 0;
             console.log(`Assigning war activity role based on ${warStars} stars to ${member.user.tag}`);
-            await assignWarActivityRole(member, warStars, roleConfig.warActivityRoles);
+            await assignWarActivityRole(member, warStars, roleConfig.warActivity);
         } else {
             console.log('War activity roles not configured, skipping');
         }
@@ -856,7 +856,7 @@ async function assignAllRoles(member, playerData, clanMemberData, roleConfig) {
         if (roleConfig.donationTierRolesRoles && clanMemberData) {
             const donations = clanMemberData.donations || 0;
             console.log(`Assigning donation tier role based on ${donations} donations to ${member.user.tag}`);
-            await assignDonationRole(member, donations, roleConfig.donationTierRoles);
+            await assignDonationRole(member, donations, roleConfig.donationTier);
         } else {
             console.log('Donation tier roles not configured or no clan member data, skipping');
         }
@@ -877,8 +877,8 @@ async function removeAllClanRoles(member, roleConfig) {
         const rolesToRemove = new Set();
 
         // Add town hall roles
-        if (roleConfig.townHallRoles) {
-            Object.values(roleConfig.townHallRoles).forEach(config => {
+        if (roleConfig.townHall) {
+            Object.values(roleConfig.townHall).forEach(config => {
                 if (config && config.id) rolesToRemove.add(config.id);
             });
         }
@@ -891,15 +891,15 @@ async function removeAllClanRoles(member, roleConfig) {
         }
 
         // Add war activity roles
-        if (roleConfig.warActivityRoles) {
-            Object.keys(roleConfig.warActivityRoles).forEach(roleId => {
+        if (roleConfig.warActivity) {
+            Object.keys(roleConfig.warActivity).forEach(roleId => {
                 if (roleId) rolesToRemove.add(roleId);
             });
         }
 
         // Add donation tier roles
-        if (roleConfig.donationTierRoles) {
-            Object.keys(roleConfig.donationTierRoles).forEach(roleId => {
+        if (roleConfig.donationTier) {
+            Object.keys(roleConfig.donationTier).forEach(roleId => {
                 if (roleId) rolesToRemove.add(roleId);
             });
         }
