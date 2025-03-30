@@ -137,16 +137,26 @@ async function listWars(interaction, linkedClan) {
 async function showWarDetails(interaction, linkedClan) {
     const index = interaction.options.getInteger('index');
 
-    // Fetch war at the specified index
-    const wars = await WarHistory.find({ clanTag: linkedClan.clanTag })
-        .sort({ endTime: -1 })
-        .limit(index);
+    // Get total count of wars first
+    const warCount = await WarHistory.countDocuments({ clanTag: linkedClan.clanTag });
 
-    if (wars.length < index) {
-        return interaction.editReply(`War history only goes back ${wars.length} wars.`);
+    if (warCount === 0) {
+        return interaction.editReply('No war history found yet. History is recorded automatically as wars end.');
     }
 
-    const war = wars[index - 1];
+    if (index > warCount) {
+        return interaction.editReply(`War history only goes back ${warCount} war${warCount === 1 ? '' : 's'}. Please choose a number between 1 and ${warCount}.`);
+    }
+
+    // Fetch the war at the specified index (getting exactly the war we want)
+    const war = await WarHistory.findOne({ clanTag: linkedClan.clanTag })
+        .sort({ endTime: -1 })
+        .skip(index - 1)
+        .limit(1);
+
+    if (!war) {
+        return interaction.editReply(`Unable to find war #${index}. Please try again.`);
+    }
 
     // Create main embed
     const embed = new EmbedBuilder()
