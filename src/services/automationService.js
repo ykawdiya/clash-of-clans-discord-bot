@@ -337,25 +337,7 @@ class AutomationService {
                     )
                     .setTimestamp();
 
-                // Add role mention if configured
-                let mentionText = '';
-
-                // Try multiple role options (themed and regular)
-                const warRoles = ['War General', 'War Team'];
-                for (const roleName of warRoles) {
-                    const role = guild.roles.cache.find(r => r.name === roleName);
-                    if (role) {
-                        mentionText += `<@&${role.id}> `;
-                        break;
-                    }
-                }
-
-                // If no war-specific role, use configured one
-                if (!mentionText && clan.settings?.roles?.everyone) {
-                    mentionText = `<@&${clan.settings.roles.everyone}> `;
-                }
-
-                await channel.send({ content: `${mentionText}**WAR HAS BEGUN!**`, embeds: [embed] });
+                await channel.send({ content: `**WAR HAS BEGUN!**`, embeds: [embed] });
             }
 
             // War ended notifications
