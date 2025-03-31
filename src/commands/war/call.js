@@ -1,7 +1,7 @@
 // src/commands/war/call.js
 const { SlashCommandBuilder } = require('discord.js');
 const warTrackingService = require('../../services/warTrackingService');
-const { Clan, User } = require('../../models');
+const { Clan, User, WarTracking } = require('../../models');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {

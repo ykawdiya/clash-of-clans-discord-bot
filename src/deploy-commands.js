@@ -44,12 +44,8 @@ async function deployCommands() {
       try {
         const command = require(filePath);
 
-        // Skip if command doesn't have data (for subcommands)
+        // Skip files without data property
         if (!command.data) {
-          const filename = path.basename(filePath);
-          if (!filename.includes('/')) { // Only log for top-level files
-            log.warn(`Command file ${filename} doesn't have a data property, skipping`);
-          }
           continue;
         }
 
@@ -60,13 +56,30 @@ async function deployCommands() {
           continue;
         }
 
-        // Look for and fix any issues with command.data.toJSON validation
-        if (typeof command.data.toJSON !== 'function') {
-          log.warn(`Command ${command.data.name || 'unknown'} doesn't have a valid data.toJSON function, skipping`);
+        try {
+          // Safely check if toJSON exists and is a function
+          if (!command.data || typeof command.data.toJSON !== 'function') {
+            log.warn(`Command ${path.basename(filePath)} missing valid toJSON method, skipping`);
+            continue;
+          }
+
+          // Get JSON data for command
+          const commandJSON = command.data.toJSON();
+          globalCommands.push(commandJSON);
+
+          // Log added command
+          log.info(`Added command: ${commandJSON.name}`);
+        } catch (error) {
+          log.error(`Error processing command data in ${filePath}:`, { error: error.message });
         }
       } catch (error) {
         log.error(`Error loading command file ${filePath}:`, { error: error.message });
       }
+    }
+
+    if (globalCommands.length === 0) {
+      log.error('No valid commands found to deploy');
+      return;
     }
 
     // Create REST instance

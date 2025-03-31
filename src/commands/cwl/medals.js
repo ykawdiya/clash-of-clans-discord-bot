@@ -1,74 +1,73 @@
 // src/commands/cwl/medals.js
-const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
-const { Clan, User } = require('../../models');
-const CWLTracking = require('../../models/CWLTracking');
+const { EmbedBuilder, SlashCommandBuilder } = require('discord.js');
+const { Clan, User, CWLTracking } = require('../../models');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
       .setName('medals')
       .setDescription('View CWL medal calculator'),
-  
+
   async execute(interaction) {
     try {
       // Get clan for this guild
       const clan = await Clan.findOne({ guildId: interaction.guild.id });
-      
+
       if (!clan) {
         return interaction.reply({
           content: 'No clan is linked to this server. Ask an admin to set up the clan first.',
           ephemeral: true
         });
       }
-      
+
       // Defer reply as this might take time
       await interaction.deferReply();
-      
+
       // Create medals embed
       const embed = new EmbedBuilder()
-        .setTitle('CWL Medal Calculator')
-        .setDescription(`Clan War League medal rewards are based on your league and final position.`)
-        .setColor('#9b59b6');
-      
+          .setTitle('CWL Medal Calculator')
+          .setDescription(`Clan War League medal rewards are based on your league and final position.`)
+          .setColor('#9b59b6');
+
       // Add medal table
       const medalTable = this.getCWLMedalTable();
-      
+
       // Format medal table by league
       let medalText = '';
-      
+
       for (const league in medalTable) {
         medalText += `**${league}**\n`;
-        
+
         // Format positions and medals
         let positionText = '';
         let medalText = '';
-        
+
         for (let i = 0; i < medalTable[league].length; i++) {
           const position = i + 1;
           const medals = medalTable[league][i];
-          
+
           positionText += `Rank ${position}\n`;
           medalText += `${medals} medals\n`;
         }
-        
+
         embed.addFields(
-          { name: 'Position', value: positionText, inline: true },
-          { name: 'Medals', value: medalText, inline: true },
-          { name: '\u200B', value: '\u200B', inline: true }
+            { name: 'Position', value: positionText, inline: true },
+            { name: 'Medals', value: medalText, inline: true },
+            { name: '\u200B', value: '\u200B', inline: true }
         );
       }
-      
+
       // Get active CWL season
       const cwlTracking = await CWLTracking.findOne({
         clanTag: clan.clanTag,
         isActive: true
       });
-      
+
       if (cwlTracking) {
         // Calculate estimated position
         const warWins = cwlTracking.warDays.filter(day => day.outcome === 'win').length;
         const totalWars = cwlTracking.warDays.filter(day => day.outcome !== 'ongoing').length;
-        
+
         // Rough estimate of position based on wins
         let estimatedPosition = 0;
         if (totalWars > 0) {
@@ -77,36 +76,36 @@ module.exports = {
           if (estimatedPosition < 1) estimatedPosition = 1;
           if (estimatedPosition > 8) estimatedPosition = 8;
         }
-        
+
         // Calculate estimated medals
         const league = cwlTracking.league;
         let estimatedMedals = 0;
-        
+
         if (league && medalTable[league] && estimatedPosition > 0) {
           estimatedMedals = medalTable[league][estimatedPosition - 1];
         }
-        
+
         // Add current CWL info
         if (cwlTracking.currentDay > 0) {
           let statusText = '';
-          
+
           statusText += `**Season**: ${cwlTracking.season}\n`;
           statusText += `**League**: ${cwlTracking.league}\n`;
           statusText += `**War Day**: ${cwlTracking.currentDay}/7\n`;
           statusText += `**War Wins**: ${warWins}/${totalWars}\n`;
-          
+
           if (estimatedPosition > 0) {
             statusText += `**Estimated Position**: ${estimatedPosition}/8\n`;
             statusText += `**Estimated Medals**: ${estimatedMedals}`;
           }
-          
+
           embed.addFields({
             name: 'Current CWL Status',
             value: statusText
           });
         }
       }
-      
+
       // Add explanatory notes
       embed.addFields({
         name: 'Medal Distribution',
@@ -118,11 +117,11 @@ module.exports = {
           '**Not in Roster**: 0% of earned medals'
         ].join('\n')
       });
-      
+
       await interaction.editReply({ embeds: [embed] });
     } catch (error) {
       log.error('Error executing cwl medals command:', { error: error.message });
-      
+
       if (interaction.deferred) {
         return interaction.editReply({
           content: 'An error occurred while displaying medal calculator. Please try again later.'
@@ -135,7 +134,7 @@ module.exports = {
       }
     }
   },
-  
+
   /**
    * Get CWL medal rewards by league and position
    * @returns {Object} - Medal table
