@@ -1,6 +1,6 @@
 // Enhanced Discord Server Setup Script for Clash of Clans Bot
-// - With detailed channel descriptions, organization, and sophisticated permissions
-// - With flexible clan configuration options
+// - Community-focused with friendly chat areas and interest groups
+// - Optimized for clan management without recruitment features
 
 const { Client, GatewayIntentBits, PermissionFlagsBits, ChannelType, Colors } = require('discord.js');
 const fs = require('fs');
@@ -23,8 +23,8 @@ let SERVER_ID = process.env.GUILD_ID || null; // Using existing GUILD_ID from en
 // Edit this section to match your clan setup
 const config = {
     // Basic info
-    familyName: "YOUR CLAN FAMILY NAME",
-    familyDescription: "A family of Clash of Clans clans focused on growth, strategy, and community",
+    familyName: "CHAT!",
+    familyDescription: "A friendly community of Clash of Clans players focused on growth, strategy and having fun",
     serverIconURL: "", // Optional: URL to an image for server icon
 
     // Clan configuration - set enabled: false for clans you don't want to use
@@ -35,7 +35,7 @@ const config = {
             role: "main",
             enabled: true,           // Always keep your main clan enabled
             thLevel: "11+",
-            description: "Our competitive war clan focused on high-level strategy and CWL performance. Minimum TH11",
+            description: "Our main clan focused on war, progress and having fun!",
             requirements: "TH11+",
             warFrequency: "Constant"
         },
@@ -45,19 +45,9 @@ const config = {
             role: "feeder",
             enabled: false,           // Set to false if you don't have a feeder clan
             thLevel: "10-12",
-            description: "Development clan for TH10-12 players looking to improve war skills and upgrade efficiently.",
-            requirements: "TH10+, 40/40/10 heroes, 70%+ max troops for TH level",
+            description: "Development clan for TH10-12 players looking to improve war skills.",
+            requirements: "TH10+",
             warFrequency: "Twice weekly"
-        },
-        {
-            name: "ACADEMY CLAN",
-            tag: "#QRSTUVWX",
-            role: "academy",
-            enabled: false,          // Set to false if you don't have an academy clan
-            thLevel: "7-9",
-            description: "Learning environment for newer players to develop attack strategies and base building skills.",
-            requirements: "TH7+, Active daily, willing to learn and improve",
-            warFrequency: "Weekly"
         }
     ],
 
@@ -110,13 +100,6 @@ function generateRoles() {
                 PermissionFlagsBits.MentionEveryone
             ],
             description: "Clan leadership with moderation capabilities"
-        },
-        {
-            name: 'Applicant',
-            color: Colors.Grey,
-            hoist: true,
-            mentionable: true,
-            description: "Potential members awaiting acceptance"
         },
 
         // Clan position roles
@@ -177,16 +160,39 @@ function generateRoles() {
             hoist: false,
             mentionable: true,
             description: "Creates guides, videos, and other clan content"
+        },
+
+        // Interest group roles
+        {
+            name: 'Food Enthusiast',
+            color: Colors.Red,
+            hoist: false,
+            mentionable: true,
+            description: "For members interested in sharing recipes and food discussions"
+        },
+        {
+            name: 'Game Nights',
+            color: Colors.Purple,
+            hoist: false,
+            mentionable: true,
+            description: "Interested in clan game nights and other activities"
+        },
+        {
+            name: 'Strategy Master',
+            color: Colors.Blue,
+            hoist: false,
+            mentionable: true,
+            description: "For members who focus on attack strategies and base designs"
         }
     ];
 
     // Generate Town Hall roles if enabled
     const townHallRoles = [];
     if (config.server.enableTownHallRoles) {
-        for (let i = 15; i >= 8; i--) {
+        for (let i = 16; i >= 8; i--) {
             townHallRoles.push({
                 name: `TH${i}`,
-                color: i >= 13 ? Colors.Gold : i >= 11 ? Colors.Blue : i >= 9 ? Colors.Green : Colors.Grey,
+                color: i >= 14 ? Colors.Gold : i >= 12 ? Colors.Blue : i >= 10 ? Colors.Green : Colors.Grey,
                 hoist: false,
                 mentionable: false,
                 description: `Town Hall ${i} players`
@@ -253,7 +259,7 @@ function generateServerStructure() {
                 name: 'clan-family',
                 type: ChannelType.GuildText,
                 description: "Overview of all clans in our family",
-                topic: "Information about all clans in our family, requirements, and promotions."
+                topic: "Information about all clans in our family."
             }
         ]
     };
@@ -308,16 +314,6 @@ function generateServerStructure() {
                 type: ChannelType.GuildText,
                 description: "Look up player statistics",
                 topic: "Use /player commands to look up player statistics and information."
-            },
-            {
-                name: 'family-dashboard',
-                type: ChannelType.GuildText,
-                description: "Overview of clan family statistics",
-                topic: "Automated dashboard showing clan family statistics and performance.",
-                customPermissions: [
-                    { id: 'everyone', allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] },
-                    { id: 'Leadership', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
-                ]
             },
             {
                 name: 'stats-tracking',
@@ -392,12 +388,6 @@ function generateServerStructure() {
                     type: ChannelType.GuildText,
                     description: "Share and discuss base layouts",
                     topic: `Share your base designs and get feedback from other ${clan.name} members.`
-                },
-                {
-                    name: 'attack-strats',
-                    type: ChannelType.GuildText,
-                    description: "Attack strategy discussion",
-                    topic: `Discuss attack strategies, army compositions, and practice results for ${clan.name}.`
                 }
             ]
         };
@@ -408,7 +398,7 @@ function generateServerStructure() {
         name: '🎮 CLAN EVENTS',
         description: "Clan-wide events and activities",
         permissions: [
-            { id: 'everyone', deny: [PermissionFlagsBits.ViewChannel] },
+            { id: 'everyone', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
             { id: 'Administrator', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] },
             { id: 'Leadership', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] },
             { id: 'Event Coordinator', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
@@ -440,10 +430,10 @@ function generateServerStructure() {
                 topic: "Celebrate member achievements, promotions, and milestones."
             },
             {
-                name: 'tournaments',
+                name: 'game-nights',
                 type: ChannelType.GuildText,
-                description: "Family tournaments and competitions",
-                topic: "Internal family tournaments, friendly competitions, and events."
+                description: "Organize game nights and other activities",
+                topic: "Plan and coordinate fun gaming sessions beyond just Clash of Clans!"
             }
         ],
         // Add permissions for each enabled clan
@@ -459,6 +449,7 @@ function generateServerStructure() {
             { id: 'Administrator', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] },
             { id: 'Leadership', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
             { id: 'Content Creator', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
+            { id: 'Strategy Master', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
             { id: 'Bot', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
         ],
         channels: [
@@ -489,7 +480,7 @@ function generateServerStructure() {
         ]
     };
 
-    // Community category
+    // Community category - Enhanced for friendly chit-chat
     const communityCategory = {
         name: '💬 COMMUNITY',
         description: "General community discussion channels",
@@ -504,7 +495,7 @@ function generateServerStructure() {
                 name: 'general-chat',
                 type: ChannelType.GuildText,
                 description: "General discussion for all members",
-                topic: "General chat for all family members, regardless of clan."
+                topic: "General chat for all members - come say hi and get to know each other!"
             },
             {
                 name: 'clash-discussion',
@@ -519,51 +510,62 @@ function generateServerStructure() {
                 topic: "Share memes, funny moments, and entertaining content related to Clash of Clans."
             },
             {
+                name: 'introductions',
+                type: ChannelType.GuildText,
+                description: "Introduce yourself to the community",
+                topic: "New to the server? Tell us a bit about yourself, your clash history, and your hobbies!"
+            },
+            {
                 name: 'off-topic',
                 type: ChannelType.GuildText,
                 description: "Non-CoC discussion",
-                topic: "Discussions about topics other than Clash of Clans."
+                topic: "Chat about anything not related to Clash of Clans - movies, sports, tech, etc."
             }
         ]
     };
 
-    // Recruitment category
-    const recruitmentCategory = {
-        name: '📥 RECRUITMENT',
-        description: "Clan recruitment and applications",
+    // Member Interest Groups category - NEW
+    const interestGroupsCategory = {
+        name: '🌟 MEMBER INTERESTS',
+        description: "Channels for sharing interests beyond Clash of Clans",
         permissions: [
-            { id: 'everyone', allow: [PermissionFlagsBits.ViewChannel] },
+            { id: 'everyone', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
             { id: 'Administrator', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] },
-            { id: 'Leadership', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] },
-            { id: 'Applicant', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-            { id: 'Bot', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks] }
+            { id: 'Leadership', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageMessages] }
         ],
         channels: [
             {
-                name: 'join-our-clans',
+                name: 'food-recipes',
                 type: ChannelType.GuildText,
-                description: "Information about joining our clans",
-                topic: "Information about all clans in our family, requirements, and how to join.",
+                description: "Share your favorite recipes and food",
+                topic: "Share recipes, cooking tips, food photos, and restaurant recommendations!",
                 customPermissions: [
-                    { id: 'everyone', allow: [PermissionFlagsBits.ViewChannel], deny: [PermissionFlagsBits.SendMessages] }
+                    { id: 'Food Enthusiast', allow: [PermissionFlagsBits.ManageMessages] }
                 ]
             },
             {
-                name: 'applications',
+                name: 'gaming-lounge',
                 type: ChannelType.GuildText,
-                description: "Apply to join our clans",
-                topic: "Submit your application to join one of our clans."
+                description: "Chat about other games",
+                topic: "Discuss other games you play besides Clash of Clans."
             },
             {
-                name: 'interview-queue',
+                name: 'tech-talk',
                 type: ChannelType.GuildText,
-                description: "Queue for leadership interviews",
-                topic: "Waiting area for applicant interviews with leadership.",
-                customPermissions: [
-                    { id: 'everyone', deny: [PermissionFlagsBits.ViewChannel] },
-                    { id: 'Leadership', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] },
-                    { id: 'Applicant', allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages] }
-                ]
+                description: "Tech, gadgets, and apps",
+                topic: "Talk about technology, mobile devices, apps, and gaming setups."
+            },
+            {
+                name: 'creative-corner',
+                type: ChannelType.GuildText,
+                description: "Art, music, and creative hobbies",
+                topic: "Share your creative projects, artwork, music, and other hobbies."
+            },
+            {
+                name: 'pet-pictures',
+                type: ChannelType.GuildText,
+                description: "Share pictures of your pets",
+                topic: "Show off your furry, feathery, or scaly friends!"
             }
         ]
     };
@@ -600,7 +602,7 @@ function generateServerStructure() {
             {
                 name: 'member-notes',
                 type: ChannelType.GuildText,
-                description: "Notes on members and applicants",
+                description: "Notes on members",
                 topic: "Keep track of member behavior, warnings, and notes."
             },
             {
@@ -633,6 +635,16 @@ function generateServerStructure() {
                 description: "Coordinate war attacks"
             },
             {
+                name: 'Game Night',
+                type: ChannelType.GuildVoice,
+                description: "For game nights and other activities"
+            },
+            {
+                name: 'Chill Zone',
+                type: ChannelType.GuildVoice,
+                description: "Relaxed conversation space"
+            },
+            {
                 name: 'Leadership Meeting',
                 type: ChannelType.GuildVoice,
                 description: "Voice channel for leadership",
@@ -650,12 +662,12 @@ function generateServerStructure() {
     let categories = [
         welcomeInfoCategory,
         botCommandsCategory,
-        recruitmentCategory,
         communityCategory,
+        interestGroupsCategory,  // New category for member interests
         resourcesCategory,
+        clanEventsCategory,
         leadershipCategory,
-        voiceCategory,
-        clanEventsCategory
+        voiceCategory
     ];
 
     // Add verification category if enabled
@@ -957,7 +969,7 @@ async function addWelcomeContent(guild) {
 
 ${config.familyDescription}
 
-We're excited to have you join our Clash of Clans family! This server is the central hub for all members across our family of clans.
+We're excited to have you join our Clash of Clans family! This server is the central hub for all members across our clan family and a friendly community to chat, share, and have fun.
 
 ## Our Clan Family Structure
 
@@ -976,23 +988,21 @@ Our Discord bot helps manage all aspects of clan life:
 
 For all commands, visit the #bot-commands channel!
 
+## Getting Involved
+
+• **Join our voice chats** for war planning, game nights, or just hanging out
+• **Share your interests** in our member interest channels
+• **Participate in events** like Clan Games, CWL, and game nights
+• **Post your favorite recipes** in #food-recipes
+• **Share your pet photos** in #pet-pictures
+
 ## How to Get Set Up
 
 1. **Link your account**: Use \`/link [YOUR PLAYER TAG]\` in the verification channel
-2. **Get your clan role**: An admin will assign you to your clan's role
-3. **Explore your clan channels**: Each clan has its own channels under categories
+2. **Introduce yourself**: Tell us a bit about yourself in #introductions
+3. **Explore the server**: Check out all the channels and find your interests
 
-## Server Navigation
-
-• 📢 **WELCOME & INFO** - Server information and announcements
-• 🤖 **BOT COMMANDS** - Commands for our Clash of Clans bot
-• 📥 **RECRUITMENT** - Join our clans or recruit new members
-• 💬 **COMMUNITY** - General discussion for all members
-• 📚 **RESOURCES & GUIDES** - Helpful guides and resources
-• 🎮 **CLAN EVENTS** - Clan Games, CWL, and special events
-• 🔊 **VOICE CHANNELS** - Voice chat for coordination and fun
-
-Have questions? Tag @Leadership for help!`;
+Need help? Tag @Leadership and we'll be happy to assist!`;
 
         await welcomeChannel.send(welcomeMessage);
         console.log('Posted welcome message');
@@ -1008,7 +1018,7 @@ Have questions? Tag @Leadership for help!`;
         const rulesMessage = `# Server Rules and Expectations
 
 ## General Conduct
-1. **Respect all members** - No harassment, hate speech, or bullying
+1. **Be respectful to all members** - No harassment, hate speech, or bullying
 2. **Keep content appropriate** - No NSFW content or inappropriate language
 3. **No spamming** - Avoid excessive messaging, emoji spam, or mention spam
 4. **Use channels appropriately** - Post content in the correct channels
@@ -1021,17 +1031,11 @@ Have questions? Tag @Leadership for help!`;
 4. **Participate in events** - Join in Clan Games, Capital Raids, and CWL
 5. **Donate properly** - Donate what is requested and maintain reasonable ratios
 
-## Bot Usage
-1. **Use bot channels** - Keep bot commands in designated channels
-2. **No command spam** - Avoid repeatedly using commands
-3. **Report issues** - Let leadership know if you encounter bot problems
-4. **Follow notifications** - Respond to automated reminders for war attacks
-
-## Clan Family Structure
-1. **Proper placement** - Accept assignment to appropriate clan based on TH/skill
-2. **Request transfers** - Get approval before moving between family clans
-3. **Respect hierarchy** - Follow direction from Leaders and Co-Leaders
-4. **Help others** - Support fellow clan family members with advice and donations
+## Community Engagement
+1. **Introduce yourself** - Post a brief introduction in the #introductions channel
+2. **Share your interests** - Participate in member interest channels
+3. **Be supportive** - Offer help and encouragement to fellow members
+4. **Respect privacy** - Don't share others' personal information
 
 ## Discord Activity
 1. **Stay organized** - Use the right channels for different discussions
@@ -1106,7 +1110,7 @@ Before accessing clan-specific channels, you must verify your Clash of Clans acc
 • Confirms you're a real clan member
 • Grants access to clan-specific channels
 • Enables stat tracking and personalized features
-• Protects our clans from spies and unauthorized access
+• Unlocks additional server features
 
 ## How to Verify
 
@@ -1125,13 +1129,12 @@ Before accessing clan-specific channels, you must verify your Clash of Clans acc
    - If verified, you'll automatically receive your clan role
    - This process is instant if you're already in one of our clans
 
-## Not in a Clan Yet?
+## Already in a Clan?
 
-If you're not yet a member of one of our clans:
-
-1. Type \`/clan\` to see our clan information
-2. Go to #applications channel to apply
-3. A leader will review your profile and help you join
+After verifying:
+1. Introduce yourself in #introductions
+2. Check out the various interest channels
+3. Join the voice chat to say hello!
 
 ## Need Help?
 
@@ -1146,6 +1149,78 @@ If you're having trouble with verification:
                 await verificationInfoChannel.send(verificationMessage);
                 console.log('Posted verification information');
             }
+        }
+
+        // Add food-recipes channel starter message
+        const foodRecipesChannel = guild.channels.cache.find(ch => ch.name === 'food-recipes');
+        if (foodRecipesChannel) {
+            const foodRecipesMessage = `# Welcome to Food & Recipes! 🍳
+
+This channel is dedicated to sharing your favorite recipes, cooking tips, food photos, and culinary adventures!
+
+## Posting Guidelines:
+- Share recipes with ingredients, instructions, and a photo if possible
+- Feel free to ask for cooking advice or recipe recommendations
+- Food photos are welcome - show off your creations!
+- Restaurant recommendations are encouraged
+
+## Recipe Format Suggestion:
+\`\`\`
+# Recipe Name
+## Ingredients:
+- Item 1
+- Item 2
+- Item 3
+
+## Instructions:
+1. Step one
+2. Step two
+3. Step three
+
+## Tips:
+Any special tips or substitutions
+\`\`\`
+
+## Get Started:
+Reply to this message with your favorite recipe or dish to share with the community!
+
+*Get the "Food Enthusiast" role by asking Leadership if you're passionate about sharing recipes!*`;
+
+            await foodRecipesChannel.send(foodRecipesMessage);
+            console.log('Posted food recipes starter message');
+        }
+
+        // Add introductions channel starter message
+        const introductionsChannel = guild.channels.cache.find(ch => ch.name === 'introductions');
+        if (introductionsChannel) {
+            const introductionsMessage = `# Welcome to Introductions! 👋
+
+This is the place to introduce yourself to our community! We'd love to get to know you better.
+
+## Introduction Format Suggestion:
+\`\`\`
+# Hello, I'm [Name/Nickname]!
+
+## About Me:
+- Where I'm from
+- How long I've been playing Clash of Clans
+- My Town Hall level and favorite attack strategy
+
+## Outside of Clash:
+- Hobbies and interests
+- Favorite games besides CoC
+- Something interesting about me
+
+## Looking forward to:
+What you're excited about in the clan/community
+\`\`\`
+
+Feel free to share as much or as little as you're comfortable with. We're just happy to have you here!
+
+**Leadership and existing members:** Please welcome new members and help them feel at home!`;
+
+            await introductionsChannel.send(introductionsMessage);
+            console.log('Posted introductions starter message');
         }
 
         // Find clan-info channels and post templates for each enabled clan
@@ -1207,125 +1282,14 @@ If you're having trouble with verification:
 • **Co-Leader**: By invitation only after significant contribution (typically 2+ months as Elder)
 • **Leader**: Selected from trusted Co-Leaders with exceptional leadership skills
 
-## 🔎 Performance Review
+## 🔄 Moving Up
 
-Inactive or underperforming members may be:
-1. Given a warning
-2. Demoted
-3. Moved to another family clan
-4. Removed if issues persist
-
-## 🔄 How to Join
-
-1. Apply in-game with the message "From Discord"
-2. Use \`/clan\` in #bot-commands to view current clan status
-3. Request an invite from a Co-Leader or Elder
+As you progress in Town Hall level and improve your skills, you may be eligible to move between clans in our family. Speak with leadership about advancement opportunities.
 
 Last Updated: ${new Date().toLocaleDateString()}`;
 
             await clanInfoChannel.send(infoMessage);
             console.log(`Posted clan info for ${clan.name}`);
-        }
-
-        // Find join-our-clans channel
-        const recruitmentChannel = guild.channels.cache.find(ch => ch.name === 'join-our-clans');
-        if (recruitmentChannel) {
-            // Create clan list for recruitment
-            const recruitmentText = enabledClans.map(clan => {
-                return `## ${clan.name} (${clan.tag})
-
-**Role**: ${clan.role.charAt(0).toUpperCase() + clan.role.slice(1)} Clan
-**Description**: ${clan.description}
-**Requirements**: 
-• Town Hall: TH${clan.thLevel}
-• ${clan.requirements}
-• War Frequency: ${clan.warFrequency}
-
-**How to Join**: Apply in-game with the message "From Discord" or apply below in #applications
-`;
-            }).join('\n');
-
-            const recruitmentMessage = `# Join Our Clan Family
-
-Looking for a new clan? We have several options depending on your Town Hall level and play style!
-
-${recruitmentText}
-
-## Application Process
-
-1. **Choose a clan** that matches your Town Hall level and playstyle
-2. **Go to the #applications channel** and provide:
-   - Your player tag
-   - Which clan you want to join
-   - Your Town Hall level
-   - A brief introduction about your play style
-3. **Wait for review** - A leader will review your profile and help you get set up
-4. **Verification** - Once accepted, you'll need to verify your account using \`/link\`
-
-## Alternative Method
-
-You can also apply directly in-game:
-
-1. Search for the clan tag
-2. Send a join request mentioning "From Discord"
-3. Come back here and let us know you've applied
-
-## What We Look For
-
-* Active players who participate in clan events
-* Team players who follow war strategies
-* Friendly members who contribute to the community
-* Players focused on improvement and learning
-
-Questions? Tag @Leadership for assistance.`;
-
-            await recruitmentChannel.send(recruitmentMessage);
-            console.log('Posted recruitment message');
-        }
-
-        // Find attack-guides channel
-        const attackGuidesChannel = guild.channels.cache.find(ch => ch.name === 'attack-guides');
-        if (attackGuidesChannel) {
-            const attackGuidesMessage = `# Attack Strategy Guides
-
-This channel contains comprehensive guides for various attack strategies at different Town Hall levels. These guides are meant to help you improve your attacking skills in war and multiplayer battles.
-
-## How to Use This Channel
-
-* Guides are organized by Town Hall level
-* Each strategy includes army compositions, spell combinations, and deployment techniques
-* Videos and image examples are included when available
-* Ask questions about specific strategies in the #clash-discussion channel
-
-## Contributing
-
-If you'd like to contribute a strategy guide:
-
-1. Contact a @Content Creator or @Leadership member
-2. Provide a detailed breakdown of the strategy
-3. Include example attacks if possible
-
-## Strategy Index
-
-*Leadership will pin important strategies for each Town Hall level here.*
-
-### General Attacking Tips
-
-* Scout your target thoroughly before attacking
-* Understand the purpose of each troop in your army composition
-* Practice strategies in Friendly Challenges before using them in war
-* Watch for clan castle troops and key defensive structures
-* Time is often as important as troop placement
-
-### Finding More Resources
-
-* YouTube channels like [ClashWithEric, Judo Sloth, CarbonFin]
-* Clash of Clans wiki for troop statistics
-* In-game practice maps
-* Friendly challenges with clanmates`;
-
-            await attackGuidesChannel.send(attackGuidesMessage);
-            console.log('Posted attack guides template');
         }
 
         console.log('Added welcome content to server');
@@ -1359,7 +1323,7 @@ async function setupServer(guildId) {
         });
 
         // Confirm with the user
-        rl.question(`\nThis will DELETE ALL existing channels, categories, and roles in ${guild.name}, then create a sophisticated structure for your ${enabledClans.length} clan(s). This action cannot be undone. Continue? (yes/no): `, async (answer) => {
+        rl.question(`\nThis will DELETE ALL existing channels, categories, and roles in ${guild.name}, then create a comprehensive structure for your ${enabledClans.length} clan(s). This action cannot be undone. Continue? (yes/no): `, async (answer) => {
             if (answer.toLowerCase() !== 'yes') {
                 console.log('Setup cancelled.');
                 rl.close();
