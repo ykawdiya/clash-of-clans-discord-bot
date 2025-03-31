@@ -2,7 +2,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const capitalTrackingService = require('../../services/capitalTrackingService');
 const { Clan, User } = require('../../models');
-const CapitalTracking = require('../../models/CapitalTracking');
+const { CapitalTracking } = require('../../models');
 const { userPermission } = require('../../utils/permissions');
 const { command: log } = require('../../utils/logger');
 

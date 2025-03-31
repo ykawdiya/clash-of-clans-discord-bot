@@ -1,6 +1,6 @@
 // src/commands/capital/status.js
 const { SlashCommandBuilder } = require('discord.js');
-const capitalTrackingService = require('../../services/capitalTrackingService');
+const { CapitalTracking } = require('../../models');
 const { Clan, User } = require('../../models');
 const { userPermission } = require('../../utils/permissions');
 
