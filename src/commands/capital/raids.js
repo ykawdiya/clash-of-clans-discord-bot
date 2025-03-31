@@ -104,13 +104,40 @@ async function showRaidStatus(interaction, clanData, raidData) {
     // Calculate if raid is ongoing
     const isRaidWeekend = isRaidActive(raidData);
 
-    // Get raid stats
-    const totalAttacks = raidData.attackCount || 0;
-    const totalDistricts = raidData.districtsDestroyed || 0;
+    // Get raid stats with better fallbacks for the API inconsistencies
+    let totalAttacks = raidData.attackCount || 0;
+    let totalDistricts = raidData.districtsDestroyed || 0;
     const totalCapitalGold = calculateTotalCapitalGold(raidData);
     const totalDefensiveReward = raidData.defensiveReward || 0;
     const totalOffensiveReward = raidData.offensiveReward || 0;
     const totalRaidMedals = totalDefensiveReward + totalOffensiveReward;
+
+    // Sometimes the API doesn't correctly populate attackCount even when attacks were made
+    // Infer attack count from members if we have meaningful gold earned but 0 attacks
+    if (totalAttacks === 0 && totalCapitalGold > 0 && raidData.members && raidData.members.length > 0) {
+        // Calculate sum of all member attacks
+        const memberAttacks = raidData.members.reduce((sum, member) => {
+            // If we have explicit attackCount for members, use that
+            if (member && typeof member.attackCount === 'number') {
+                return sum + member.attackCount;
+            }
+            // If a member looted gold but has no attackCount, assume at least 1 attack
+            else if (member && member.capitalResourcesLooted > 0) {
+                return sum + 1;
+            }
+            return sum;
+        }, 0);
+
+        // Use calculated value if it's greater than 0
+        if (memberAttacks > 0) {
+            totalAttacks = memberAttacks;
+        }
+    }
+
+    // Similar logic for districts destroyed - if we have gold/attacks but 0 districts, assume at least 1
+    if (totalDistricts === 0 && (totalAttacks > 0 || totalCapitalGold > 0)) {
+        totalDistricts = Math.max(1, Math.floor(totalCapitalGold / 10000)); // Rough estimate
+    }
 
     // Create status embed
     const embed = new EmbedBuilder()
@@ -130,23 +157,41 @@ async function showRaidStatus(interaction, clanData, raidData) {
 
     // Add raid start/end time if known
     if (raidData.startTime) {
-        const startDate = new Date(raidData.startTime);
-        const endDate = new Date(startDate);
-        endDate.setDate(endDate.getDate() + 2); // Raid weekends last 2 days
+        // Handle potential date parsing issues
+        let startDateString = "Unknown";
+        let endDateString = "Unknown";
 
-        const startDateString = startDate.toLocaleDateString(undefined, {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        try {
+            // Ensure we have a valid date string by checking format
+            const startTimeStr = typeof raidData.startTime === 'string' ? raidData.startTime : String(raidData.startTime);
 
-        const endDateString = endDate.toLocaleDateString(undefined, {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+            // Try to create a valid date object
+            const startDate = new Date(startTimeStr);
+
+            // Verify the date is valid before using it
+            if (!isNaN(startDate.getTime())) {
+                const endDate = new Date(startDate);
+                endDate.setDate(endDate.getDate() + 2); // Raid weekends last 2 days
+
+                startDateString = startDate.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+
+                endDateString = endDate.toLocaleDateString(undefined, {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+            } else {
+                console.error('Invalid date format in raidData.startTime:', raidData.startTime);
+            }
+        } catch (error) {
+            console.error('Error parsing raid date:', error);
+        }
 
         embed.addFields({
             name: 'Raid Weekend Period',
@@ -185,7 +230,17 @@ async function showParticipation(interaction, clanData, raidData) {
     const attackGroups = {};
     for (const member of raidData.members) {
         if (!member) continue;
-        const attackCount = member.attackCount || 0;
+
+        // Determine actual attack count - if they earned gold but show 0 attacks, assume at least 1
+        let attackCount = member.attackCount || 0;
+
+        // Fix for the API inconsistency where attacks are 0 despite earning gold
+        if (attackCount === 0 && member.capitalResourcesLooted > 0) {
+            // Estimate attack count based on gold earned (rough approximation)
+            const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / 6000);
+            attackCount = Math.max(1, estimatedAttacks);
+        }
+
         if (!attackGroups[attackCount]) {
             attackGroups[attackCount] = [];
         }
@@ -267,7 +322,32 @@ async function showLeaderboard(interaction, clanData, raidData) {
 
     // Calculate totals
     const totalGold = calculateTotalCapitalGold(raidData);
-    const totalAttacks = raidData.attackCount || 0;
+
+    // Determine actual total attacks - using calculated value if API data looks wrong
+    let totalAttacks = raidData.attackCount || 0;
+
+    // Fix for the case where totalAttacks is 0 but members have earned gold
+    if (totalAttacks === 0 && totalGold > 0) {
+        // Calculate estimated attacks from member data
+        const calculatedAttacks = sortedMembers.reduce((sum, member) => {
+            if (!member) return sum;
+
+            // If member has explicit attack count, use it
+            if (typeof member.attackCount === 'number' && member.attackCount > 0) {
+                return sum + member.attackCount;
+            }
+
+            // If member earned gold but shows 0 attacks, estimate attacks
+            if ((member.attackCount === 0 || !member.attackCount) && member.capitalResourcesLooted > 0) {
+                const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / 6000);
+                return sum + Math.max(1, estimatedAttacks);
+            }
+
+            return sum;
+        }, 0);
+
+        totalAttacks = Math.max(totalAttacks, calculatedAttacks);
+    }
 
     // Create leaderboard embed
     const embed = new EmbedBuilder()
@@ -287,7 +367,13 @@ async function showLeaderboard(interaction, clanData, raidData) {
         if (!member || !member.name) continue;
 
         const gold = member.capitalResourcesLooted || 0;
-        const attacks = member.attackCount || 0;
+        // Fix for attack count being 0 despite earning gold
+        let attacks = member.attackCount || 0;
+        if (attacks === 0 && gold > 0) {
+            // Estimate attacks based on gold (rough approximation)
+            attacks = Math.max(1, Math.ceil(gold / 6000));
+        }
+
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
 
         leaderboardText += `${medal} **${member.name}**: ${gold} gold (${attacks} attacks)\n`;
@@ -345,7 +431,15 @@ function isRaidActive(raidData) {
  * Calculate total capital gold earned in the raid
  */
 function calculateTotalCapitalGold(raidData) {
-    if (!raidData || !raidData.members || !Array.isArray(raidData.members)) return 0;
+    if (!raidData) return 0;
+
+    // First try to use the pre-calculated total if available
+    if (raidData.totalResourcesLooted && typeof raidData.totalResourcesLooted === 'number') {
+        return raidData.totalResourcesLooted;
+    }
+
+    // Fall back to calculating from member data
+    if (!raidData.members || !Array.isArray(raidData.members)) return 0;
 
     return raidData.members.reduce((total, member) => {
         if (!member) return total;
