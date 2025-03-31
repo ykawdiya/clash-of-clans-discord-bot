@@ -30,20 +30,20 @@ const config = {
     // Clan configuration - set enabled: false for clans you don't want to use
     clans: [
         {
-            name: "MAIN CLAN",
-            tag: "#ABCDEFGH",
+            name: "Chatterbox",
+            tag: "#2RUVGR2QQ",
             role: "main",
             enabled: true,           // Always keep your main clan enabled
-            thLevel: "13+",
-            description: "Our competitive war clan focused on high-level strategy and CWL performance. Minimum TH13 with maxed heroes.",
-            requirements: "TH13+, 70/70/45/20 heroes, 80%+ max troops for TH level",
+            thLevel: "11+",
+            description: "Our competitive war clan focused on high-level strategy and CWL performance. Minimum TH11",
+            requirements: "TH11+",
             warFrequency: "Constant"
         },
         {
             name: "FEEDER CLAN",
             tag: "#IJKLMNOP",
             role: "feeder",
-            enabled: true,           // Set to false if you don't have a feeder clan
+            enabled: false,           // Set to false if you don't have a feeder clan
             thLevel: "10-12",
             description: "Development clan for TH10-12 players looking to improve war skills and upgrade efficiently.",
             requirements: "TH10+, 40/40/10 heroes, 70%+ max troops for TH level",
