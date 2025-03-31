@@ -4,29 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="a31140c2-daa6-4a37-a345-5d16878fba79" name="Changes" comment="new features">
-      <change afterPath="$PROJECT_DIR$/src/models/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/admin/setup.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/admin/setup.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/capital/contribute.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/capital/contribute.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/capital/planner.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/capital/planner.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/capital/raids.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/capital/raids.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/capital/status.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/capital/status.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/clan.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/clan.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/medals.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/medals.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/plan.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/plan.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/roster.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/roster.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/stats.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/stats.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/status.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/status.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/player.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/player.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/war.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/war.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/war/call.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/war/call.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/war/map.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/war/map.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/war/plan.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/war/plan.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/war/stats.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/war/stats.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/war/status.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/war/status.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/deploy-commands.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/deploy-commands.js" afterDir="false" />
-    </list>
+    <list default="true" id="a31140c2-daa6-4a37-a345-5d16878fba79" name="Changes" comment="new features" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -120,15 +98,7 @@
       <workItem from="1743448642561" duration="1000" />
       <workItem from="1743448656748" duration="9000" />
       <workItem from="1743449061594" duration="166000" />
-      <workItem from="1743449887346" duration="8145000" />
-    </task>
-    <task id="LOCAL-00108" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743275937330</created>
-      <option name="number" value="00108" />
-      <option name="presentableId" value="LOCAL-00108" />
-      <option name="project" value="LOCAL" />
-      <updated>1743275937330</updated>
+      <workItem from="1743449887346" duration="8460000" />
     </task>
     <task id="LOCAL-00109" summary="new features">
       <option name="closed" value="true" />
@@ -514,7 +484,15 @@
       <option name="project" value="LOCAL" />
       <updated>1743456099390</updated>
     </task>
-    <option name="localTasksCounter" value="157" />
+    <task id="LOCAL-00157" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743458313969</created>
+      <option name="number" value="00157" />
+      <option name="presentableId" value="LOCAL-00157" />
+      <option name="project" value="LOCAL" />
+      <updated>1743458313970</updated>
+    </task>
+    <option name="localTasksCounter" value="158" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
