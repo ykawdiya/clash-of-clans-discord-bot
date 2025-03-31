@@ -1,6 +1,6 @@
 // src/commands/player.js
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const User = require('../models/User');
+const { Clan, User } = require('../models');
 const clashApiService = require('../services/clashApiService');
 const { command: log } = require('../utils/logger');
 

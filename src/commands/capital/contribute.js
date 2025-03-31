@@ -1,8 +1,7 @@
 // src/commands/capital/contribute.js
 const { SlashCommandBuilder } = require('discord.js');
 const capitalTrackingService = require('../../services/capitalTrackingService');
-const Clan = require('../../models/Clan');
-const User = require('../../models/User');
+const { Clan, User } = require('../../models');
 const { userPermission } = require('../../utils/permissions');
 
 module.exports = {

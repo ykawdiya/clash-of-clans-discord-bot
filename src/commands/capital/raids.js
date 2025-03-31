@@ -1,7 +1,7 @@
 // src/commands/capital/raids.js
 const { SlashCommandBuilder } = require('discord.js');
 const capitalTrackingService = require('../../services/capitalTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const { userPermission } = require('../../utils/permissions');
 
 module.exports = {

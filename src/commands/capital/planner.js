@@ -1,7 +1,7 @@
 // src/commands/capital/planner.js
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const capitalTrackingService = require('../../services/capitalTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const CapitalTracking = require('../../models/CapitalTracking');
 const { userPermission } = require('../../utils/permissions');
 const { command: log } = require('../../utils/logger');

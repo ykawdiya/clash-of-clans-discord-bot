@@ -72,3 +72,16 @@
 {"component":"system","level":"info","message":"Calculated 24 Raid Weekend dates","service":"clash-bot","timestamp":"2025-04-01 02:07:37"}
 {"component":"system","level":"info","message":"Starting Clash of Clans Discord Bot...","service":"clash-bot","timestamp":"2025-04-01 02:07:37"}
 {"component":"system","level":"info","message":"Connected to MongoDB successfully","service":"clash-bot","timestamp":"2025-04-01 02:07:37"}
+{"component":"system","level":"info","message":"Starting command deployment...","service":"clash-bot","timestamp":"2025-04-01 03:27:27"}
+{"component":"api","level":"info","message":"Proxy configuration found: p.webshare.io:80","service":"clash-bot","timestamp":"2025-04-01 03:27:28"}
+{"component":"system","level":"info","message":"Calculated 24 Raid Weekend dates","service":"clash-bot","timestamp":"2025-04-01 03:27:28"}
+{"component":"system","error":"Received one or more errors","level":"error","message":"Error loading command file /Users/yashkawdiya/IdeaProjects/clash-of-clans-discord-bot1 copy/src/commands/capital/planner.js:","service":"clash-bot","timestamp":"2025-04-01 03:27:28"}
+{"component":"system","error":"Received one or more errors","level":"error","message":"Error loading command file /Users/yashkawdiya/IdeaProjects/clash-of-clans-discord-bot1 copy/src/commands/capital.js:","service":"clash-bot","timestamp":"2025-04-01 03:27:28"}
+{"component":"system","level":"info","message":"Calculated 12 CWL season dates for 2025","service":"clash-bot","timestamp":"2025-04-01 03:27:28"}
+{"component":"system","level":"info","message":"Deploying 0 commands...","service":"clash-bot","timestamp":"2025-04-01 03:27:28"}
+{"component":"system","level":"info","message":"Successfully deployed 0 commands!","service":"clash-bot","timestamp":"2025-04-01 03:27:28"}
+{"component":"api","level":"info","message":"Proxy configuration found: p.webshare.io:80","service":"clash-bot","timestamp":"2025-04-01 03:27:59"}
+{"component":"system","level":"info","message":"Calculated 12 CWL season dates for 2025","service":"clash-bot","timestamp":"2025-04-01 03:27:59"}
+{"component":"system","level":"info","message":"Calculated 24 Raid Weekend dates","service":"clash-bot","timestamp":"2025-04-01 03:27:59"}
+{"component":"system","level":"info","message":"Starting Clash of Clans Discord Bot...","service":"clash-bot","timestamp":"2025-04-01 03:27:59"}
+{"component":"system","level":"info","message":"Connected to MongoDB successfully","service":"clash-bot","timestamp":"2025-04-01 03:28:00"}

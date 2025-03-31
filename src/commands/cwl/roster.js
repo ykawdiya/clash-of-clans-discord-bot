@@ -1,15 +1,15 @@
 // src/commands/cwl/roster.js
 const cwlTrackingService = require('../../services/cwlTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const { userPermission } = require('../../utils/permissions');
 const { command: log } = require('../../utils/logger');
+const {SlashCommandBuilder} = require("discord.js");
 
 module.exports = {
-  data: {
-    name: 'roster',
-    description: 'Manage CWL roster'
-  },
-  
+  data: new SlashCommandBuilder()
+      .setName('roster')
+      .setDescription('Manage CWL roster'),
+
   async execute(interaction) {
     try {
       const subcommand = interaction.options.getSubcommand();

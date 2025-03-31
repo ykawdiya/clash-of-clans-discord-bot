@@ -1,14 +1,14 @@
 // src/commands/cwl/stats.js
 const cwlTrackingService = require('../../services/cwlTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const { command: log } = require('../../utils/logger');
+const {SlashCommandBuilder} = require("discord.js");
 
 module.exports = {
-  data: {
-    name: 'stats',
-    description: 'Show CWL statistics'
-  },
-  
+  data: new SlashCommandBuilder()
+      .setName('stats')
+      .setDescription('Show CWL statistics'),
+
   async execute(interaction) {
     try {
       // Get clan for this guild

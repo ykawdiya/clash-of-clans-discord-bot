@@ -1,14 +1,13 @@
 // src/commands/war/status.js
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
 const warTrackingService = require('../../services/warTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
-  data: {
-    name: 'status',
-    description: 'Show current war status'
-  },
+  data: new SlashCommandBuilder()
+      .setName('status')
+      .setDescription('Show current war status'),
   
   async execute(interaction) {
     try {

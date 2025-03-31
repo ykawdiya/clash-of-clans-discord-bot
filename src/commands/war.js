@@ -8,41 +8,41 @@ const warStatsCommand = require('./war/stats');
 
 module.exports = {
   data: new SlashCommandBuilder()
-    .setName('war')
-    .setDescription('War management commands')
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('status')
-        .setDescription('Show current war status'))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('call')
-        .setDescription('Call a base in war')
-        .addIntegerOption(option => 
-          option.setName('base')
-            .setDescription('Base number to call')
-            .setRequired(true))
-        .addStringOption(option =>
-          option.setName('note')
-            .setDescription('Optional note about your attack plan')
-            .setRequired(false)))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('plan')
-        .setDescription('View or create war plan'))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('map')
-        .setDescription('Show the war map with calls'))
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('stats')
-        .setDescription('Show attack statistics')),
-  
+      .setName('war')
+      .setDescription('War management commands')
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('status')
+              .setDescription('Show current war status'))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('call')
+              .setDescription('Call a base in war')
+              .addIntegerOption(option =>
+                  option.setName('base')
+                      .setDescription('Base number to call')
+                      .setRequired(true))
+              .addStringOption(option =>
+                  option.setName('note')
+                      .setDescription('Optional note about your attack plan')
+                      .setRequired(false)))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('plan')
+              .setDescription('View or create war plan'))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('map')
+              .setDescription('Show the war map with calls'))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('stats')
+              .setDescription('Show attack statistics')),
+
   async execute(interaction) {
     try {
       const subcommand = interaction.options.getSubcommand();
-      
+
       switch (subcommand) {
         case 'status':
           return await warStatusCommand.execute(interaction);

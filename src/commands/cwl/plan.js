@@ -1,26 +1,22 @@
 // src/commands/cwl/plan.js
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
 const cwlTrackingService = require('../../services/cwlTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const CWLTracking = require('../../models/CWLTracking');
 const { userPermission } = require('../../utils/permissions');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
-  data: {
-    name: 'plan',
-    description: 'View/create CWL war plan',
-    options: [
-      {
-        name: 'day',
-        description: 'CWL war day (1-7)',
-        type: 4, // INTEGER
-        required: false,
-        min_value: 1,
-        max_value: 7
-      }
-    ]
-  },
+  data: new SlashCommandBuilder()
+      .setName('plan')
+      .setDescription('View/create CWL war plan')
+      .addIntegerOption(option =>
+          option.setName('day')
+              .setDescription('CWL war day (1-7)')
+              .setRequired(false)
+              .setMinValue(1)
+              .setMaxValue(7)
+      ),
   
   async execute(interaction) {
     try {

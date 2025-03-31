@@ -1,7 +1,7 @@
 // src/commands/admin/setup.js
 const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { system: log } = require('../../utils/logger');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 
 module.exports = {
   data: new SlashCommandBuilder()

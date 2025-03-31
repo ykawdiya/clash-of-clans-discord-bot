@@ -1,14 +1,13 @@
 // src/commands/cwl/medals.js
-const { EmbedBuilder } = require('discord.js');
-const Clan = require('../../models/Clan');
+const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
+const { Clan, User } = require('../../models');
 const CWLTracking = require('../../models/CWLTracking');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
-  data: {
-    name: 'medals',
-    description: 'View CWL medal calculator'
-  },
+  data: new SlashCommandBuilder()
+      .setName('medals')
+      .setDescription('View CWL medal calculator'),
   
   async execute(interaction) {
     try {

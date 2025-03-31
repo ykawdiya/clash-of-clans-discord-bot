@@ -1,15 +1,15 @@
 // src/commands/war/stats.js
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
 const warTrackingService = require('../../services/warTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const WarTracking = require('../../models/WarTracking');
 const { command: log } = require('../../utils/logger');
 
+
 module.exports = {
-  data: {
-    name: 'stats',
-    description: 'Show attack statistics'
-  },
+  data: new SlashCommandBuilder()
+      .setName('stats')
+      .setDescription('Show attack statistics'),
   
   async execute(interaction) {
     try {

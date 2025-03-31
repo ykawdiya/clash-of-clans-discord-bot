@@ -1,16 +1,15 @@
 // src/commands/cwl/status.js
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
 const cwlTrackingService = require('../../services/cwlTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');;
 const CWLTracking = require('../../models/CWLTracking');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
-  data: {
-    name: 'status',
-    description: 'Show current CWL status'
-  },
-  
+  data: new SlashCommandBuilder()
+      .setName('status')
+      .setDescription('Show current CWL status'),
+
   async execute(interaction) {
     try {
       // Get clan for this guild

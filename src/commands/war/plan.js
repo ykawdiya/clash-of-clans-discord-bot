@@ -1,17 +1,16 @@
 // src/commands/war/plan.js
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
 const warTrackingService = require('../../services/warTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const WarTracking = require('../../models/WarTracking');
 const { userPermission } = require('../../utils/permissions');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
-  data: {
-    name: 'plan',
-    description: 'View or create war plan'
-  },
-  
+  data: new SlashCommandBuilder()
+      .setName('plan')
+      .setDescription('View or create war plan'),
+
   async execute(interaction) {
     try {
       // Check permissions

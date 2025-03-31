@@ -1,6 +1,6 @@
 // src/commands/clan.js
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
-const Clan = require('../models/Clan');
+const { Clan, User } = require('../models');
 const clashApiService = require('../services/clashApiService');
 const { userPermission } = require('../utils/permissions');
 const { command: log } = require('../utils/logger');

@@ -1,13 +1,13 @@
 // src/commands/war/map.js
 const warTrackingService = require('../../services/warTrackingService');
-const Clan = require('../../models/Clan');
+const { Clan, User } = require('../../models');
 const { command: log } = require('../../utils/logger');
+const {SlashCommandBuilder} = require("discord.js");
 
 module.exports = {
-  data: {
-    name: 'map',
-    description: 'Show the war map with calls'
-  },
+  data: new SlashCommandBuilder()
+      .setName('map')
+      .setDescription('Show the war map with calls'),
   
   async execute(interaction) {
     try {

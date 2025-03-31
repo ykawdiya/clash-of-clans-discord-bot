@@ -60,13 +60,9 @@ async function deployCommands() {
           continue;
         }
 
-        // Check if data has toJSON method
-        if (typeof command.data.toJSON === 'function') {
-          // Add to global commands
-          globalCommands.push(command.data.toJSON());
-          log.info(`Added command: ${command.data.name}`);
-        } else {
-          log.warn(`Command file ${path.basename(filePath)} doesn't have a data.toJSON function, skipping`);
+        // Look for and fix any issues with command.data.toJSON validation
+        if (typeof command.data.toJSON !== 'function') {
+          log.warn(`Command ${command.data.name || 'unknown'} doesn't have a valid data.toJSON function, skipping`);
         }
       } catch (error) {
         log.error(`Error loading command file ${filePath}:`, { error: error.message });
