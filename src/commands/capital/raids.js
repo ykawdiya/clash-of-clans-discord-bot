@@ -236,9 +236,13 @@ async function showParticipation(interaction, clanData, raidData) {
 
         // Fix for the API inconsistency where attacks are 0 despite earning gold
         if (attackCount === 0 && member.capitalResourcesLooted > 0) {
-            // Estimate attack count based on gold earned (rough approximation)
-            const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / 6000);
-            attackCount = Math.max(1, estimatedAttacks);
+            // More accurate estimation based on typical gold per attack
+            // Average gold per attack varies but typically 1000-2500 per attack
+            const goldPerAttack = 2000; // Reasonable average
+            const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / goldPerAttack);
+
+            // Cap at 6 attacks maximum per player (Raid Weekend limit)
+            attackCount = Math.min(6, Math.max(1, estimatedAttacks));
         }
 
         if (!attackGroups[attackCount]) {
@@ -339,8 +343,12 @@ async function showLeaderboard(interaction, clanData, raidData) {
 
             // If member earned gold but shows 0 attacks, estimate attacks
             if ((member.attackCount === 0 || !member.attackCount) && member.capitalResourcesLooted > 0) {
-                const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / 6000);
-                return sum + Math.max(1, estimatedAttacks);
+                // Use a more accurate gold-per-attack estimate
+                const goldPerAttack = 2000; // Reasonable average
+                const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / goldPerAttack);
+
+                // Cap at maximum 6 attacks per player (Raid Weekend limit)
+                return sum + Math.min(6, Math.max(1, estimatedAttacks));
             }
 
             return sum;
@@ -370,8 +378,12 @@ async function showLeaderboard(interaction, clanData, raidData) {
         // Fix for attack count being 0 despite earning gold
         let attacks = member.attackCount || 0;
         if (attacks === 0 && gold > 0) {
-            // Estimate attacks based on gold (rough approximation)
-            attacks = Math.max(1, Math.ceil(gold / 6000));
+            // Use a more accurate estimation based on typical gold per attack
+            const goldPerAttack = 2000; // Typical average
+            const estimatedAttacks = Math.ceil(gold / goldPerAttack);
+
+            // Cap at maximum 6 attacks per player (Raid Weekend limit)
+            attacks = Math.min(6, Math.max(1, estimatedAttacks));
         }
 
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
@@ -394,8 +406,36 @@ async function showLeaderboard(interaction, clanData, raidData) {
     // Add statistics
     if (sortedMembers.length > 0) {
         const avgGold = Math.round(totalGold / sortedMembers.length);
-        const avgAttacks = totalAttacks > 0 && sortedMembers.length > 0 ?
-            (totalAttacks / sortedMembers.length).toFixed(1) : '0.0';
+
+        // Calculate the average attacks correctly
+        let avgAttacks = 0;
+        if (sortedMembers.length > 0) {
+            // Recalculate total attacks for accuracy if needed
+            if (totalAttacks === 0 && totalGold > 0) {
+                const estimatedTotalAttacks = sortedMembers.reduce((sum, member) => {
+                    if (!member) return sum;
+
+                    // Use reported attack count if available
+                    if (member.attackCount && member.attackCount > 0) {
+                        return sum + member.attackCount;
+                    }
+
+                    // Estimate attacks if gold is earned but attacks show as 0
+                    if (member.capitalResourcesLooted > 0) {
+                        const goldPerAttack = 2000;
+                        const memberAttacks = Math.min(6, Math.max(1,
+                            Math.ceil(member.capitalResourcesLooted / goldPerAttack)));
+                        return sum + memberAttacks;
+                    }
+
+                    return sum;
+                }, 0);
+
+                totalAttacks = estimatedTotalAttacks;
+            }
+
+            avgAttacks = (totalAttacks / sortedMembers.length).toFixed(1);
+        }
 
         embed.addFields({
             name: 'Statistics',
