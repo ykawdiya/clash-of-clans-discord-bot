@@ -1,6 +1,7 @@
-// src/commands/admin/clanfamily.js
+// src/commands/admin/clanfamily.js - Enhanced version
 const { SlashCommandBuilder, EmbedBuilder, PermissionFlagsBits } = require('discord.js');
 const clanFamilyService = require('../../services/clanFamilyService');
+const roleSyncService = require('../../services/roleSyncService');
 const clashApiService = require('../../services/clashApiService');
 const { validateTag } = require('../../utils/validators');
 const ErrorHandler = require('../../utils/errorHandler');
@@ -20,7 +21,11 @@ module.exports = {
                 .addStringOption(option =>
                     option.setName('main_clan_tag')
                         .setDescription('Main clan tag (e.g. #ABC123)')
-                        .setRequired(true)))
+                        .setRequired(true))
+                .addRoleOption(option =>
+                    option.setName('main_clan_role')
+                        .setDescription('Discord role for the main clan')
+                        .setRequired(false)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('add')
@@ -39,7 +44,11 @@ module.exports = {
                             { name: 'Academy', value: 'academy' },
                             { name: 'Casual', value: 'casual' },
                             { name: 'Other', value: 'other' }
-                        )))
+                        ))
+                .addRoleOption(option =>
+                    option.setName('clan_role')
+                        .setDescription('Discord role for this clan')
+                        .setRequired(false)))
         .addSubcommand(subcommand =>
             subcommand
                 .setName('remove')
@@ -110,6 +119,7 @@ module.exports = {
         // Get options
         const familyName = interaction.options.getString('name');
         let mainClanTag = interaction.options.getString('main_clan_tag');
+        const mainClanRole = interaction.options.getRole('main_clan_role');
 
         // Validate clan tag
         const validation = validateTag(mainClanTag);
@@ -126,8 +136,9 @@ module.exports = {
         }
 
         // Verify clan exists
+        let clanData;
         try {
-            await clashApiService.getClan(mainClanTag);
+            clanData = await clashApiService.getClan(mainClanTag);
         } catch (error) {
             if (error.message.includes('404')) {
                 return interaction.editReply('❌ Clan not found. Please check the tag and try again.');
@@ -143,16 +154,57 @@ module.exports = {
                 mainClanTag
             );
 
+            // Create success embed
             const embed = new EmbedBuilder()
                 .setColor('#2ecc71')
                 .setTitle('✅ Clan Family Created')
                 .setDescription(`Successfully created the **${familyName}** clan family!`)
                 .addFields(
                     { name: 'Family Name', value: familyName, inline: true },
-                    { name: 'Main Clan', value: result.mainClan.name, inline: true },
-                    { name: 'Setup Complete', value: 'You can now add more clans to your family using `/clanfamily add`' }
+                    { name: 'Main Clan', value: result.mainClan.name, inline: true }
                 )
                 .setFooter({ text: `Family ID: ${result.familyId}` });
+
+            // If a role was provided, set up the clan role mapping
+            if (mainClanRole) {
+                // Check role hierarchy first
+                const bot = interaction.guild.members.me;
+                const botRole = bot.roles.highest;
+
+                if (botRole.position <= mainClanRole.position) {
+                    embed.addFields({
+                        name: '⚠️ Role Warning',
+                        value: 'The clan role is positioned higher than my highest role. Please move this role below my role in the server settings for role assignment to work.'
+                    });
+                } else {
+                    try {
+                        // Associate the role with the clan
+                        await roleSyncService.setClanRole(
+                            interaction.guild.id,
+                            mainClanTag,
+                            mainClanRole.id
+                        );
+
+                        embed.addFields({
+                            name: 'Clan Role',
+                            value: `<@&${mainClanRole.id}> will be assigned to members of ${result.mainClan.name}`,
+                            inline: true
+                        });
+                    } catch (error) {
+                        console.error('Error setting clan role:', error);
+                        embed.addFields({
+                            name: '⚠️ Role Error',
+                            value: `Failed to set up the clan role: ${error.message}`
+                        });
+                    }
+                }
+            }
+
+            embed.addFields({
+                name: 'Next Steps',
+                value: 'You can now:\n1. Add more clans with `/clanfamily add`\n2. Set up position roles with `/rolesync setup`' +
+                    (mainClanRole ? '' : '\n3. Set up clan roles with `/rolesync clan`')
+            });
 
             return interaction.editReply({ embeds: [embed] });
         } catch (error) {
@@ -165,6 +217,7 @@ module.exports = {
         // Get options
         let clanTag = interaction.options.getString('clan_tag');
         const role = interaction.options.getString('role');
+        const clanRole = interaction.options.getRole('clan_role');
 
         // Validate clan tag
         const validation = validateTag(clanTag);
@@ -199,6 +252,7 @@ module.exports = {
                 role
             );
 
+            // Create success embed
             const embed = new EmbedBuilder()
                 .setColor('#2ecc71')
                 .setTitle('✅ Clan Added to Family')
@@ -214,6 +268,46 @@ module.exports = {
                 embed.setThumbnail(clanData.badgeUrls.medium);
             }
 
+            // If a role was provided, set up the clan role mapping
+            if (clanRole) {
+                // Check role hierarchy first
+                const bot = interaction.guild.members.me;
+                const botRole = bot.roles.highest;
+
+                if (botRole.position <= clanRole.position) {
+                    embed.addFields({
+                        name: '⚠️ Role Warning',
+                        value: 'The clan role is positioned higher than my highest role. Please move this role below my role in the server settings for role assignment to work.'
+                    });
+                } else {
+                    try {
+                        // Associate the role with the clan
+                        await roleSyncService.setClanRole(
+                            interaction.guild.id,
+                            clanTag,
+                            clanRole.id
+                        );
+
+                        embed.addFields({
+                            name: 'Clan Role',
+                            value: `<@&${clanRole.id}> will be assigned to members of ${clanData.name}`,
+                            inline: true
+                        });
+                    } catch (error) {
+                        console.error('Error setting clan role:', error);
+                        embed.addFields({
+                            name: '⚠️ Role Error',
+                            value: `Failed to set up the clan role: ${error.message}`
+                        });
+                    }
+                }
+            } else {
+                embed.addFields({
+                    name: 'Role Assignment',
+                    value: 'To assign a Discord role to this clan, use `/rolesync clan`'
+                });
+            }
+
             return interaction.editReply({ embeds: [embed] });
         } catch (error) {
             console.error('Failed to add clan to family:', error);
@@ -221,6 +315,7 @@ module.exports = {
         }
     },
 
+    // [Other methods remain the same as in the original implementation]
     async removeClanFromFamily(interaction) {
         // Get options
         let clanTag = interaction.options.getString('clan_tag');
