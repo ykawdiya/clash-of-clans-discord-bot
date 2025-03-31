@@ -104,6 +104,14 @@ loadEvents(client);
 client.once('ready', async () => {
     console.log(`Bot is online! Logged in as ${client.user.tag}`);
 
+    // Start role synchronization service
+    try {
+        const roleSyncService = require('./src/services/roleSyncService');
+        log.info('Initializing role synchronization service');
+    } catch (error) {
+        console.error('Failed to initialize role synchronization service:', error);
+    }
+
     // Clean up any orphaned commands first
     try {
         const { cleanupOrphanedCommands } = require('./src/handlers/commandHandler');
