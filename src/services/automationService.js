@@ -14,7 +14,6 @@ class AutomationService {
         this.channelMappings = {
             war: ['war-log', 'war-announcements', 'warAnnouncements'],
             general: ['town-hall', 'clan-announcements', 'general'],
-            raid: ['capital-raids', 'raid-weekend', 'raidWeekend'],
             clanGames: ['clan-games', 'clanGames'],
             stats: ['stats', 'player-stats', 'tracking']
         };

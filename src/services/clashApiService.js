@@ -388,31 +388,6 @@ class ClashApiService {
         }
     }
 
-    async getCapitalRaidSeasons(clanTag, params = {}) {
-        try {
-            const cacheKey = `capitalRaidSeasons:${clanTag}:${JSON.stringify(params)}`;
-            const cachedData = cacheService.get(cacheKey);
-            if (cachedData) {
-                log.debug(`Cache hit for capital raid seasons of clan ${clanTag}`);
-                return cachedData;
-            }
-
-            log.info(`Getting capital raid seasons for clan: ${clanTag}`);
-            const formattedTag = this.formatTag(clanTag);
-            const data = await this.executeRequest(`/clans/${formattedTag}/capitalraidseasons`, {
-                params,
-                timeout: 2000
-            });
-
-            // Cache for 10 minutes
-            cacheService.set(cacheKey, data, 600);
-            return data;
-        } catch (error) {
-            log.error(`Error getting capital raid seasons for ${clanTag}`, { error: error.message });
-            throw error;
-        }
-    }
-
     // Test the API connection
     async testProxyConnection() {
         try {

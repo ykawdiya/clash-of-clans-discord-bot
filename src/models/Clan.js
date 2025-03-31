@@ -40,10 +40,6 @@ const clanSchema = new mongoose.Schema({
                 type: String,
                 default: null
             },
-            raidWeekend: {
-                type: String,
-                default: null
-            },
             clanGames: {
                 type: String,
                 default: null
@@ -121,10 +117,6 @@ const clanSchema = new mongoose.Schema({
                 default: true
             },
             clanGamesStart: {
-                type: Boolean,
-                default: true
-            },
-            raidWeekendStart: {
                 type: Boolean,
                 default: true
             }

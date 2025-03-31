@@ -29,11 +29,6 @@ const userSchema = new mongoose.Schema({
             type: Boolean,
             default: true
         },
-        raidWeekendReminders: {
-            type: Boolean,
-            default: true
-        },
-        // Add these new preferences
         inactivityReminders: {
             type: Boolean,
             default: true
