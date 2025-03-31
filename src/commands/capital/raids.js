@@ -46,13 +46,28 @@ module.exports = {
             }
 
             // Get clan info
-            const clanData = await clashApiService.getClan(linkedClan.clanTag);
+            let clanData;
+            try {
+                clanData = await clashApiService.getClan(linkedClan.clanTag);
+                if (!clanData) {
+                    return interaction.editReply("Could not retrieve clan data. Please try again later.");
+                }
+            } catch (error) {
+                console.error('Error fetching clan data:', error);
+                return interaction.editReply("Could not retrieve clan data. Please verify clan tag and try again later.");
+            }
 
             // Get capital raid data
-            const capitalRaidData = await clashApiService.getCapitalRaidSeasons(linkedClan.clanTag, { limit: 1 });
+            let capitalRaidData;
+            try {
+                capitalRaidData = await clashApiService.getCapitalRaidSeasons(linkedClan.clanTag, { limit: 1 });
 
-            if (!capitalRaidData || !capitalRaidData.items || capitalRaidData.items.length === 0) {
-                return interaction.editReply("Could not retrieve Raid Weekend data. The clan may not have participated in any Raid Weekends yet.");
+                if (!capitalRaidData || !capitalRaidData.items || capitalRaidData.items.length === 0) {
+                    return interaction.editReply("Could not retrieve Raid Weekend data. The clan may not have participated in any Raid Weekends yet.");
+                }
+            } catch (error) {
+                console.error('Error fetching capital raid data:', error);
+                return interaction.editReply("Error retrieving Raid Weekend data. This could be due to API limitations or because the clan hasn't participated in Raid Weekends yet.");
             }
 
             // Most recent raid season
@@ -82,6 +97,10 @@ module.exports = {
  * Show current raid weekend status
  */
 async function showRaidStatus(interaction, clanData, raidData) {
+    if (!raidData) {
+        return interaction.editReply('No raid data available.');
+    }
+
     // Calculate if raid is ongoing
     const isRaidWeekend = isRaidActive(raidData);
 
@@ -97,7 +116,7 @@ async function showRaidStatus(interaction, clanData, raidData) {
     const embed = new EmbedBuilder()
         .setColor(isRaidWeekend ? '#f1c40f' : '#3498db')
         .setTitle(`${clanData.name} - Raid Weekend ${isRaidWeekend ? '(Active)' : '(Last Completed)'}`)
-        .setThumbnail(clanData.badgeUrls?.medium)
+        .setThumbnail(clanData.badgeUrls?.medium || null)
         .addFields(
             { name: 'Capital Hall Level', value: `Level ${clanData.clanCapital?.capitalHallLevel || '?'}`, inline: true },
             { name: 'Districts Destroyed', value: totalDistricts.toString(), inline: true },
@@ -115,19 +134,36 @@ async function showRaidStatus(interaction, clanData, raidData) {
         const endDate = new Date(startDate);
         endDate.setDate(endDate.getDate() + 2); // Raid weekends last 2 days
 
+        const startDateString = startDate.toLocaleDateString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
+        const endDateString = endDate.toLocaleDateString(undefined, {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+
         embed.addFields({
             name: 'Raid Weekend Period',
-            value: `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+            value: `${startDateString} - ${endDateString}`
         });
     }
 
     // Add defensive districts if available
-    if (raidData.defenseSummary) {
-        const defenseSummary = raidData.defenseSummary.map(district =>
-            `${district.name}: ${district.destructionPercent}% destroyed (${district.attackCount} attacks)`
-        ).join('\n');
+    if (raidData.defenseSummary && raidData.defenseSummary.length > 0) {
+        const defenseSummary = raidData.defenseSummary.map(district => {
+            if (!district) return null;
+            return `${district.name || 'Unknown'}: ${district.destructionPercent || 0}% destroyed (${district.attackCount || 0} attacks)`;
+        }).filter(Boolean).join('\n');
 
-        embed.addFields({ name: 'Defensive Summary', value: defenseSummary || 'No data available' });
+        if (defenseSummary) {
+            embed.addFields({ name: 'Defensive Summary', value: defenseSummary });
+        }
     }
 
     return interaction.editReply({ embeds: [embed] });
@@ -137,17 +173,18 @@ async function showRaidStatus(interaction, clanData, raidData) {
  * Show member participation in raid weekend
  */
 async function showParticipation(interaction, clanData, raidData) {
-    if (!raidData.members || raidData.members.length === 0) {
+    if (!raidData || !raidData.members || raidData.members.length === 0) {
         return interaction.editReply('No participation data available for the last Raid Weekend.');
     }
 
     // Get clan member count
     const clanSize = clanData.members || 0;
-    const participationRate = ((raidData.members.length / clanSize) * 100).toFixed(1);
+    const participationRate = clanSize > 0 ? ((raidData.members.length / clanSize) * 100).toFixed(1) : '0.0';
 
     // Group members by attack count
     const attackGroups = {};
     for (const member of raidData.members) {
+        if (!member) continue;
         const attackCount = member.attackCount || 0;
         if (!attackGroups[attackCount]) {
             attackGroups[attackCount] = [];
@@ -160,30 +197,44 @@ async function showParticipation(interaction, clanData, raidData) {
         .setColor('#3498db')
         .setTitle(`${clanData.name} - Raid Weekend Participation`)
         .setDescription(`**${raidData.members.length}/${clanSize} members participated (${participationRate}%)**`)
-        .setThumbnail(clanData.badgeUrls?.medium)
+        .setThumbnail(clanData.badgeUrls?.medium || null)
         .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
         .setTimestamp();
 
     // Add fields for each attack group (highest to lowest)
     const attackCounts = Object.keys(attackGroups).sort((a, b) => b - a);
-    for (const count of attackCounts) {
-        const members = attackGroups[count];
-
-        // Skip if too many members to fit in one field
-        if (members.length > 30) {
-            embed.addFields({
-                name: `Used ${count} attacks (${members.length} members)`,
-                value: 'Too many members to display individually'
-            });
-            continue;
-        }
-
-        // Create member list
-        const memberList = members.map(m => m.name).join(', ');
+    if (attackCounts.length === 0) {
         embed.addFields({
-            name: `Used ${count} attack${count !== '1' ? 's' : ''} (${members.length} member${members.length !== 1 ? 's' : ''})`,
-            value: memberList
+            name: 'No Participation Data',
+            value: 'No members have participated in the raid weekend yet.'
         });
+    } else {
+        for (const count of attackCounts) {
+            const members = attackGroups[count];
+            if (!members || members.length === 0) continue;
+
+            // Skip if too many members to fit in one field
+            if (members.length > 30) {
+                embed.addFields({
+                    name: `Used ${count} attacks (${members.length} members)`,
+                    value: 'Too many members to display individually'
+                });
+                continue;
+            }
+
+            // Create member list, filtering out any undefined members
+            const memberList = members
+                .filter(m => m && m.name)
+                .map(m => m.name)
+                .join(', ');
+
+            if (memberList) {
+                embed.addFields({
+                    name: `Used ${count} attack${count !== '1' ? 's' : ''} (${members.length} member${members.length !== 1 ? 's' : ''})`,
+                    value: memberList
+                });
+            }
+        }
     }
 
     // Calculate members who didn't participate
@@ -202,12 +253,15 @@ async function showParticipation(interaction, clanData, raidData) {
  * Show contribution leaderboard for raid weekend
  */
 async function showLeaderboard(interaction, clanData, raidData) {
-    if (!raidData.members || raidData.members.length === 0) {
+    if (!raidData || !raidData.members || raidData.members.length === 0) {
         return interaction.editReply('No contribution data available for the last Raid Weekend.');
     }
 
+    // Filter out any undefined members and sort by capital gold earned
+    const validMembers = raidData.members.filter(member => member && typeof member === 'object');
+
     // Sort members by capital gold earned
-    const sortedMembers = [...raidData.members].sort((a, b) => {
+    const sortedMembers = [...validMembers].sort((a, b) => {
         return (b.capitalResourcesLooted || 0) - (a.capitalResourcesLooted || 0);
     });
 
@@ -220,7 +274,7 @@ async function showLeaderboard(interaction, clanData, raidData) {
         .setColor('#f1c40f')
         .setTitle(`${clanData.name} - Capital Gold Leaderboard`)
         .setDescription(`Total Capital Gold: **${totalGold}**\nTotal Attacks: **${totalAttacks}**`)
-        .setThumbnail(clanData.badgeUrls?.medium)
+        .setThumbnail(clanData.badgeUrls?.medium || null)
         .setFooter({ text: 'Clash of Clans Bot', iconURL: interaction.client.user.displayAvatarURL() })
         .setTimestamp();
 
@@ -230,6 +284,8 @@ async function showLeaderboard(interaction, clanData, raidData) {
 
     for (let i = 0; i < topCount; i++) {
         const member = sortedMembers[i];
+        if (!member || !member.name) continue;
+
         const gold = member.capitalResourcesLooted || 0;
         const attacks = member.attackCount || 0;
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
@@ -242,12 +298,18 @@ async function showLeaderboard(interaction, clanData, raidData) {
         leaderboardText += `... and ${sortedMembers.length - topCount} more members`;
     }
 
+    // If no valid leaderboard text was generated
+    if (!leaderboardText) {
+        leaderboardText = 'No member contribution data available.';
+    }
+
     embed.addFields({ name: 'Top Contributors', value: leaderboardText });
 
     // Add statistics
     if (sortedMembers.length > 0) {
         const avgGold = Math.round(totalGold / sortedMembers.length);
-        const avgAttacks = (totalAttacks / sortedMembers.length).toFixed(1);
+        const avgAttacks = totalAttacks > 0 && sortedMembers.length > 0 ?
+            (totalAttacks / sortedMembers.length).toFixed(1) : '0.0';
 
         embed.addFields({
             name: 'Statistics',
@@ -264,40 +326,29 @@ async function showLeaderboard(interaction, clanData, raidData) {
  * Check if a raid is currently active
  */
 function isRaidActive(raidData) {
-    if (!raidData.startTime) return false;
+    if (!raidData || !raidData.startTime) return false;
 
-    const startDate = new Date(raidData.startTime);
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 2); // Raid weekends last 2 days
+    try {
+        const startDate = new Date(raidData.startTime);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + 2); // Raid weekends last 2 days
 
-    const now = new Date();
-    return now >= startDate && now <= endDate;
+        const now = new Date();
+        return now >= startDate && now <= endDate;
+    } catch (error) {
+        console.error('Error checking if raid is active:', error);
+        return false;
+    }
 }
 
 /**
  * Calculate total capital gold earned in the raid
  */
 function calculateTotalCapitalGold(raidData) {
-    if (!raidData.members) return 0;
+    if (!raidData || !raidData.members || !Array.isArray(raidData.members)) return 0;
 
     return raidData.members.reduce((total, member) => {
+        if (!member) return total;
         return total + (member.capitalResourcesLooted || 0);
     }, 0);
 }
-
-// Add this to your clashApiService.js file:
-/*
-async getCapitalRaidSeasons(clanTag, params = {}) {
-    try {
-        const formattedTag = this.formatTag(clanTag);
-        console.log(`Getting capital raid seasons for clan: ${formattedTag}`);
-        return await this.executeRequest(`/clans/${formattedTag}/capitalraidseasons`, {
-            params,
-            timeout: 2000
-        });
-    } catch (error) {
-        console.error(`Error getting capital raid seasons:`, error.message);
-        throw error;
-    }
-}
-*/
