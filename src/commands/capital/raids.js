@@ -239,10 +239,10 @@ async function showParticipation(interaction, clanData, raidData) {
             // More accurate estimation based on typical gold per attack
             // Average gold per attack varies but typically 1000-2500 per attack
             const goldPerAttack = 2000; // Reasonable average
-            const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / goldPerAttack);
 
-            // Cap at 6 attacks maximum per player (Raid Weekend limit)
-            attackCount = Math.min(6, Math.max(1, estimatedAttacks));
+            // Estimate attacks needed to earn this gold
+            // Note: We don't hard cap this since max attacks varies by player
+            attackCount = Math.max(1, Math.ceil(member.capitalResourcesLooted / goldPerAttack));
         }
 
         if (!attackGroups[attackCount]) {
@@ -345,10 +345,9 @@ async function showLeaderboard(interaction, clanData, raidData) {
             if ((member.attackCount === 0 || !member.attackCount) && member.capitalResourcesLooted > 0) {
                 // Use a more accurate gold-per-attack estimate
                 const goldPerAttack = 2000; // Reasonable average
-                const estimatedAttacks = Math.ceil(member.capitalResourcesLooted / goldPerAttack);
 
-                // Cap at maximum 6 attacks per player (Raid Weekend limit)
-                return sum + Math.min(6, Math.max(1, estimatedAttacks));
+                // Calculate estimated attacks (without hard cap since max varies by player)
+                return sum + Math.max(1, Math.ceil(member.capitalResourcesLooted / goldPerAttack));
             }
 
             return sum;
@@ -380,10 +379,9 @@ async function showLeaderboard(interaction, clanData, raidData) {
         if (attacks === 0 && gold > 0) {
             // Use a more accurate estimation based on typical gold per attack
             const goldPerAttack = 2000; // Typical average
-            const estimatedAttacks = Math.ceil(gold / goldPerAttack);
 
-            // Cap at maximum 6 attacks per player (Raid Weekend limit)
-            attacks = Math.min(6, Math.max(1, estimatedAttacks));
+            // Don't apply a maximum cap since the max attacks varies by player
+            attacks = Math.max(1, Math.ceil(gold / goldPerAttack));
         }
 
         const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`;
@@ -423,8 +421,9 @@ async function showLeaderboard(interaction, clanData, raidData) {
                     // Estimate attacks if gold is earned but attacks show as 0
                     if (member.capitalResourcesLooted > 0) {
                         const goldPerAttack = 2000;
-                        const memberAttacks = Math.min(6, Math.max(1,
-                            Math.ceil(member.capitalResourcesLooted / goldPerAttack)));
+                        // No fixed maximum since max attacks varies by player
+                        const memberAttacks = Math.max(1,
+                            Math.ceil(member.capitalResourcesLooted / goldPerAttack));
                         return sum + memberAttacks;
                     }
 
