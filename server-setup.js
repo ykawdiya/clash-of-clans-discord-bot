@@ -838,8 +838,8 @@ async function createChannels(guild, createdRoles) {
             const newCategory = await guild.channels.create({
                 name: category.name,
                 type: ChannelType.GuildCategory,
-                permissionOverwrites: overwrites,
-                topic: category.description || null
+                permissionOverwrites: overwrites
+                // Removed the topic property for categories
             });
 
             // Create channels in this category
