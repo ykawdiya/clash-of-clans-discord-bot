@@ -45,7 +45,7 @@ An advanced Discord bot for Clash of Clans clan management with powerful automat
 
 3. Create a `.env` file using the `.env.sample` as a template
    ```bash
-   cp .env.sample .env
+   cp .env.old.sample .env
    ```
 
 4. Edit the `.env` file with your configuration details:

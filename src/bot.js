@@ -46,9 +46,9 @@ class ClashBot {
         log.warn('API connection test failed. Services may not function correctly.');
 
         if (process.env.PROXY_HOST) {
-          log.warn('Please check your proxy configuration in .env file');
+          log.warn('Please check your proxy configuration in .env.old file');
         } else {
-          log.warn('Consider configuring a proxy in .env file for more reliable API access');
+          log.warn('Consider configuring a proxy in .env.old file for more reliable API access');
         }
       } else {
         log.info('API connection test successful');

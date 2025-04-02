@@ -1,0 +1,3 @@
+{"context":"api","level":"info","message":"Initializing Clash of Clans API service","service":"coc-discord-bot","timestamp":"2025-03-30 19:43:32"}
+{"context":"api","level":"info","message":"Proxy configuration is complete","service":"coc-discord-bot","timestamp":"2025-03-30 19:43:32"}
+{"context":"api","level":"info","message":"Loaded 1 API key(s)","service":"coc-discord-bot","timestamp":"2025-03-30 19:43:32"}

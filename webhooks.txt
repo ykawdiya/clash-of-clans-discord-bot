@@ -1,0 +1,12 @@
+📢 WELCOME & INFO - announcements: https://discord.com/api/webhooks/1356275065460883497/0epUBIt2pL59bVMYXNYW1XSrS29eZ351WKobLOGXtNdzemCPv-iCyIL81lwspsiz9NKV
+🎮 CLAN EVENTS - clan-games: https://discord.com/api/webhooks/1356275168292503813/24DU3VnNu8Zw5MCJIT_DR1Xl9dc5O7SVPOJ4X8HRjqUmilt0Pmm1l9fCQiYCB_zX9Yx3
+🎮 CLAN EVENTS - capital-raids: https://discord.com/api/webhooks/1356275175124897932/R23M_pOJcoEnSnN-wHDfqf0v3SgumhBe_x0_725ecYftLc5p05-i7V2XkpMYRbESkksC
+🎮 CLAN EVENTS - achievements: https://discord.com/api/webhooks/1356275184503623721/vXcykjyeIIo63IlZvwPHovoTXo-MhdWgyd-NWi2_jK9GkQw-FBC1TEgjCbyOkcjivN1s
+🏆 Chatterbox [#2RUVGR2QQ] - announcements: https://discord.com/api/webhooks/1356275195807269006/-0tvy6Sbprtn8a-_ZNvye_U_iaFSq3sbgKSbrsPuHuvdVBGqcoVQS9GHlIQZsbhfvoGr
+🏆 Chatterbox [#2RUVGR2QQ] - war-status: https://discord.com/api/webhooks/1356275200479592488/z52TJ3MP1s-zB3xeIwUhcdND4rAEXawTuxgxxWRQxTmlTG9n38zB6iMjP7FRdTYRyoQ7
+📢 WELCOME & INFO - announcements: https://discord.com/api/webhooks/1356278238430761063/rMw5hFdvUYLpsP7kIRo-FCvJ89ZZQAWV1hmPFj_N3AOn7XwS95e9nQfgE6prMXKr8JxO
+🎮 CLAN EVENTS - clan-games: https://discord.com/api/webhooks/1356278313315729581/iPQ5-WZ3BE4imClqeG_st6d8Pxx9bWFrth1fAUtyEeFsdh_qxPaFP5NOc4SRfgkX2HXq
+🎮 CLAN EVENTS - capital-raids: https://discord.com/api/webhooks/1356278320215494776/3fCthT0AarZjkXnZVNAiEUcns1S_dobppBpHs9VGjhnCn9ZfM-wIvqpxwg4inwZRFxFC
+🎮 CLAN EVENTS - achievements: https://discord.com/api/webhooks/1356278324879560705/EbJlezUAt61VgN5mPLi4QYfVF8u6oVJTKnY5wHeRUxdX4sKqXEio-0DRKIRtgXTLYVg7
+🏆 Chatterbox [#2RUVGR2QQ] - announcements: https://discord.com/api/webhooks/1356278369997557831/08cSpSu4PyUdJEzsLohobFTQr3TRk8-JGYKfil_tA-1pq45gV7QdPw0HxVo6N42EWg9L
+🏆 Chatterbox [#2RUVGR2QQ] - war-status: https://discord.com/api/webhooks/1356278374414422047/-n9iDX8ZfxXzQki06PjorDQNOAfbvErbz16ngslxLM468zk0LQrJcqHSe2jgFVGSe4-M
