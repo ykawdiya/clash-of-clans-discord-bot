@@ -65,4 +65,4 @@ class ClashBot {
   // [Rest of your methods remain the same]
 }
 
-module.exports = new ClashBot();
+module.exports = ClashBot;
