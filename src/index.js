@@ -1,4 +1,4 @@
-// src/index.js - Complete rewrite to work with existing bot structure
+// src/index.js - Optimized for Railway with robust error handling
 require('dotenv').config();
 const { system: log } = require('./utils/logger');
 const mongoose = require('mongoose');
@@ -139,7 +139,7 @@ async function initializeBot() {
     // Memory check after basic initialization
     logMemoryUsage();
 
-    // Step 5: Start tracking services one by one
+    // Step 5: Start tracking services one by one with better error handling
     try {
       // Test API connection
       log.info('Testing API connection before starting services...');
@@ -147,46 +147,52 @@ async function initializeBot() {
       const apiConnectionSuccess = await clashApiService.testConnection();
 
       if (!apiConnectionSuccess) {
-        log.warn('API connection test failed. Services may not function correctly.');
-
-        if (process.env.PROXY_HOST) {
-          log.warn('Please check your proxy configuration in .env file');
-        } else {
-          log.warn('Consider configuring a proxy in .env file for more reliable API access');
-        }
+        log.warn('API connection test failed. Proceeding with limited functionality.');
       } else {
         log.info('API connection test successful');
       }
 
-      // Start War tracking service with reduced cache
-      log.info('Starting War tracking service...');
-      const warTrackingService = require('./services/warTrackingService');
-      await warTrackingService.startWarMonitoring();
-      log.info('War tracking service started');
-      logMemoryUsage();
+      // Start with essential functions and add each service with individual try/catch
+      try {
+        log.info('Starting War tracking service...');
+        const warTrackingService = require('./services/warTrackingService');
+        await warTrackingService.startWarMonitoring();
+        log.info('War tracking service started');
+        logMemoryUsage();
+      } catch (warError) {
+        log.error('Failed to start War tracking service:', { error: warError.message });
+        // Continue with other services
+      }
 
-      // Brief pause to allow stabilization
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Brief pause
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Start CWL tracking service
-      log.info('Starting CWL tracking service...');
-      const cwlTrackingService = require('./services/cwlTrackingService');
-      await cwlTrackingService.startCWLMonitoring();
-      log.info('CWL tracking service started');
-      logMemoryUsage();
+      try {
+        log.info('Starting CWL tracking service...');
+        const cwlTrackingService = require('./services/cwlTrackingService');
+        await cwlTrackingService.startCWLMonitoring();
+        log.info('CWL tracking service started');
+        logMemoryUsage();
+      } catch (cwlError) {
+        log.error('Failed to start CWL tracking service:', { error: cwlError.message });
+        // Continue with other services
+      }
 
-      // Brief pause to allow stabilization
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Brief pause
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
-      // Start Capital tracking service
-      log.info('Starting Capital tracking service...');
-      const capitalTrackingService = require('./services/capitalTrackingService');
-      await capitalTrackingService.startCapitalMonitoring();
-      log.info('Capital tracking service started');
+      try {
+        log.info('Starting Capital tracking service...');
+        const capitalTrackingService = require('./services/capitalTrackingService');
+        await capitalTrackingService.startCapitalMonitoring();
+        log.info('Capital tracking service started');
+      } catch (capitalError) {
+        log.error('Failed to start Capital tracking service:', { error: capitalError.message });
+        // Continue anyway
+      }
     } catch (trackingError) {
-      log.error('Error starting tracking services:', { error: trackingError.message });
-      log.warn('Bot will continue running without some tracking services');
-      // Don't throw here - let the bot continue even if some services fail
+      log.error('Error in tracking services main block:', { error: trackingError.message });
+      log.warn('Bot will continue running with limited functionality');
     }
 
     log.info('Bot started successfully!');
