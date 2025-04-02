@@ -28,7 +28,8 @@
     "dotenv": "^16.0.3",
     "https-proxy-agent": "^7.0.2",
     "mongoose": "^7.0.3",
-    "winston": "^3.8.2"
+    "winston": "^3.8.2",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "devDependencies": {
     "eslint": "^8.36.0",
