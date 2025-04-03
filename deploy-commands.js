@@ -1,29 +1,30 @@
-// src/deploy-commands.js
+// src/deploy-commands.js (fixed)
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const { REST } = require('@discordjs/rest');
 const { Routes } = require('discord-api-types/v9');
-const { system: log } = require('./utils/logger');
+const { system: log } = require('./src/utils/logger');
 
 // Configuration
 const clientId = process.env.CLIENT_ID;
 const token = process.env.DISCORD_TOKEN;
 const guildId = process.env.GUILD_ID; // Optional: for guild-specific commands
 
-// Function to find all command files recursively with proper SlashCommandBuilder structure
-const getCommandFiles = (dir) => {
+// FIXED: Only process root command files, not subcommands
+const getCommandFiles = () => {
+  const dir = path.join(__dirname, 'src/commands');
   const files = [];
+
+  // Only get files in the root commands folder, not in subdirectories
   const items = fs.readdirSync(dir, { withFileTypes: true });
 
   for (const item of items) {
-    const itemPath = path.join(dir, item.name);
-    if (item.isDirectory()) {
-      files.push(...getCommandFiles(itemPath));
-    } else if (item.name.endsWith('.js')) {
-      files.push(itemPath);
+    if (!item.isDirectory() && item.name.endsWith('.js')) {
+      files.push(path.join(dir, item.name));
     }
   }
+
   return files;
 };
 
@@ -38,9 +39,8 @@ async function deployCommands() {
     const commands = [];
     const failedCommands = [];
 
-    // Find all root command files in the commands directory
-    const commandsDir = path.join(__dirname, 'commands');
-    const commandFiles = getCommandFiles(commandsDir);
+    // Find command files in the commands directory (root level only)
+    const commandFiles = getCommandFiles();
 
     log.info(`Found ${commandFiles.length} command files`);
 

@@ -1,4 +1,4 @@
-// src/commands/capital.js
+// src/commands/capital.js (fixed)
 const { SlashCommandBuilder } = require('discord.js');
 const capitalStatusCommand = require('./capital/status');
 const capitalRaidsCommand = require('./capital/raids');
@@ -77,7 +77,7 @@ module.exports = {
   async execute(interaction) {
     try {
       const subcommand = interaction.options.getSubcommand();
-      const group = interaction.options.getSubcommandGroup();
+      const group = interaction.options.getSubcommandGroup(false);
 
       if (!group && subcommand === 'status') {
         // Handle capital status command

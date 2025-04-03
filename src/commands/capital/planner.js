@@ -1,13 +1,11 @@
-// src/commands/capital/planner.js
+// src/commands/capital/planner.js (fixed)
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const capitalTrackingService = require('../../services/capitalTrackingService');
-const { Clan, User } = require('../../models');
-const { CapitalTracking } = require('../../models');
+const { Clan, User, CapitalTracking } = require('../../models');
 const { userPermission } = require('../../utils/permissions');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
-  // Use SlashCommandBuilder for subcommands that are directly registered
   data: new SlashCommandBuilder()
       .setName('planner')
       .setDescription('Plan Clan Capital upgrades')
@@ -28,7 +26,7 @@ module.exports = {
                           { name: 'Barbarian Camp', value: 'Barbarian Camp' },
                           { name: 'Wizard Valley', value: 'Wizard Valley' },
                           { name: 'Balloon Lagoon', value: 'Balloon Lagoon' },
-                          { name: "Builder's Workshop', value: 'Builder's Workshop" },
+                          { name: "Builder's Workshop", value: "Builder's Workshop" },
                           { name: 'Dragon Cliffs', value: 'Dragon Cliffs' },
                           { name: 'Golem Quarry', value: 'Golem Quarry' },
                           { name: 'Skeleton Park', value: 'Skeleton Park' }
