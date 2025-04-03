@@ -12,7 +12,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  
+
   // Player information
   playerTag: {
     type: String,
@@ -27,13 +27,13 @@ const userSchema = new mongoose.Schema({
     type: Number,
     required: true
   },
-  
+
   // Roles and permissions
   roles: {
     type: [String],
     default: []
   },
-  
+
   // Tracking statistics
   warStats: {
     attacksMade: { type: Number, default: 0 },
@@ -57,7 +57,7 @@ const userSchema = new mongoose.Schema({
     capitalGoldContributed: { type: Number, default: 0 },
     capitalGoldLooted: { type: Number, default: 0 }
   },
-  
+
   // Settings and preferences
   settings: {
     warReminders: { type: Boolean, default: true },
@@ -65,7 +65,7 @@ const userSchema = new mongoose.Schema({
     raidReminders: { type: Boolean, default: true },
     receiveUpdates: { type: Boolean, default: true }
   },
-  
+
   // Metadata
   createdAt: {
     type: Date,

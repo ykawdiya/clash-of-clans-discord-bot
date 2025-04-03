@@ -5,24 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a31140c2-daa6-4a37-a345-5d16878fba79" name="Changes" comment="new features">
+      <change afterPath="$PROJECT_DIR$/test-db-connection.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/debug-isolated.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/debug.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/railway-debug.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/debug-fixed.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/debug.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/test-echo.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/test-ping.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/deploy-commands.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/deploy-commands.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/deploy-guild-commands-fixed.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/deploy-guild-commands.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/deploy-test.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/diagnostic-bot.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/find-event-handlers.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/fresh-slash-bot.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/message-bot.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/minimal-bot.js" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/run-simple-bot.js" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/clan.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/clan.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/events/interactionCreate.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/events/interactionCreate.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/index.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/CapitalTracking.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/CapitalTracking.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/User.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/User.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/WarTracking.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/WarTracking.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/models/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/models/index.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,31 +47,32 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Node.js.server-setup.js.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/yashkawdiya/IdeaProjects/clash-of-clans-discord-bot1&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.standard&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.standard&quot;: &quot;&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Modules&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;terminal&quot;,
-    &quot;ts.external.directory.path&quot;: &quot;/Users/yashkawdiya/Applications/IntelliJ IDEA Ultimate.app/Contents/plugins/javascript-plugin/jsLanguageServicesImpl/external&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Node.js.server-setup.js.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/yashkawdiya/IdeaProjects/clash-of-clans-discord-bot1/src",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.standard": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.standard": "",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Modules",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "settings.editor.selected.configurable": "terminal",
+    "ts.external.directory.path": "/Users/yashkawdiya/Applications/IntelliJ IDEA Ultimate.app/Contents/plugins/javascript-plugin/jsLanguageServicesImpl/external",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src" />
       <recent name="$PROJECT_DIR$" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
@@ -121,23 +113,7 @@
       <workItem from="1743449887346" duration="9697000" />
       <workItem from="1743633092891" duration="210000" />
       <workItem from="1743633305397" duration="224000" />
-      <workItem from="1743633533323" duration="9524000" />
-    </task>
-    <task id="LOCAL-00120" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743342513058</created>
-      <option name="number" value="00120" />
-      <option name="presentableId" value="LOCAL-00120" />
-      <option name="project" value="LOCAL" />
-      <updated>1743342513058</updated>
-    </task>
-    <task id="LOCAL-00121" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743343049648</created>
-      <option name="number" value="00121" />
-      <option name="presentableId" value="LOCAL-00121" />
-      <option name="project" value="LOCAL" />
-      <updated>1743343049648</updated>
+      <workItem from="1743633533323" duration="12361000" />
     </task>
     <task id="LOCAL-00122" summary="new features">
       <option name="closed" value="true" />
@@ -515,7 +491,23 @@
       <option name="project" value="LOCAL" />
       <updated>1743697318020</updated>
     </task>
-    <option name="localTasksCounter" value="169" />
+    <task id="LOCAL-00169" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743699663518</created>
+      <option name="number" value="00169" />
+      <option name="presentableId" value="LOCAL-00169" />
+      <option name="project" value="LOCAL" />
+      <updated>1743699663518</updated>
+    </task>
+    <task id="LOCAL-00170" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743701046921</created>
+      <option name="number" value="00170" />
+      <option name="presentableId" value="LOCAL-00170" />
+      <option name="project" value="LOCAL" />
+      <updated>1743701046921</updated>
+    </task>
+    <option name="localTasksCounter" value="171" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

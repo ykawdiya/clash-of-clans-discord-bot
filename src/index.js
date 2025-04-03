@@ -1,4 +1,4 @@
-// src/index.js - Optimized for Railway with robust error handling
+// src/index.js - Updated command loading
 require('dotenv').config();
 const { system: log } = require('./utils/logger');
 const mongoose = require('mongoose');
@@ -34,8 +34,7 @@ process.on('uncaughtException', (error) => {
   }, 1000);
 });
 
-// Create functions for all the bot initialization steps
-// We'll duplicate the bot.js functionality here to avoid binding issues
+// Initialize bot
 async function initializeBot() {
   try {
     log.info('Starting Clash of Clans Discord Bot with debug monitoring...');
@@ -46,7 +45,7 @@ async function initializeBot() {
     // Initial memory usage
     logMemoryUsage();
 
-    // Create Discord client directly
+    // Create Discord client
     const client = new Client({
       intents: [
         GatewayIntentBits.Guilds,
@@ -60,48 +59,55 @@ async function initializeBot() {
     // Make client globally accessible
     global.client = client;
 
-    // Step 1: Connect to MongoDB directly
+    // Step 1: Connect to MongoDB first
     try {
       log.info('Connecting to MongoDB...');
+      log.info(`Connection string: ${process.env.MONGODB_URI.replace(/\/\/(.+?):(.+?)@/, '//[username]:[password]@')}`);
+
       await mongoose.connect(process.env.MONGODB_URI, {
         useNewUrlParser: true,
         useUnifiedTopology: true
       });
       log.info('Connected to MongoDB successfully');
     } catch (mongoError) {
-      log.error('MongoDB connection error:', { error: mongoError.message });
+      log.error('MongoDB connection error:', { error: mongoError.message, stack: mongoError.stack });
       throw new Error(`MongoDB connection failed: ${mongoError.message}`);
     }
 
-    // Step 2: Load commands directly
+    // Step 2: Now load commands after DB connection
     try {
       log.info('Loading commands...');
+
+      // FIXED: Load the command files correctly
       const commandsDir = path.join(__dirname, 'commands');
-      const commandFiles = getFiles(commandsDir).filter(file => file.endsWith('.js'));
+      const commandFiles = fs.readdirSync(commandsDir)
+          .filter(file => file.endsWith('.js'));
+
+      log.info(`Found ${commandFiles.length} command files at the root level`);
 
       for (const file of commandFiles) {
         try {
-          const command = require(file);
+          const filePath = path.join(commandsDir, file);
+          const command = require(filePath);
 
-          // Set a name for the command
-          const commandName = command.data?.name || path.basename(file, '.js');
-
-          // Add command to collection
-          client.commands.set(commandName, command);
-
-          log.info(`Loaded command: ${commandName}`);
+          if (command.data && command.execute) {
+            client.commands.set(command.data.name, command);
+            log.info(`Loaded command: ${command.data.name}`);
+          } else {
+            log.warn(`Command at ${file} is missing required "data" or "execute" properties`);
+          }
         } catch (error) {
-          log.error(`Error loading command file ${file}:`, { error: error.message });
+          log.error(`Error loading command file ${file}:`, { error: error.message, stack: error.stack });
         }
       }
 
       log.info(`Loaded ${client.commands.size} commands`);
     } catch (commandsError) {
-      log.error('Error loading commands:', { error: commandsError.message });
+      log.error('Error loading commands:', { error: commandsError.message, stack: commandsError.stack });
       throw new Error(`Command loading failed: ${commandsError.message}`);
     }
 
-    // Step 3: Load events directly
+    // Step 3: Load events
     try {
       log.info('Loading events...');
       const eventsDir = path.join(__dirname, 'events');
@@ -122,24 +128,29 @@ async function initializeBot() {
 
       log.info(`Loaded ${eventFiles.length} events`);
     } catch (eventsError) {
-      log.error('Error loading events:', { error: eventsError.message });
+      log.error('Error loading events:', { error: eventsError.message, stack: eventsError.stack });
       throw new Error(`Event loading failed: ${eventsError.message}`);
     }
 
-    // Step 4: Login to Discord
+    // Step 4: Login to Discord AFTER everything is loaded
     try {
       log.info('Logging in to Discord...');
       await client.login(process.env.DISCORD_TOKEN);
       log.info(`Logged in as ${client.user.tag}`);
     } catch (loginError) {
-      log.error('Discord login error:', { error: loginError.message });
+      log.error('Discord login error:', { error: loginError.message, stack: loginError.stack });
       throw new Error(`Discord login failed: ${loginError.message}`);
     }
 
-    // Memory check after basic initialization
+    // Memory check after initialization
     logMemoryUsage();
 
-    // Step 5: Start tracking services one by one with better error handling
+    // Step 5: Start tracking services with error handling - DISABLED FOR NOW
+    log.info('Tracking services are disabled during initial setup for stability');
+    log.info('To enable tracking services, uncomment the tracking code in index.js');
+
+    // Comment out the tracking service initialization during initial troubleshooting
+    /*
     try {
       // Test API connection
       log.info('Testing API connection before starting services...');
@@ -150,77 +161,49 @@ async function initializeBot() {
         log.warn('API connection test failed. Proceeding with limited functionality.');
       } else {
         log.info('API connection test successful');
+
+        // Start services
+        try {
+          log.info('Starting War tracking service...');
+          const warTrackingService = require('./services/warTrackingService');
+          await warTrackingService.startWarMonitoring();
+          log.info('War tracking service started');
+        } catch (serviceError) {
+          log.error('Failed to start War tracking service:', { error: serviceError.message });
+        }
+
+        try {
+          log.info('Starting CWL tracking service...');
+          const cwlTrackingService = require('./services/cwlTrackingService');
+          await cwlTrackingService.startCWLMonitoring();
+          log.info('CWL tracking service started');
+        } catch (serviceError) {
+          log.error('Failed to start CWL tracking service:', { error: serviceError.message });
+        }
+
+        try {
+          log.info('Starting Capital tracking service...');
+          const capitalTrackingService = require('./services/capitalTrackingService');
+          await capitalTrackingService.startCapitalMonitoring();
+          log.info('Capital tracking service started');
+        } catch (serviceError) {
+          log.error('Failed to start Capital tracking service:', { error: serviceError.message });
+        }
       }
-
-      // Start with essential functions and add each service with individual try/catch
-      try {
-        log.info('Starting War tracking service...');
-        const warTrackingService = require('./services/warTrackingService');
-        await warTrackingService.startWarMonitoring();
-        log.info('War tracking service started');
-        logMemoryUsage();
-      } catch (warError) {
-        log.error('Failed to start War tracking service:', { error: warError.message });
-        // Continue with other services
-      }
-
-      // Brief pause
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      try {
-        log.info('Starting CWL tracking service...');
-        const cwlTrackingService = require('./services/cwlTrackingService');
-        await cwlTrackingService.startCWLMonitoring();
-        log.info('CWL tracking service started');
-        logMemoryUsage();
-      } catch (cwlError) {
-        log.error('Failed to start CWL tracking service:', { error: cwlError.message });
-        // Continue with other services
-      }
-
-      // Brief pause
-      await new Promise(resolve => setTimeout(resolve, 3000));
-
-      try {
-        log.info('Starting Capital tracking service...');
-        const capitalTrackingService = require('./services/capitalTrackingService');
-        await capitalTrackingService.startCapitalMonitoring();
-        log.info('Capital tracking service started');
-      } catch (capitalError) {
-        log.error('Failed to start Capital tracking service:', { error: capitalError.message });
-        // Continue anyway
-      }
-    } catch (trackingError) {
-      log.error('Error in tracking services main block:', { error: trackingError.message });
-      log.warn('Bot will continue running with limited functionality');
+    } catch (error) {
+      log.error('Error initializing tracking services:', { error: error.message });
+      log.warn('Bot will continue with limited functionality');
     }
+    */
 
-    log.info('Bot started successfully!');
+    log.info('Bot started successfully in minimal mode!');
+    log.info('Try using /help or /ping commands to test functionality');
     logMemoryUsage();
   } catch (error) {
     log.error('Failed to start bot:', { error: error.stack || error.message || error });
     logMemoryUsage();
     process.exit(1);
   }
-}
-
-// Helper function to get all files in directory recursively
-function getFiles(dir) {
-  const files = [];
-
-  const items = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const item of items) {
-    const itemPath = path.join(dir, item.name);
-
-    if (item.isDirectory()) {
-      files.push(...getFiles(itemPath));
-    } else {
-      files.push(itemPath);
-    }
-  }
-
-  return files;
 }
 
 // Start the bot
