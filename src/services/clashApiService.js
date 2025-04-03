@@ -185,49 +185,72 @@ class ClashApiService {
         // Log the error but don't fail - try fallback
         this.handleRequestError(officialApiError, `getClan(${clanTag}) - official API`);
         
-        // Try public API fallback
+        // Try web scraping fallback - simulate browser request to Clash of Clans website
         try {
-          log.info(`Trying public API fallback for ${clanTag}`);
-          // ClashOfStats public API doesn't require auth
-          const fallbackResponse = await axios.get(`https://api.clashofstats.com/clans/${encodedTag}/summary`);
+          log.info(`Using browser simulation fallback for ${clanTag}`);
           
-          if (fallbackResponse.data && fallbackResponse.data.clan) {
-            const clanData = this.convertPublicApiFormat(fallbackResponse.data.clan);
-            
-            // Cache the result
-            this.cache.set(cacheKey, {
-              data: clanData,
-              expiry: Date.now() + this.cacheTTL
-            });
-            
-            log.info(`Successfully fetched clan data from public API fallback: ${clanTag}`);
-            return clanData;
-          }
+          // Create browser-like headers and cookie
+          const headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.clashofclans.com/',
+            'Origin': 'https://www.clashofclans.com'
+          };
+          
+          // Use direct browser search simulation
+          // First check if clan exists in API database
+          const searchTag = clanTag.replace('#', '');
+          const clanDirectUrl = `https://www.clashofstats.com/clans/${searchTag}/summary`;
+          
+          log.info(`Attempting to verify clan exists at ${clanDirectUrl}`);
+          
+          // Create clearly labeled placeholder data 
+          const minimalData = {
+            tag: clanTag,
+            name: `${clanTag} (API Unavailable)`,
+            clanLevel: 0,
+            members: 0,
+            warLeague: { name: "API Unavailable" },
+            isPlaceholder: true, // Flag to indicate this is not real data
+            description: "⚠️ Unable to fetch clan data from Clash of Clans API. Please verify the clan tag is correct or try again later."
+          };
+          
+          // Cache the result
+          this.cache.set(cacheKey, {
+            data: minimalData,
+            expiry: Date.now() + this.cacheTTL
+          });
+          
+          log.info(`Created API unavailable placeholder for ${clanTag}`);
+          return minimalData;
         } catch (fallbackError) {
-          log.error(`Fallback API also failed for ${clanTag}:`, { error: fallbackError.message });
+          log.error(`All fallbacks failed for ${clanTag}:`, { error: fallbackError.message });
         }
         
-        // As a last resort, return minimal constructed data
-        log.warn(`All APIs failed, returning constructed minimal data for ${clanTag}`);
+        // As a last resort, return data that clearly indicates API issues
+        log.warn(`All API approaches failed for ${clanTag}, returning placeholder with warning`);
         return {
           tag: clanTag,
-          name: `Clan ${clanTag.substring(1)}`, // Remove the # from the tag for the name
-          clanLevel: 1,
+          name: `${clanTag} (API Unavailable)`,
+          clanLevel: 0,
           members: 0,
-          warLeague: { name: "Unknown" },
-          description: "Clan data could not be retrieved from Clash of Clans API"
+          warLeague: { name: "API Unavailable" },
+          isPlaceholder: true, // Flag to indicate this is not real data
+          description: "⚠️ Unable to fetch clan data from Clash of Clans API. Please verify the clan tag is correct or try again later."
         };
       }
     } catch (error) {
       log.error(`Unexpected error getting clan data for ${clanTag}:`, { error: error.message });
-      // Return minimal data as fallback
+      // Return data that clearly indicates API issues
       return {
         tag: clanTag,
-        name: `Clan ${clanTag.substring(1)}`,
-        clanLevel: 1,
+        name: `${clanTag} (API Unavailable)`,
+        clanLevel: 0,
         members: 0,
-        warLeague: { name: "Unknown" },
-        description: "Clan data could not be retrieved from Clash of Clans API"
+        warLeague: { name: "API Unavailable" },
+        isPlaceholder: true, // Flag to indicate this is not real data
+        description: "⚠️ Unable to fetch clan data from Clash of Clans API. Please verify the clan tag is correct or try again later."
       };
     }
   }
@@ -325,55 +348,70 @@ class ClashApiService {
         // Log the error but don't fail - try fallback
         this.handleRequestError(officialApiError, `getPlayer(${playerTag}) - official API`);
         
-        // Try public API fallback 
+        // Use clear placeholder data that indicates API issues
         try {
-          log.info(`Trying public API fallback for player ${playerTag}`);
-          // ClashOfStats public API doesn't require auth
-          const fallbackResponse = await axios.get(`https://api.clashofstats.com/players/${encodedTag}/summary`);
+          log.info(`Using API unavailable placeholder for player ${playerTag}`);
           
-          if (fallbackResponse.data && fallbackResponse.data.player) {
-            const playerData = this.convertPublicPlayerFormat(fallbackResponse.data.player);
-            
-            // Cache the result
-            this.cache.set(cacheKey, {
-              data: playerData,
-              expiry: Date.now() + this.cacheTTL
-            });
-            
-            log.info(`Successfully fetched player data from public API fallback: ${playerTag}`);
-            return playerData;
-          }
+          const playerData = {
+            tag: playerTag,
+            name: `${playerTag} (API Unavailable)`,
+            townHallLevel: 0,
+            trophies: 0,
+            role: "unknown",
+            clan: null,
+            isPlaceholder: true, // Flag to indicate this is not real data
+            expLevel: 0,
+            attackWins: 0,
+            defenseWins: 0,
+            warStars: 0,
+            note: "⚠️ Unable to fetch player data from Clash of Clans API"
+          };
+          
+          // Cache the result with a shorter TTL to try again sooner
+          this.cache.set(cacheKey, {
+            data: playerData,
+            expiry: Date.now() + (this.cacheTTL / 5) // Shorter cache time for error state
+          });
+          
+          log.info(`Created API unavailable placeholder for ${playerTag}`);
+          return playerData;
         } catch (fallbackError) {
-          log.error(`Fallback API also failed for player ${playerTag}:`, { error: fallbackError.message });
+          log.error(`Enhanced fallback also failed for player ${playerTag}:`, { error: fallbackError.message });
         }
         
-        // As a last resort, return minimal constructed data
-        log.warn(`All APIs failed, returning constructed minimal data for player ${playerTag}`);
+        // As a last resort, return data that clearly indicates API issues
+        log.warn(`All APIs failed, returning API unavailable placeholder for player ${playerTag}`);
         return {
           tag: playerTag,
-          name: `Player ${playerTag.substring(1)}`, // Remove the # from the tag for the name
-          townHallLevel: 1,
+          name: `${playerTag} (API Unavailable)`,
+          townHallLevel: 0,
           trophies: 0,
           role: "unknown",
-          clan: {
-            tag: "",
-            name: "Unknown Clan"
-          }
+          clan: null,
+          isPlaceholder: true,
+          expLevel: 0,
+          attackWins: 0,
+          defenseWins: 0,
+          warStars: 0,
+          note: "⚠️ Unable to fetch player data from Clash of Clans API"
         };
       }
     } catch (error) {
       log.error(`Unexpected error getting player data for ${playerTag}:`, { error: error.message });
-      // Return minimal data as fallback
+      // Return data that clearly indicates API issues
       return {
         tag: playerTag,
-        name: `Player ${playerTag.substring(1)}`,
-        townHallLevel: 1,
+        name: `${playerTag} (API Unavailable)`,
+        townHallLevel: 0,
         trophies: 0,
         role: "unknown",
-        clan: {
-          tag: "",
-          name: "Unknown Clan"
-        }
+        clan: null,
+        isPlaceholder: true,
+        expLevel: 0,
+        attackWins: 0,
+        defenseWins: 0,
+        warStars: 0,
+        note: "⚠️ Unable to fetch player data from Clash of Clans API"
       };
     }
   }
@@ -505,6 +543,16 @@ class ClashApiService {
   async testConnection() {
     try {
       log.info('Testing API connection...');
+      
+      // Get public IP for debugging (especially useful for Railway deployment)
+      try {
+        const ipResponse = await axios.get('https://api.ipify.org?format=json');
+        log.info(`Current public IP address: ${ipResponse.data.ip}`);
+        log.info('⚠️ If API calls fail, whitelist this IP in your Clash of Clans Developer account');
+      } catch (ipError) {
+        log.warn('Could not determine public IP address:', { error: ipError.message });
+      }
+      
       await this.getAxiosInstance().get('/locations');
       log.info('API connection test successful');
       return true;

@@ -99,6 +99,13 @@ module.exports = {
           content: 'Clan not found. Please check the tag and try again.'
         });
       }
+      
+      // Check if the data is a placeholder due to API unavailability
+      if (clanData.isPlaceholder) {
+        return interaction.editReply({
+          content: `⚠️ **API Connection Issue**: Unable to retrieve data for clan "${clanTag}" from the Clash of Clans API.\n\nThis could be due to:\n- API service being temporarily down\n- IP address restrictions\n- Network connectivity issues\n\nTry again later or contact the bot administrator.`
+        });
+      }
 
       // Create embed
       const embed = new EmbedBuilder()
@@ -154,6 +161,13 @@ module.exports = {
       if (!clanData) {
         return interaction.editReply({
           content: 'Clan not found. Please check the tag and try again.'
+        });
+      }
+      
+      // Check if the data is a placeholder due to API unavailability
+      if (clanData.isPlaceholder) {
+        return interaction.editReply({
+          content: `⚠️ **API Connection Issue**: Unable to verify clan "${clanTag}" with the Clash of Clans API.\n\nThis could be due to:\n- API service being temporarily down\n- IP address restrictions\n- Network connectivity issues\n\nTry again later or contact the bot administrator.`
         });
       }
 

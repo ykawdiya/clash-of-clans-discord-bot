@@ -159,9 +159,54 @@ async function initializeBot() {
     // Memory check after initialization
     logMemoryUsage();
 
-    // Step 5: Start tracking services with error handling - DISABLED FOR NOW
-    log.info('Tracking services are disabled during initial setup for stability');
-    log.info('To enable tracking services, uncomment the tracking code in index.js');
+    // Step 5: Start tracking services with error handling
+    log.info('Starting tracking services...');
+    
+    try {
+      // Test API connection
+      log.info('Testing API connection before starting services...');
+      const clashApiService = require('./services/clashApiService');
+      const apiConnectionSuccess = await clashApiService.testConnection();
+
+      if (!apiConnectionSuccess) {
+        log.warn('API connection test failed. Proceeding with limited functionality.');
+      } else {
+        log.info('API connection test successful');
+
+        // Start services - uncomment these as needed
+        /*
+        try {
+          log.info('Starting War tracking service...');
+          const warTrackingService = require('./services/warTrackingService');
+          await warTrackingService.startWarMonitoring();
+          log.info('War tracking service started');
+        } catch (serviceError) {
+          log.error('Failed to start War tracking service:', { error: serviceError.message });
+        }
+
+        try {
+          log.info('Starting CWL tracking service...');
+          const cwlTrackingService = require('./services/cwlTrackingService');
+          await cwlTrackingService.startCWLMonitoring();
+          log.info('CWL tracking service started');
+        } catch (serviceError) {
+          log.error('Failed to start CWL tracking service:', { error: serviceError.message });
+        }
+
+        try {
+          log.info('Starting Capital tracking service...');
+          const capitalTrackingService = require('./services/capitalTrackingService');
+          await capitalTrackingService.startCapitalMonitoring();
+          log.info('Capital tracking service started');
+        } catch (serviceError) {
+          log.error('Failed to start Capital tracking service:', { error: serviceError.message });
+        }
+        */
+      }
+    } catch (error) {
+      log.error('Error initializing tracking services:', { error: error.message });
+      log.warn('Bot will continue with limited functionality');
+    }
 
     // Comment out the tracking service initialization during initial troubleshooting
     /*

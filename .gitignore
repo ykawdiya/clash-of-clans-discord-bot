@@ -1,2 +1,25 @@
-.env.old
+# Environment variables
 .env
+.env.old
+.env.local
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules/
+
+# Testing
+coverage/
+
+# Misc
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Railway specific
+.railway/auth.json
