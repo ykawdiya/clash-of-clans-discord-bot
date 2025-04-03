@@ -8,7 +8,7 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('plan')
+      .setName('war_plan')
       .setDescription('View or create war plan'),
 
   async execute(interaction) {

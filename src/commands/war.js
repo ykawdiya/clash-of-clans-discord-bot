@@ -43,22 +43,22 @@ module.exports = {
     try {
       const subcommand = interaction.options.getSubcommand();
 
-      switch (subcommand) {
-        case 'status':
-          return await warStatusCommand.execute(interaction);
-        case 'call':
-          return await warCallCommand.execute(interaction);
-        case 'plan':
-          return await warPlanCommand.execute(interaction);
-        case 'map':
-          return await warMapCommand.execute(interaction);
-        case 'stats':
-          return await warStatsCommand.execute(interaction);
-        default:
-          return interaction.reply({
-            content: 'Unknown subcommand. Please use a valid war command.',
-            ephemeral: true
-          });
+      // Route to appropriate command handler
+      if (subcommand === 'status') {
+        return await warStatusCommand.execute(interaction);
+      } else if (subcommand === 'call') {
+        return await warCallCommand.execute(interaction);
+      } else if (subcommand === 'plan') {
+        return await warPlanCommand.execute(interaction);
+      } else if (subcommand === 'map') {
+        return await warMapCommand.execute(interaction);
+      } else if (subcommand === 'stats') {
+        return await warStatsCommand.execute(interaction);
+      } else {
+        return interaction.reply({
+          content: 'Unknown subcommand. Please use a valid war command.',
+          ephemeral: true
+        });
       }
     } catch (error) {
       console.error('Error executing war command:', error);

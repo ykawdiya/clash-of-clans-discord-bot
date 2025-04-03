@@ -6,7 +6,7 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('call')
+      .setName('war_call')
       .setDescription('Call a base in war')
       .addIntegerOption(option =>
           option.setName('base')

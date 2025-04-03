@@ -8,7 +8,7 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('stats')
+      .setName('war_stats')
       .setDescription('Show attack statistics'),
   
   async execute(interaction) {

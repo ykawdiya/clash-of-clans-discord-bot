@@ -7,7 +7,7 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('status')
+      .setName('cwl_status')
       .setDescription('Show current CWL status'),
 
   async execute(interaction) {

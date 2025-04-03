@@ -6,7 +6,7 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('status')
+      .setName('war_status')
       .setDescription('Show current war status'),
   
   async execute(interaction) {

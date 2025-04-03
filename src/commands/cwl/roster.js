@@ -7,8 +7,28 @@ const {SlashCommandBuilder} = require("discord.js");
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('roster')
-      .setDescription('Manage CWL roster'),
+      .setName('cwl_roster')
+      .setDescription('Manage CWL roster')
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('view')
+              .setDescription('View the current CWL roster'))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('add')
+              .setDescription('Add a player to the CWL roster')
+              .addStringOption(option =>
+                  option.setName('tag')
+                      .setDescription('Player tag to add')
+                      .setRequired(true)))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('remove')
+              .setDescription('Remove a player from the CWL roster')
+              .addStringOption(option =>
+                  option.setName('tag')
+                      .setDescription('Player tag to remove')
+                      .setRequired(true))),
 
   async execute(interaction) {
     try {

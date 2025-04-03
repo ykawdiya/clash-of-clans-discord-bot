@@ -78,28 +78,42 @@ async function initializeBot() {
     try {
       log.info('Loading commands...');
 
-      // FIXED: Load the command files correctly
+      // FIXED: Load all command files including subdirectories
       const commandsDir = path.join(__dirname, 'commands');
-      const commandFiles = fs.readdirSync(commandsDir)
-          .filter(file => file.endsWith('.js'));
-
-      log.info(`Found ${commandFiles.length} command files at the root level`);
-
-      for (const file of commandFiles) {
-        try {
-          const filePath = path.join(commandsDir, file);
-          const command = require(filePath);
-
-          if (command.data && command.execute) {
-            client.commands.set(command.data.name, command);
-            log.info(`Loaded command: ${command.data.name}`);
-          } else {
-            log.warn(`Command at ${file} is missing required "data" or "execute" properties`);
+      
+      // Function to recursively load commands from directories
+      function loadCommandsRecursively(dir) {
+        const items = fs.readdirSync(dir, { withFileTypes: true });
+        let commandCount = 0;
+        
+        for (const item of items) {
+          const itemPath = path.join(dir, item.name);
+          
+          if (item.isDirectory()) {
+            // Recursively process subdirectories
+            commandCount += loadCommandsRecursively(itemPath);
+          } else if (item.name.endsWith('.js')) {
+            try {
+              const command = require(itemPath);
+              
+              if (command.data && command.execute) {
+                client.commands.set(command.data.name, command);
+                log.info(`Loaded command: ${command.data.name}`);
+                commandCount++;
+              } else {
+                log.warn(`Command at ${itemPath} is missing required "data" or "execute" properties`);
+              }
+            } catch (error) {
+              log.error(`Error loading command file ${itemPath}:`, { error: error.message, stack: error.stack });
+            }
           }
-        } catch (error) {
-          log.error(`Error loading command file ${file}:`, { error: error.message, stack: error.stack });
         }
+        
+        return commandCount;
       }
+      
+      const commandCount = loadCommandsRecursively(commandsDir);
+      log.info(`Found and loaded ${commandCount} command files (including subdirectories)`);
 
       log.info(`Loaded ${client.commands.size} commands`);
     } catch (commandsError) {

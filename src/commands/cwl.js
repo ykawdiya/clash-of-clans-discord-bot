@@ -66,20 +66,20 @@ module.exports = {
         return await cwlRosterCommand.execute(interaction);
       }
       
-      switch (subcommand) {
-        case 'status':
-          return await cwlStatusCommand.execute(interaction);
-        case 'plan':
-          return await cwlPlanCommand.execute(interaction);
-        case 'stats':
-          return await cwlStatsCommand.execute(interaction);
-        case 'medals':
-          return await cwlMedalsCommand.execute(interaction);
-        default:
-          return interaction.reply({
-            content: 'Unknown subcommand. Please use a valid CWL command.',
-            ephemeral: true
-          });
+      // Route to appropriate command handler based on subcommand
+      if (subcommand === 'status') {
+        return await cwlStatusCommand.execute(interaction);
+      } else if (subcommand === 'plan') {
+        return await cwlPlanCommand.execute(interaction);
+      } else if (subcommand === 'stats') {
+        return await cwlStatsCommand.execute(interaction);
+      } else if (subcommand === 'medals') {
+        return await cwlMedalsCommand.execute(interaction);
+      } else {
+        return interaction.reply({
+          content: 'Unknown subcommand. Please use a valid CWL command.',
+          ephemeral: true
+        });
       }
     } catch (error) {
       console.error('Error executing cwl command:', error);

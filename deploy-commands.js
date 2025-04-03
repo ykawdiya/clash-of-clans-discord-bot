@@ -11,20 +11,28 @@ const clientId = process.env.CLIENT_ID;
 const token = process.env.DISCORD_TOKEN;
 const guildId = process.env.GUILD_ID; // Optional: for guild-specific commands
 
-// FIXED: Only process root command files, not subcommands
+// Process all command files including subcommands in subdirectories
 const getCommandFiles = () => {
   const dir = path.join(__dirname, 'src/commands');
   const files = [];
 
-  // Only get files in the root commands folder, not in subdirectories
-  const items = fs.readdirSync(dir, { withFileTypes: true });
+  // Function to recursively collect command files
+  const collectFilesRecursively = (directory) => {
+    const items = fs.readdirSync(directory, { withFileTypes: true });
 
-  for (const item of items) {
-    if (!item.isDirectory() && item.name.endsWith('.js')) {
-      files.push(path.join(dir, item.name));
+    for (const item of items) {
+      const fullPath = path.join(directory, item.name);
+      
+      if (item.isDirectory()) {
+        // Recursively process subdirectories
+        collectFilesRecursively(fullPath);
+      } else if (item.name.endsWith('.js')) {
+        files.push(fullPath);
+      }
     }
-  }
+  };
 
+  collectFilesRecursively(dir);
   return files;
 };
 
