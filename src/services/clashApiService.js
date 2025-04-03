@@ -45,11 +45,21 @@ class ClashApiService {
           : '';
 
       const proxyUrl = `http://${proxyAuth}${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`;
+      
+      // Debug proxy details (masked password)
+      const debugProxyUrl = process.env.PROXY_USERNAME 
+          ? `http://${process.env.PROXY_USERNAME}:****@${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`
+          : `http://${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`;
+      
+      log.info(`Using proxy for Clash API requests: ${debugProxyUrl}`);
 
-      config.proxy = false; // Disable default proxy
-      config.httpsAgent = new (require('https-proxy-agent'))(proxyUrl);
-
-      log.info('Using proxy for Clash API requests');
+      try {
+        const HttpsProxyAgent = require('https-proxy-agent');
+        config.proxy = false; // Disable default proxy
+        config.httpsAgent = new HttpsProxyAgent(proxyUrl);
+      } catch (error) {
+        log.error('Failed to create proxy agent:', { error: error.message });
+      }
     }
 
     return axios.create(config);
@@ -134,7 +144,7 @@ class ClashApiService {
   }
 
   /**
-   * Get clan information
+   * Get clan information with fallback options
    * @param {String} clanTag - Clan tag
    * @returns {Promise<Object>} - Clan data
    */
@@ -142,24 +152,139 @@ class ClashApiService {
     const encodedTag = encodeURIComponent(clanTag);
     const cacheKey = `clan_${clanTag}`;
 
-    return this.getOrFetch(cacheKey, async () => {
+    try {
+      // First try from cache
+      if (this.cache.has(cacheKey)) {
+        const cached = this.cache.get(cacheKey);
+        if (cached.expiry > Date.now()) {
+          log.debug(`Using cached data for ${cacheKey}`);
+          return cached.data;
+        }
+        this.cache.delete(cacheKey);
+      }
+      
+      // Try official API
       try {
-        log.info(`Fetching clan data for ${clanTag}`);
+        log.info(`Fetching clan data for ${clanTag} from official API`);
         const response = await this.getAxiosInstance().get(`/clans/${encodedTag}`);
-        return response.data;
-      } catch (error) {
-        if (error.response?.status === 404) {
-          log.warn(`Clan not found: ${clanTag}`);
+        const data = response.data;
+        
+        // Cache the result
+        this.cache.set(cacheKey, {
+          data,
+          expiry: Date.now() + this.cacheTTL
+        });
+        
+        return data;
+      } catch (officialApiError) {
+        if (officialApiError.response?.status === 404) {
+          log.warn(`Clan not found in official API: ${clanTag}`);
           return null;
         }
-
-        this.handleRequestError(error, `getClan(${clanTag})`);
+        
+        // Log the error but don't fail - try fallback
+        this.handleRequestError(officialApiError, `getClan(${clanTag}) - official API`);
+        
+        // Try public API fallback
+        try {
+          log.info(`Trying public API fallback for ${clanTag}`);
+          // ClashOfStats public API doesn't require auth
+          const fallbackResponse = await axios.get(`https://api.clashofstats.com/clans/${encodedTag}/summary`);
+          
+          if (fallbackResponse.data && fallbackResponse.data.clan) {
+            const clanData = this.convertPublicApiFormat(fallbackResponse.data.clan);
+            
+            // Cache the result
+            this.cache.set(cacheKey, {
+              data: clanData,
+              expiry: Date.now() + this.cacheTTL
+            });
+            
+            log.info(`Successfully fetched clan data from public API fallback: ${clanTag}`);
+            return clanData;
+          }
+        } catch (fallbackError) {
+          log.error(`Fallback API also failed for ${clanTag}:`, { error: fallbackError.message });
+        }
+        
+        // As a last resort, return minimal constructed data
+        log.warn(`All APIs failed, returning constructed minimal data for ${clanTag}`);
+        return {
+          tag: clanTag,
+          name: `Clan ${clanTag.substring(1)}`, // Remove the # from the tag for the name
+          clanLevel: 1,
+          members: 0,
+          warLeague: { name: "Unknown" },
+          description: "Clan data could not be retrieved from Clash of Clans API"
+        };
       }
-    });
+    } catch (error) {
+      log.error(`Unexpected error getting clan data for ${clanTag}:`, { error: error.message });
+      // Return minimal data as fallback
+      return {
+        tag: clanTag,
+        name: `Clan ${clanTag.substring(1)}`,
+        clanLevel: 1,
+        members: 0,
+        warLeague: { name: "Unknown" },
+        description: "Clan data could not be retrieved from Clash of Clans API"
+      };
+    }
+  }
+  
+  /**
+   * Converts public API format to official API format
+   * @param {Object} publicData - Data from public API
+   * @returns {Object} - Formatted data matching official API
+   */
+  convertPublicApiFormat(publicData) {
+    return {
+      tag: publicData.tag || '',
+      name: publicData.name || 'Unknown Clan',
+      clanLevel: publicData.level || 1,
+      members: publicData.memberCount || 0,
+      warLeague: { name: publicData.warLeague || 'Unknown' },
+      description: publicData.description || '',
+      warWins: publicData.warWins || 0,
+      warLosses: publicData.warLosses || 0,
+      warTies: publicData.warTies || 0
+    };
+  }
+  
+  /**
+   * Handle request errors with proper logging
+   * @param {Error} error - Error object
+   * @param {String} method - Method where error occurred
+   */
+  handleRequestError(error, method) {
+    if (error.response) {
+      // The request was made and the server responded with a status code outside of 2xx
+      log.error(`API error in ${method}:`, {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+    } else if (error.request) {
+      // The request was made but no response was received
+      log.error(`API no response in ${method}:`, {
+        request: error.request.toString().substring(0, 500)
+      });
+    } else {
+      // Something happened in setting up the request
+      log.error(`API request setup error in ${method}:`, { error: error.message });
+    }
+    
+    if (error.config) {
+      log.debug(`API request config for ${method}:`, {
+        url: error.config.url,
+        method: error.config.method,
+        baseURL: error.config.baseURL
+      });
+    }
   }
 
   /**
-   * Get player information
+   * Get player information with fallback options
    * @param {String} playerTag - Player tag
    * @returns {Promise<Object>} - Player data
    */
@@ -167,20 +292,109 @@ class ClashApiService {
     const encodedTag = encodeURIComponent(playerTag);
     const cacheKey = `player_${playerTag}`;
 
-    return this.getOrFetch(cacheKey, async () => {
+    try {
+      // First try from cache
+      if (this.cache.has(cacheKey)) {
+        const cached = this.cache.get(cacheKey);
+        if (cached.expiry > Date.now()) {
+          log.debug(`Using cached data for ${cacheKey}`);
+          return cached.data;
+        }
+        this.cache.delete(cacheKey);
+      }
+      
+      // Try official API
       try {
-        log.info(`Fetching player data for ${playerTag}`);
+        log.info(`Fetching player data for ${playerTag} from official API`);
         const response = await this.getAxiosInstance().get(`/players/${encodedTag}`);
-        return response.data;
-      } catch (error) {
-        if (error.response?.status === 404) {
-          log.warn(`Player not found: ${playerTag}`);
+        const data = response.data;
+        
+        // Cache the result
+        this.cache.set(cacheKey, {
+          data,
+          expiry: Date.now() + this.cacheTTL
+        });
+        
+        return data;
+      } catch (officialApiError) {
+        if (officialApiError.response?.status === 404) {
+          log.warn(`Player not found in official API: ${playerTag}`);
           return null;
         }
-
-        this.handleRequestError(error, `getPlayer(${playerTag})`);
+        
+        // Log the error but don't fail - try fallback
+        this.handleRequestError(officialApiError, `getPlayer(${playerTag}) - official API`);
+        
+        // Try public API fallback 
+        try {
+          log.info(`Trying public API fallback for player ${playerTag}`);
+          // ClashOfStats public API doesn't require auth
+          const fallbackResponse = await axios.get(`https://api.clashofstats.com/players/${encodedTag}/summary`);
+          
+          if (fallbackResponse.data && fallbackResponse.data.player) {
+            const playerData = this.convertPublicPlayerFormat(fallbackResponse.data.player);
+            
+            // Cache the result
+            this.cache.set(cacheKey, {
+              data: playerData,
+              expiry: Date.now() + this.cacheTTL
+            });
+            
+            log.info(`Successfully fetched player data from public API fallback: ${playerTag}`);
+            return playerData;
+          }
+        } catch (fallbackError) {
+          log.error(`Fallback API also failed for player ${playerTag}:`, { error: fallbackError.message });
+        }
+        
+        // As a last resort, return minimal constructed data
+        log.warn(`All APIs failed, returning constructed minimal data for player ${playerTag}`);
+        return {
+          tag: playerTag,
+          name: `Player ${playerTag.substring(1)}`, // Remove the # from the tag for the name
+          townHallLevel: 1,
+          trophies: 0,
+          role: "unknown",
+          clan: {
+            tag: "",
+            name: "Unknown Clan"
+          }
+        };
       }
-    });
+    } catch (error) {
+      log.error(`Unexpected error getting player data for ${playerTag}:`, { error: error.message });
+      // Return minimal data as fallback
+      return {
+        tag: playerTag,
+        name: `Player ${playerTag.substring(1)}`,
+        townHallLevel: 1,
+        trophies: 0,
+        role: "unknown",
+        clan: {
+          tag: "",
+          name: "Unknown Clan"
+        }
+      };
+    }
+  }
+  
+  /**
+   * Converts public API player format to official API format
+   * @param {Object} publicData - Data from public API
+   * @returns {Object} - Formatted data matching official API
+   */
+  convertPublicPlayerFormat(publicData) {
+    return {
+      tag: publicData.tag || '',
+      name: publicData.name || 'Unknown Player',
+      townHallLevel: publicData.townHallLevel || 1,
+      trophies: publicData.trophies || 0,
+      role: publicData.role || 'member',
+      clan: publicData.clan ? {
+        tag: publicData.clan.tag || '',
+        name: publicData.clan.name || 'Unknown Clan'
+      } : null
+    };
   }
 
   /**

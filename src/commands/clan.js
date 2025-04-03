@@ -147,8 +147,8 @@ module.exports = {
         clanTag = '#' + clanTag;
       }
       clanTag = clanTag.toUpperCase();
-
-      // Get clan data from API
+      
+      // Get clan data from API (now with fallback mechanisms)
       const clanData = await clashApiService.getClan(clanTag);
 
       if (!clanData) {
