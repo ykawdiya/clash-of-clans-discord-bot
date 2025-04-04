@@ -16,6 +16,10 @@ module.exports = {
               .addStringOption(option =>
                   option.setName('tag')
                       .setDescription('Clan tag (default: linked clan)')
+                      .setRequired(false))
+              .addStringOption(option =>
+                  option.setName('name')
+                      .setDescription('Clan name to search (alternative to tag)')
                       .setRequired(false)))
       .addSubcommand(subcommand =>
           subcommand
@@ -69,11 +73,60 @@ module.exports = {
     await interaction.deferReply(); // We'll defer here because we'll make API calls
 
     try {
-      // Get clan tag
+      // Get clan tag or name
       let clanTag = interaction.options.getString('tag');
+      const clanName = interaction.options.getString('name');
 
-      if (!clanTag) {
-        // Use linked clan if no tag provided
+      // Handle search by name if provided
+      if (!clanTag && clanName) {
+        // Search clans by name
+        log.info(`Searching clans by name: ${clanName}`);
+        await interaction.editReply({
+          content: `Searching for clans with name "${clanName}"...`
+        });
+        
+        // Use search API to find clans by name
+        const clans = await clashApiService.searchClans(clanName, { limit: 5 });
+        
+        if (!clans || clans.length === 0) {
+          return interaction.editReply({
+            content: `No clans found with name "${clanName}". Please try a different name or use the clan tag instead.`
+          });
+        }
+        
+        // If only one clan is found, use it directly
+        if (clans.length === 1) {
+          clanTag = clans[0].tag;
+          log.info(`Found one clan match: ${clans[0].name} (${clanTag})`);
+        } else {
+          // Multiple clans found, display a list
+          const embed = new EmbedBuilder()
+            .setTitle(`Clans Matching "${clanName}"`)
+            .setDescription('Use `/clan info tag:#TAG` with one of these tags to get detailed information:')
+            .setColor('#3498db');
+          
+          let clanList = '';
+          clans.forEach((clan, index) => {
+            clanList += `${index + 1}. **${clan.name}** (${clan.tag})\n`;
+            clanList += `   Level ${clan.clanLevel} • ${clan.members}/50 members\n`;
+            if (clan.location && clan.location.name) {
+              clanList += `   📍 ${clan.location.name}\n`;
+            }
+            clanList += '\n';
+          });
+          
+          embed.addFields({ name: 'Matching Clans', value: clanList });
+          
+          return interaction.editReply({ 
+            content: null,
+            embeds: [embed] 
+          });
+        }
+      }
+      
+      // If no tag or name, use linked clan
+      if (!clanTag && !clanName) {
+        // Use linked clan if no tag or name provided
         const clan = await Clan.findOne({ guildId: interaction.guild.id });
 
         if (!clan) {
@@ -124,6 +177,18 @@ module.exports = {
         embed.addFields(
             { name: 'War Record', value: `Wins: ${clanData.warWins || 0}`, inline: true }
         );
+      }
+      
+      // Add location if available
+      if (clanData.location && clanData.location.name) {
+        embed.addFields(
+          { name: 'Location', value: clanData.location.name, inline: true }
+        );
+      }
+      
+      // Add clan badges if available
+      if (clanData.badgeUrls && clanData.badgeUrls.medium) {
+        embed.setThumbnail(clanData.badgeUrls.medium);
       }
 
       return interaction.editReply({ embeds: [embed] });

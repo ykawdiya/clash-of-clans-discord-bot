@@ -271,6 +271,83 @@ class ClashApiService {
   }
   
   /**
+   * Search for clans by name or other criteria
+   * @param {String} name - Clan name to search for
+   * @param {Object} options - Additional search options
+   * @returns {Promise<Array>} - Array of clan data
+   */
+  async searchClans(name, options = {}) {
+    try {
+      const searchParams = new URLSearchParams();
+      
+      // Add name search parameter
+      if (name) {
+        searchParams.append('name', name);
+      }
+      
+      // Add additional search parameters if provided
+      if (options.warFrequency) {
+        searchParams.append('warFrequency', options.warFrequency);
+      }
+      
+      if (options.minMembers) {
+        searchParams.append('minMembers', options.minMembers);
+      }
+      
+      if (options.maxMembers) {
+        searchParams.append('maxMembers', options.maxMembers);
+      }
+      
+      if (options.minClanLevel) {
+        searchParams.append('minClanLevel', options.minClanLevel);
+      }
+      
+      if (options.minClanPoints) {
+        searchParams.append('minClanPoints', options.minClanPoints);
+      }
+      
+      if (options.limit) {
+        searchParams.append('limit', Math.min(options.limit, 50)); // API max is 50
+      } else {
+        searchParams.append('limit', 10); // Default to 10 results
+      }
+      
+      const queryString = searchParams.toString();
+      const cacheKey = `clan_search_${queryString}`;
+      
+      // Check cache
+      if (this.cache.has(cacheKey)) {
+        const cached = this.cache.get(cacheKey);
+        if (cached.expiry > Date.now()) {
+          log.debug(`Using cached data for ${cacheKey}`);
+          return cached.data;
+        }
+        this.cache.delete(cacheKey);
+      }
+      
+      // Make API request
+      log.info(`Searching clans with criteria: ${queryString}`);
+      const response = await this.getAxiosInstance().get(`/clans?${queryString}`);
+      
+      if (!response.data || !response.data.items) {
+        return [];
+      }
+      
+      // Cache the result
+      this.cache.set(cacheKey, {
+        data: response.data.items,
+        expiry: Date.now() + this.cacheTTL
+      });
+      
+      return response.data.items;
+    } catch (error) {
+      this.handleRequestError(error, `searchClans(${name})`);
+      log.error(`Failed to search clans by name: ${name}`, { error: error.message });
+      return [];
+    }
+  }
+  
+  /**
    * Converts public API format to official API format
    * @param {Object} publicData - Data from public API
    * @returns {Object} - Formatted data matching official API

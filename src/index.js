@@ -173,8 +173,7 @@ async function initializeBot() {
       } else {
         log.info('API connection test successful');
 
-        // Start services - uncomment these as needed
-        /*
+        // Activate all tracking services
         try {
           log.info('Starting War tracking service...');
           const warTrackingService = require('./services/warTrackingService');
@@ -201,7 +200,6 @@ async function initializeBot() {
         } catch (serviceError) {
           log.error('Failed to start Capital tracking service:', { error: serviceError.message });
         }
-        */
       }
     } catch (error) {
       log.error('Error initializing tracking services:', { error: error.message });

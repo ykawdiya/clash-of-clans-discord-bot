@@ -5,11 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a31140c2-daa6-4a37-a345-5d16878fba79" name="Changes" comment="new features">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/admin/apitest.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/admin/apitest.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/commands/clan.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/clan.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/player.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/player.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/index.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/services/clashApiService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/clashApiService.js" afterDir="false" />
     </list>
@@ -112,23 +111,7 @@
       <workItem from="1743633092891" duration="210000" />
       <workItem from="1743633305397" duration="224000" />
       <workItem from="1743633533323" duration="15099000" />
-      <workItem from="1743711525123" duration="3261000" />
-    </task>
-    <task id="LOCAL-00127" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743346254583</created>
-      <option name="number" value="00127" />
-      <option name="presentableId" value="LOCAL-00127" />
-      <option name="project" value="LOCAL" />
-      <updated>1743346254583</updated>
-    </task>
-    <task id="LOCAL-00128" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743346664399</created>
-      <option name="number" value="00128" />
-      <option name="presentableId" value="LOCAL-00128" />
-      <option name="project" value="LOCAL" />
-      <updated>1743346664399</updated>
+      <workItem from="1743711525123" duration="9975000" />
     </task>
     <task id="LOCAL-00129" summary="new features">
       <option name="closed" value="true" />
@@ -506,7 +489,23 @@
       <option name="project" value="LOCAL" />
       <updated>1743713466998</updated>
     </task>
-    <option name="localTasksCounter" value="176" />
+    <task id="LOCAL-00176" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743714896942</created>
+      <option name="number" value="00176" />
+      <option name="presentableId" value="LOCAL-00176" />
+      <option name="project" value="LOCAL" />
+      <updated>1743714896942</updated>
+    </task>
+    <task id="LOCAL-00177" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743767248168</created>
+      <option name="number" value="00177" />
+      <option name="presentableId" value="LOCAL-00177" />
+      <option name="project" value="LOCAL" />
+      <updated>1743767248169</updated>
+    </task>
+    <option name="localTasksCounter" value="178" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
