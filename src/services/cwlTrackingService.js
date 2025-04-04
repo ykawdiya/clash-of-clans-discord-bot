@@ -1082,13 +1082,7 @@ class CwlTrackingService {
     }
   }
   
-  // Notification methods would be implemented here, connecting to Discord channels
-  // For brevity, these implementation details are omitted but would include:
-  // - sendCWLSignupNotification
-  // - sendCWLStartedNotification
-  // - sendCWLDayStartedNotification
-  // - sendCWLWarEndedNotification
-  // - sendCWLEndedNotification
+  // Notification methods are implemented below, connecting to Discord channels
   
   /**
    * Send CWL signup notification

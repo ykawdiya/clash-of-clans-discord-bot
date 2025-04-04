@@ -52,24 +52,87 @@ module.exports = {
         // Test API connection
         log.info('API connection test executed by ' + interaction.user.tag);
 
-        const connectionSuccess = await clashApiService.testConnection();
+        // Use the enhanced API test function that checks all endpoints
+        const results = await clashApiService.testConnection();
 
-        // Log proxy details (not shown to user)
-        if (process.env.PROXY_HOST) {
-            log.info(`Testing with proxy: ${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`);
-        } else {
-            log.info('Testing with direct connection (no proxy)');
+        // Create a detailed embed with results
+        const embed = new EmbedBuilder()
+            .setTitle('Clash of Clans API Connection Test')
+            .setDescription(results.success ? 
+                '✅ API connection test successful!' : 
+                '❌ API connection test failed')
+            .setColor(results.success ? '#2ecc71' : '#e74c3c')
+            .setTimestamp();
+
+        // Add proxy information
+        const proxyStatus = results.proxyEnabled ? 
+            (results.proxyWorking ? '✅ Connected' : '❌ Failed') : 
+            '⚠️ Not configured';
+            
+        embed.addFields({ 
+            name: 'Proxy Status', 
+            value: proxyStatus, 
+            inline: true 
+        });
+
+        // Add IP address
+        if (results.currentIp) {
+            embed.addFields({ 
+                name: 'Current IP', 
+                value: results.currentIp, 
+                inline: true 
+            });
         }
 
-        if (connectionSuccess) {
-            await interaction.editReply({
-                content: `✅ API connection test successful! The bot can communicate with the Clash of Clans API.`
-            });
-        } else {
-            await interaction.editReply({
-                content: `❌ API connection test failed. Please check your API token${process.env.PROXY_HOST ? ' and proxy settings' : ''}.`
+        // Add API status for each endpoint
+        embed.addFields({ 
+            name: 'API Connection', 
+            value: results.apiConnection ? '✅ Connected' : '❌ Failed', 
+            inline: true 
+        });
+
+        // Add specific endpoint results
+        const endpointStatus = [];
+        if (results.apiAccess) {
+            endpointStatus.push(`Locations: ${results.apiAccess.locations ? '✅' : '❌'}`);
+            endpointStatus.push(`Clans: ${results.apiAccess.clans ? '✅' : '❌'}`);
+            endpointStatus.push(`Players: ${results.apiAccess.players ? '✅' : '❌'}`);
+            endpointStatus.push(`Current War: ${results.apiAccess.currentWar ? '✅' : '⚠️ Requires public war log'}`);
+            endpointStatus.push(`War Log: ${results.apiAccess.publicWarlog ? '✅' : '⚠️ Requires public war log'}`);
+            endpointStatus.push(`CWL Group: ${results.apiAccess.cwlGroup ? '✅' : '⚠️ Only available during active CWL'}`);
+        }
+
+        if (endpointStatus.length > 0) {
+            embed.addFields({ 
+                name: 'Endpoint Availability', 
+                value: endpointStatus.join('\n') 
             });
         }
+
+        // Add troubleshooting info
+        if (!results.success) {
+            embed.addFields({ 
+                name: 'Troubleshooting', 
+                value: '1. Check your API token in .env file\n' +
+                      '2. Verify the token is valid in Clash of Clans Developer Portal\n' +
+                      '3. Ensure your IP is whitelisted in the Developer Portal\n' +
+                      '4. If using a proxy, check the credentials and connection'
+            });
+
+            if (results.errorDetails) {
+                embed.addFields({ 
+                    name: 'Error Details', 
+                    value: `\`\`\`${results.errorDetails}\`\`\`` 
+                });
+            }
+        }
+
+        // Add API reference note
+        embed.setFooter({ text: 'See API_REFERENCE.md for more information on API limitations' });
+
+        await interaction.editReply({
+            embeds: [embed]
+        });
     },
     
     async testSearch(interaction) {

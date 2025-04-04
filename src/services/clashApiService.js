@@ -630,14 +630,32 @@ class ClashApiService {
 
   /**
    * Test API and proxy connection
-   * @returns {Promise<boolean>} - Whether connection is successful
+   * @returns {Promise<Object>} - Result object with status and details
    */
   async testConnection() {
     try {
       log.info('Testing API connection...');
       
-      // Check if using proxy
-      if (process.env.PROXY_HOST && process.env.PROXY_PORT) {
+      // Store results in a comprehensive object
+      const results = {
+        success: false,
+        proxyEnabled: Boolean(process.env.PROXY_HOST && process.env.PROXY_PORT),
+        proxyWorking: false,
+        currentIp: null,
+        apiConnection: false,
+        apiAccess: {
+          locations: false,
+          clans: false,
+          players: false,
+          currentWar: false,
+          publicWarlog: false,
+          cwlGroup: false
+        },
+        errorDetails: null
+      };
+      
+      // Check proxy configuration
+      if (results.proxyEnabled) {
         log.info('Webshare proxy is configured');
         
         // Test proxy connection by getting IP
@@ -650,17 +668,23 @@ class ClashApiService {
           
           // Get IP from Webshare proxy
           const ipResponse = await axiosInstance.get('https://api.ipify.org?format=json');
-          log.info(`✅ Webshare proxy is working! Proxy IP: ${ipResponse.data.ip}`);
+          results.currentIp = ipResponse.data.ip;
+          results.proxyWorking = true;
+          
+          log.info(`✅ Webshare proxy is working! Proxy IP: ${results.currentIp}`);
           log.info('This IP should be whitelisted in your Clash of Clans Developer account');
           
           // Restore original baseURL
           axiosInstance.defaults.baseURL = originalBaseURL;
         } catch (proxyError) {
           log.error('❌ Failed to connect through Webshare proxy:', { error: proxyError.message });
+          results.errorDetails = `Proxy Error: ${proxyError.message}`;
+          
           // Try direct connection to see our actual IP
           try {
             const directIpResponse = await axios.get('https://api.ipify.org?format=json');
-            log.warn(`Your direct IP (not using proxy): ${directIpResponse.data.ip}`);
+            results.currentIp = directIpResponse.data.ip;
+            log.warn(`Your direct IP (not using proxy): ${results.currentIp}`);
             log.warn('The proxy is NOT working correctly');
           } catch (directError) {
             log.error('Could not determine any IP address');
@@ -670,21 +694,117 @@ class ClashApiService {
         // No proxy configured, just show the direct IP
         try {
           const ipResponse = await axios.get('https://api.ipify.org?format=json');
-          log.info(`Current public IP address: ${ipResponse.data.ip}`);
+          results.currentIp = ipResponse.data.ip;
+          log.info(`Current public IP address: ${results.currentIp}`);
           log.info('⚠️ If API calls fail, whitelist this IP in your Clash of Clans Developer account');
         } catch (ipError) {
           log.warn('Could not determine public IP address:', { error: ipError.message });
         }
       }
       
-      // Now actually test the Clash API connection
-      await this.getAxiosInstance().get('/locations');
-      log.info('✅ Clash of Clans API connection SUCCESSFUL');
-      return true;
+      // Test core API endpoints
+      try {
+        // Test locations endpoint (should always work)
+        await this.getAxiosInstance().get('/locations');
+        results.apiConnection = true;
+        results.apiAccess.locations = true;
+        log.info('✅ Basic API connection SUCCESSFUL (locations endpoint)');
+        
+        // Test all other major endpoints with sample data
+        // 1. Test clan lookup
+        try {
+          // Use a popular clan that should always exist
+          await this.getAxiosInstance().get('/clans/%232PP');
+          results.apiAccess.clans = true;
+          log.info('✅ Clan API access SUCCESSFUL');
+          
+          // 2. Test player lookup
+          try {
+            // Use a sample player from the clan
+            const clanResponse = await this.getAxiosInstance().get('/clans/%232PP/members');
+            
+            if (clanResponse.data?.items?.length > 0) {
+              const samplePlayerTag = clanResponse.data.items[0].tag;
+              await this.getAxiosInstance().get(`/players/${encodeURIComponent(samplePlayerTag)}`);
+              results.apiAccess.players = true;
+              log.info('✅ Player API access SUCCESSFUL');
+            }
+          } catch (playerError) {
+            log.warn('⚠️ Player API access FAILED');
+          }
+          
+          // 3. Test war access (requires public war log)
+          try {
+            const warResponse = await this.getAxiosInstance().get('/clans/%232PP/currentwar');
+            
+            if (warResponse.data && warResponse.data.state !== 'notInWar') {
+              results.apiAccess.currentWar = true;
+              log.info('✅ Current War API access SUCCESSFUL');
+            } else {
+              log.info('ℹ️ Clan is not in war - cannot test war API');
+            }
+          } catch (warError) {
+            if (warError.response?.status === 403) {
+              log.warn('⚠️ War log is private - restricted access');
+            } else {
+              log.warn('⚠️ Current War API access FAILED');
+            }
+          }
+          
+          // 4. Test war log access (requires public war log)
+          try {
+            const warlogResponse = await this.getAxiosInstance().get('/clans/%232PP/warlog');
+            results.apiAccess.publicWarlog = true;
+            log.info('✅ War Log API access SUCCESSFUL');
+          } catch (warlogError) {
+            if (warlogError.response?.status === 403) {
+              log.warn('⚠️ War log is private - restricted access');
+            } else {
+              log.warn('⚠️ War Log API access FAILED');
+            }
+          }
+          
+          // 5. Test CWL access (only available during active CWL)
+          try {
+            const cwlResponse = await this.getAxiosInstance().get('/clans/%232PP/currentwar/leaguegroup');
+            
+            if (cwlResponse.data && cwlResponse.data.state) {
+              results.apiAccess.cwlGroup = true;
+              log.info('✅ CWL API access SUCCESSFUL');
+            } else {
+              log.info('ℹ️ No active CWL - cannot test CWL API');
+            }
+          } catch (cwlError) {
+            if (cwlError.response?.status === 404) {
+              log.info('ℹ️ No active CWL - cannot test CWL API');
+            } else {
+              log.warn('⚠️ CWL API access FAILED');
+            }
+          }
+          
+        } catch (clanError) {
+          log.warn('⚠️ Clan API access FAILED');
+        }
+        
+        // Overall success if we have basic connectivity
+        results.success = results.apiConnection && results.apiAccess.clans;
+        
+      } catch (apiError) {
+        log.error('❌ Clash of Clans API connection FAILED');
+        this.handleRequestError(apiError, 'testConnection()');
+        results.errorDetails = `API Error: ${apiError.message}`;
+      }
+      
+      // Log detailed results
+      log.info('API Test Results:', results);
+      
+      return results;
     } catch (error) {
-      log.error('❌ Clash of Clans API connection FAILED');
-      this.handleRequestError(error, 'testConnection()');
-      return false;
+      log.error('❌ Complete API test failure:', { error: error.message });
+      return {
+        success: false,
+        errorDetails: error.message
+      };
     }
   }
 
