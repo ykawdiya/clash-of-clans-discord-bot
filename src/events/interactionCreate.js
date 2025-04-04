@@ -104,19 +104,12 @@ async function handleButtonInteraction(interaction) {
     });
   } else if (customId.startsWith('sync_')) {
     await handleSyncButtons(interaction, customId);
-  } else if (customId === 'confirm_reset' || customId === 'reset_confirmed') {
-    // Handle reset confirmation buttons
-    await handleSetupButtons(interaction, customId);
-  } else if (customId === 'reset_single') {
-    // Handle single clan reset
-    await performServerReset(interaction, false);
-  } else if (customId === 'reset_multi') {
-    // Show clan count selector for multi-clan setup
-    await showMultiClanOptions(interaction);
-  } else if (customId.startsWith('reset_multi_')) {
-    // Handle multi-clan reset with specific count
-    const clanCount = parseInt(customId.split('_')[2]);
-    await performServerReset(interaction, true, clanCount);
+  } else if (customId === 'confirm_reset') {
+    // Handle reset confirmation button
+    await resetAndSetupServer(interaction);
+  } else if (customId === 'reset_confirmed') {
+    // Already handled by setup buttons but added for completeness
+    await resetAndSetupServer(interaction);
   }
 }
 
@@ -294,41 +287,87 @@ async function showSetupOptions(interaction) {
  * @param {Interaction} interaction - Discord interaction
  */
 async function resetAndSetupServer(interaction) {
-  // Show setup options (single clan or multi clan)
-  const setupEmbed = new EmbedBuilder()
-    .setTitle('Server Reset & Setup')
-    .setDescription('Choose your server setup type:')
-    .setColor('#3498db')
-    .addFields(
-      { name: 'Single Clan Server', value: 'Set up for a single clan (recommended for most servers)' },
-      { name: 'Multi-Clan Server', value: 'Set up for multiple clans (family/alliance setup)' }
+  try {
+    await interaction.update({
+      content: '🚀 Starting server reset and setup process...',
+      embeds: [],
+      components: [],
+      ephemeral: true
+    });
+    
+    const guild = interaction.guild;
+    
+    // Check if bot has Administrator permissions
+    if (!guild.members.me.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.editReply({
+        content: '❌ Error: I need Administrator permissions to reset the server.',
+        ephemeral: true
+      });
+    }
+    
+    // Create backup of channel structure
+    log.info(`Creating backup of channel structure for ${guild.name}`);
+    
+    // Delete existing channels (non-system ones)
+    await interaction.editReply({
+      content: '🗑️ Deleting channels... (This may take a minute)',
+      ephemeral: true
+    });
+    
+    // Skip system channels
+    const nonSystemChannels = guild.channels.cache.filter(channel => 
+      channel.type !== 5 && // guild directory
+      !channel.name.includes('rules') &&
+      !channel.name.includes('community') 
     );
-
-  const setupTypeButtons = new ActionRowBuilder()
-    .addComponents(
-      new ButtonBuilder()
-        .setCustomId('reset_single')
-        .setLabel('Single Clan')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('⚔️'),
-      new ButtonBuilder()
-        .setCustomId('reset_multi')
-        .setLabel('Multi-Clan (2-5)')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🏰'),
-      new ButtonBuilder()
-        .setCustomId('cancel_setup')
-        .setLabel('Cancel')
-        .setStyle(ButtonStyle.Secondary)
-        .setEmoji('❌')
-    );
-
-  await interaction.update({
-    content: '',
-    embeds: [setupEmbed],
-    components: [setupTypeButtons],
-    ephemeral: true
-  });
+    
+    // Delete text/voice channels first (non-categories)
+    const channelsToDelete = nonSystemChannels.filter(c => c.type !== 4);
+    for (const [_, channel] of channelsToDelete) {
+      try {
+        await channel.delete('Server reset by setup wizard');
+        await new Promise(r => setTimeout(r, 300)); // Rate limit prevention
+      } catch (err) {
+        log.error(`Failed to delete channel ${channel.name}:`, { error: err.message });
+      }
+    }
+    
+    // Now delete categories
+    const categoriesToDelete = nonSystemChannels.filter(c => c.type === 4);
+    for (const [_, category] of categoriesToDelete) {
+      try {
+        await category.delete('Server reset by setup wizard');
+        await new Promise(r => setTimeout(r, 300)); // Rate limit prevention
+      } catch (err) {
+        log.error(`Failed to delete category ${category.name}:`, { error: err.message });
+      }
+    }
+    
+    // Set up new channels
+    await interaction.editReply({
+      content: '🏗️ Setting up new server structure...',
+      ephemeral: true
+    });
+    
+    // Use setup command's single clan setup
+    const setupCommand = interaction.client.commands.get('setup');
+    if (setupCommand) {
+      await setupCommand.setupSingleClan(interaction);
+    } else {
+      return interaction.editReply({
+        content: '❌ Error: Could not find setup command.',
+        ephemeral: true
+      });
+    }
+  } catch (error) {
+    log.error('Server reset error:', { error: error.message });
+    await interaction.editReply({
+      content: '❌ An error occurred during reset. Some channels may have been deleted but not recreated.',
+      ephemeral: true
+    }).catch(e => {
+      log.error('Failed to send error message:', { error: e.message });
+    });
+  }
 }
 
 /**

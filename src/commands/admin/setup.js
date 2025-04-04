@@ -80,13 +80,13 @@ module.exports = {
       
       // Create the welcome embed with clear warning
       const welcomeEmbed = new EmbedBuilder()
-        .setTitle('🛠️ Clash of Clans Server Setup Wizard')
-        .setDescription('Welcome to the setup wizard! This tool will configure your Discord server for optimal use with the Clash of Clans bot.')
-        .setColor('#f1c40f')
+        .setTitle('⚠️ Clash of Clans Server Setup Wizard - DANGER ZONE ⚠️')
+        .setDescription('**WARNING: This wizard will DELETE ALL EXISTING CHANNELS in your server!**')
+        .setColor('#e74c3c')
         .addFields(
-          { name: '⚠️ WARNING', value: 'This wizard will delete ALL existing channels and categories in your server, then create a new structure from scratch. A backup of channel names will be saved, but message history will be permanently lost.' },
-          { name: 'What will be created?', value: '• Organized channels and categories for clan management\n• Roles based on clan ranks (Leader, Co-Leader, etc.)\n• Notification channels for wars and events\n• Dedicated areas for war tracking, CWL, and clan capital' },
-          { name: 'Getting Started', value: 'Click one of the buttons below to continue. **Make sure you really want to reset your server!**' }
+          { name: 'What will be PERMANENTLY DELETED:', value: '• All channels and categories\n• All message history\n• All pins and webhooks' },
+          { name: 'What will be created instead:', value: '• Organized channels for clan management\n• Roles based on clan ranks (Leader, Co-Leader, etc.)\n• Category structure for war tracking, CWL, and clan capital' },
+          { name: '⚠️ THIS CANNOT BE UNDONE!', value: 'Are you 100% sure you want to reset the entire server?' }
         );
         
       // Create the buttons for options
@@ -94,28 +94,19 @@ module.exports = {
         .addComponents(
           new ButtonBuilder()
             .setCustomId('confirm_reset')
-            .setLabel('Reset & Set Up Server')
+            .setLabel('YES, RESET EVERYTHING')
             .setStyle(ButtonStyle.Danger)
-            .setEmoji('⚠️'),
+            .setEmoji('🗑️'),
           new ButtonBuilder()
             .setCustomId('cancel_setup')
-            .setLabel('Cancel')
-            .setStyle(ButtonStyle.Secondary)
-            .setEmoji('❌')
-        );
-        
-      const optionsButton = new ActionRowBuilder()
-        .addComponents(
-          new ButtonBuilder()
-            .setCustomId('setup_options')
-            .setLabel('Show Setup Options')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('🔧')
+            .setLabel('NO, CANCEL')
+            .setStyle(ButtonStyle.Success)
+            .setEmoji('✅')
         );
         
       await interaction.reply({
         embeds: [welcomeEmbed],
-        components: [setupButtons, optionsButton],
+        components: [setupButtons],
         ephemeral: true
       });
     } catch (error) {
