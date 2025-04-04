@@ -5,9 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="a31140c2-daa6-4a37-a345-5d16878fba79" name="Changes" comment="new features">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/admin/setup.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/admin/setup.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/events/interactionCreate.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/events/interactionCreate.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/player.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/player.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -30,6 +28,10 @@
     &quot;accountId&quot;: &quot;c0a2d9ce-1835-4b5e-9bfb-86e7f0d12beb&quot;
   }
 }</component>
+  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
+  <component name="KubernetesApiProvider"><![CDATA[{
+  "isMigrated": true
+}]]></component>
   <component name="ProblemsViewState">
     <option name="selectedTabId" value="CurrentFile" />
   </component>
@@ -108,15 +110,7 @@
       <workItem from="1743633092891" duration="210000" />
       <workItem from="1743633305397" duration="224000" />
       <workItem from="1743633533323" duration="15099000" />
-      <workItem from="1743711525123" duration="24846000" />
-    </task>
-    <task id="LOCAL-00141" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743407282218</created>
-      <option name="number" value="00141" />
-      <option name="presentableId" value="LOCAL-00141" />
-      <option name="project" value="LOCAL" />
-      <updated>1743407282218</updated>
+      <workItem from="1743711525123" duration="25817000" />
     </task>
     <task id="LOCAL-00142" summary="new features">
       <option name="closed" value="true" />
@@ -502,7 +496,15 @@
       <option name="project" value="LOCAL" />
       <updated>1743803611093</updated>
     </task>
-    <option name="localTasksCounter" value="190" />
+    <task id="LOCAL-00190" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743805096955</created>
+      <option name="number" value="00190" />
+      <option name="presentableId" value="LOCAL-00190" />
+      <option name="project" value="LOCAL" />
+      <updated>1743805096955</updated>
+    </task>
+    <option name="localTasksCounter" value="191" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

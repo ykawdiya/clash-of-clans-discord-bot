@@ -204,6 +204,33 @@ module.exports = {
       
       await user.save();
       
+      // Attempt to sync roles after successful linking
+      try {
+        // Check if the player belongs to a clan
+        if (playerData.clan) {
+          // Find the setup command to use its syncRolesWithClan method
+          const setupCommand = interaction.client.commands.get('setup');
+          
+          if (setupCommand && setupCommand.syncRolesWithClan) {
+            // Sync roles for this specific user
+            const syncResult = await setupCommand.syncRolesWithClan(
+              interaction,
+              playerData.clan.tag,
+              interaction.user.id
+            );
+            
+            if (syncResult.success) {
+              return interaction.editReply({
+                content: `Successfully linked your Discord account to ${playerData.name} (${playerTag}) and synchronized your clan role. You can now use player-specific features!`
+              });
+            }
+          }
+        }
+      } catch (syncError) {
+        log.error('Error syncing roles after player link:', { error: syncError.message });
+        // Continue to regular success message if role sync fails
+      }
+      
       return interaction.editReply({
         content: `Successfully linked your Discord account to ${playerData.name} (${playerTag}). You can now use player-specific features!`
       });
