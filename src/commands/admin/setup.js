@@ -125,11 +125,34 @@ module.exports = {
   async setupSingleClan(interaction) {
     try {
       const guild = interaction.guild;
-      const botMember = guild.members.cache.get(guild.client.user.id);
+      const botMember = guild.members.me;
       
-      if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      // Check for Administrator permission first
+      if (!botMember.permissions.has(PermissionFlagsBits.Administrator)) {
         return interaction.editReply({
-          content: 'I need the "Manage Channels" permission to set up the server.'
+          content: '❌ Error: I need Administrator permission to set up the server. Please give the bot Administrator permission in Server Settings > Roles, then try again.'
+        });
+      }
+      
+      // Additional permission checks if needed
+      const requiredPermissions = [
+        'ManageChannels', 
+        'ManageRoles', 
+        'ManageMessages',
+        'ViewChannel',
+        'SendMessages',
+        'EmbedLinks',
+        'AttachFiles',
+        'MentionEveryone'
+      ];
+      
+      const missingPermissions = requiredPermissions.filter(perm => 
+        !botMember.permissions.has(PermissionFlagsBits[perm])
+      );
+      
+      if (missingPermissions.length > 0) {
+        return interaction.editReply({
+          content: `❌ Error: I'm missing the following permissions: ${missingPermissions.join(', ')}. Please give the bot Administrator permission in Server Settings > Roles, then try again.`
         });
       }
       
@@ -497,6 +520,8 @@ module.exports = {
             }
           }
           
+          // We've already checked permissions at the beginning of the function, so no need to check again here
+
           // Create new category with permissions
           const createdCategory = await guild.channels.create({
             name: category.name,
@@ -791,11 +816,34 @@ module.exports = {
   async setupMultiClan(interaction, clanCount) {
     try {
       const guild = interaction.guild;
-      const botMember = guild.members.cache.get(guild.client.user.id);
+      const botMember = guild.members.me;
       
-      if (!botMember.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      // Check for Administrator permission first
+      if (!botMember.permissions.has(PermissionFlagsBits.Administrator)) {
         return interaction.editReply({
-          content: 'I need the "Manage Channels" permission to set up the server.'
+          content: '❌ Error: I need Administrator permission to set up the server. Please give the bot Administrator permission in Server Settings > Roles, then try again.'
+        });
+      }
+      
+      // Additional permission checks if needed
+      const requiredPermissions = [
+        'ManageChannels', 
+        'ManageRoles', 
+        'ManageMessages',
+        'ViewChannel',
+        'SendMessages',
+        'EmbedLinks',
+        'AttachFiles',
+        'MentionEveryone'
+      ];
+      
+      const missingPermissions = requiredPermissions.filter(perm => 
+        !botMember.permissions.has(PermissionFlagsBits[perm])
+      );
+      
+      if (missingPermissions.length > 0) {
+        return interaction.editReply({
+          content: `❌ Error: I'm missing the following permissions: ${missingPermissions.join(', ')}. Please give the bot Administrator permission in Server Settings > Roles, then try again.`
         });
       }
       
