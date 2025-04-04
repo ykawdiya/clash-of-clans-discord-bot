@@ -461,23 +461,21 @@ module.exports = {
       const createdChannels = {};
       
       // Count how many we'll create
-      const totalCategories = categories.length;
-      const totalChannels = categories.reduce((count, cat) => count + cat.channels.length, 0);
+      const categoryTotal = categories.length;
+      const channelTotal = categories.reduce((count, cat) => count + cat.channels.length, 0);
       
       // Send progress update
       await interaction.editReply({
-        content: `Setting up sophisticated server structure...\nCreating ${totalCategories} categories and ${totalChannels} channels with proper permissions.\n(This may take a minute)`
+        content: `Setting up sophisticated server structure...\nCreating ${categoryTotal} categories and ${channelTotal} channels with proper permissions.\n(This may take a minute)`
       });
       
       // Track progress
       let categoryCount = 0;
-      const totalCategories = categories.length;
       let channelCount = 0;
-      const totalChannels = categories.reduce((count, cat) => count + cat.channels.length, 0);
       
       // Update the interaction with progress
       await interaction.editReply({
-        content: `Setting up sophisticated server structure...\nCreating category 1/${totalCategories}`
+        content: `Setting up sophisticated server structure...\nCreating category 1/${categoryTotal}`
       });
       
       // Process each category one by one
@@ -513,7 +511,7 @@ module.exports = {
           // Update progress
           await interaction.editReply({
             content: `Setting up sophisticated server structure...\n` + 
-                    `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                    `Created category ${categoryCount}/${categoryTotal}: ${category.name}\n` +
                     `Creating channels for this category...`
           }).catch(() => {}); // Ignore errors if we can't update
           
@@ -558,11 +556,11 @@ module.exports = {
               log.info(`Created ${channel.type === 0 ? 'text' : 'voice'} channel: ${channel.name} with custom permissions`);
               
               // Update progress every few channels or on the last channel
-              if (channelCount % 5 === 0 || channelCount === totalChannels) {
+              if (channelCount % 5 === 0 || channelCount === channelTotal) {
                 await interaction.editReply({
                   content: `Setting up sophisticated server structure...\n` + 
-                          `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
-                          `Created channels: ${channelCount}/${totalChannels}`
+                          `Created category ${categoryCount}/${categoryTotal}: ${category.name}\n` +
+                          `Created channels: ${channelCount}/${channelTotal}`
                 }).catch(() => {}); // Ignore errors if we can't update
               }
               
@@ -581,10 +579,10 @@ module.exports = {
           await new Promise(r => setTimeout(r, 750));
           
           // Update progress before moving to next category
-          if (categoryCount < totalCategories) {
+          if (categoryCount < categoryTotal) {
             await interaction.editReply({
               content: `Setting up sophisticated server structure...\n` + 
-                      `Completed category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                      `Completed category ${categoryCount}/${categoryTotal}: ${category.name}\n` +
                       `Moving to next category...`
             }).catch(() => {}); // Ignore errors if we can't update
           }
@@ -601,7 +599,7 @@ module.exports = {
           // Update progress after error
           await interaction.editReply({
             content: `Setting up sophisticated server structure...\n` + 
-                    `⚠️ Failed to create category ${category.name} (${categoryCount}/${totalCategories})\n` +
+                    `⚠️ Failed to create category ${category.name} (${categoryCount}/${categoryTotal})\n` +
                     `Continuing with next category...`
           }).catch(() => {}); // Ignore errors if we can't update
         }
@@ -1277,9 +1275,9 @@ module.exports = {
       const createdCategories = [];
       const createdChannels = {};
       
-      // Count how many we'll create
-      const totalCategories = categories.length;
-      const totalChannels = categories.reduce((count, cat) => count + cat.channels.length, 0);
+      // Count how many we'll create for progress reporting
+      const categoryTotal = categories.length;
+      const channelTotal = categories.reduce((count, cat) => count + cat.channels.length, 0);
       
       // Track progress
       let categoryCount = 0;
@@ -1287,7 +1285,7 @@ module.exports = {
       
       // Send progress update
       await interaction.editReply({
-        content: `Setting up sophisticated multi-clan server structure...\nCreating ${totalCategories} categories and ${totalChannels} channels with proper permissions.\nStarting with category 1/${totalCategories}`
+        content: `Setting up sophisticated multi-clan server structure...\nCreating ${categoryTotal} categories and ${channelTotal} channels with proper permissions.\nStarting with category 1/${categoryTotal}`
       });
       
       // Process each category one by one
@@ -1312,7 +1310,7 @@ module.exports = {
           // Update progress
           await interaction.editReply({
             content: `Setting up sophisticated multi-clan server structure...\n` + 
-                    `Creating category ${categoryCount}/${totalCategories}: ${category.name}`
+                    `Creating category ${categoryCount}/${categoryTotal}: ${category.name}`
           }).catch(() => {}); // Ignore errors if we can't update
           
           // Create new category with permissions
@@ -1329,7 +1327,7 @@ module.exports = {
           // Update progress again to show we're creating channels
           await interaction.editReply({
             content: `Setting up sophisticated multi-clan server structure...\n` + 
-                    `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                    `Created category ${categoryCount}/${categoryTotal}: ${category.name}\n` +
                     `Creating channels for this category...`
           }).catch(() => {}); // Ignore errors if we can't update
           
@@ -1374,11 +1372,11 @@ module.exports = {
               log.info(`Created ${channel.type === 0 ? 'text' : 'voice'} channel: ${channel.name} with custom permissions`);
               
               // Update progress periodically
-              if (channelCount % 5 === 0 || channelCount === totalChannels) {
+              if (channelCount % 5 === 0 || channelCount === channelTotal) {
                 await interaction.editReply({
                   content: `Setting up sophisticated multi-clan server structure...\n` + 
-                          `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
-                          `Created channels: ${channelCount}/${totalChannels}`
+                          `Created category ${categoryCount}/${categoryTotal}: ${category.name}\n` +
+                          `Created channels: ${channelCount}/${channelTotal}`
                 }).catch(() => {}); // Ignore errors if we can't update
               }
               
@@ -1397,10 +1395,10 @@ module.exports = {
           await new Promise(r => setTimeout(r, 750));
           
           // Update progress between categories
-          if (categoryCount < totalCategories) {
+          if (categoryCount < categoryTotal) {
             await interaction.editReply({
               content: `Setting up sophisticated multi-clan server structure...\n` + 
-                      `Completed category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                      `Completed category ${categoryCount}/${categoryTotal}: ${category.name}\n` +
                       `Moving to next category...`
             }).catch(() => {}); // Ignore errors if we can't update
           }
@@ -1413,7 +1411,7 @@ module.exports = {
           // Update progress after error
           await interaction.editReply({
             content: `Setting up sophisticated multi-clan server structure...\n` + 
-                    `⚠️ Failed to create category ${category.name} (${categoryCount}/${totalCategories})\n` +
+                    `⚠️ Failed to create category ${category.name} (${categoryCount}/${categoryTotal})\n` +
                     `Continuing with next category...`
           }).catch(() => {}); // Ignore errors if we can't update
           
