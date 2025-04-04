@@ -6,10 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="a31140c2-daa6-4a37-a345-5d16878fba79" name="Changes" comment="new features">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/medals.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/medals.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/plan.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/plan.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/roster.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/roster.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/stats.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/stats.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/admin/setup.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/admin/setup.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/events/interactionCreate.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/events/interactionCreate.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -110,23 +108,7 @@
       <workItem from="1743633092891" duration="210000" />
       <workItem from="1743633305397" duration="224000" />
       <workItem from="1743633533323" duration="15099000" />
-      <workItem from="1743711525123" duration="15909000" />
-    </task>
-    <task id="LOCAL-00132" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743347996055</created>
-      <option name="number" value="00132" />
-      <option name="presentableId" value="LOCAL-00132" />
-      <option name="project" value="LOCAL" />
-      <updated>1743347996055</updated>
-    </task>
-    <task id="LOCAL-00133" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743348416740</created>
-      <option name="number" value="00133" />
-      <option name="presentableId" value="LOCAL-00133" />
-      <option name="project" value="LOCAL" />
-      <updated>1743348416740</updated>
+      <workItem from="1743711525123" duration="19407000" />
     </task>
     <task id="LOCAL-00134" summary="new features">
       <option name="closed" value="true" />
@@ -504,7 +486,23 @@
       <option name="project" value="LOCAL" />
       <updated>1743792817164</updated>
     </task>
-    <option name="localTasksCounter" value="181" />
+    <task id="LOCAL-00181" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743795274918</created>
+      <option name="number" value="00181" />
+      <option name="presentableId" value="LOCAL-00181" />
+      <option name="project" value="LOCAL" />
+      <updated>1743795274918</updated>
+    </task>
+    <task id="LOCAL-00182" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743799001482</created>
+      <option name="number" value="00182" />
+      <option name="presentableId" value="LOCAL-00182" />
+      <option name="project" value="LOCAL" />
+      <updated>1743799001482</updated>
+    </task>
+    <option name="localTasksCounter" value="183" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

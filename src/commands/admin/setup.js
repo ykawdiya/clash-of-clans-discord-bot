@@ -70,55 +70,52 @@ module.exports = {
     try {
       // Check if we have necessary permissions
       if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageChannels) ||
-          !interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+          !interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles) ||
+          !interaction.guild.members.me.permissions.has(PermissionFlagsBits.Administrator)) {
         return interaction.reply({
-          content: 'I need the "Manage Channels" and "Manage Roles" permissions to run the setup wizard.',
+          content: 'I need the "Administrator" permission (which includes "Manage Channels" and "Manage Roles") to run the setup wizard.',
           ephemeral: true
         });
       }
       
-      // Create the welcome embed
+      // Create the welcome embed with clear warning
       const welcomeEmbed = new EmbedBuilder()
         .setTitle('🛠️ Clash of Clans Server Setup Wizard')
-        .setDescription('Welcome to the setup wizard! This tool will help you configure your Discord server for optimal use with the Clash of Clans bot.')
+        .setDescription('Welcome to the setup wizard! This tool will configure your Discord server for optimal use with the Clash of Clans bot.')
         .setColor('#f1c40f')
         .addFields(
-          { name: 'What can this wizard do?', value: '• Create organized channels and categories\n• Set up roles based on clan ranks\n• Configure notification preferences\n• Prepare your server for war tracking and more' },
-          { name: 'Getting Started', value: 'Choose what you want to set up below:' }
+          { name: '⚠️ WARNING', value: 'This wizard will delete ALL existing channels and categories in your server, then create a new structure from scratch. A backup of channel names will be saved, but message history will be permanently lost.' },
+          { name: 'What will be created?', value: '• Organized channels and categories for clan management\n• Roles based on clan ranks (Leader, Co-Leader, etc.)\n• Notification channels for wars and events\n• Dedicated areas for war tracking, CWL, and clan capital' },
+          { name: 'Getting Started', value: 'Click one of the buttons below to continue. **Make sure you really want to reset your server!**' }
         );
         
       // Create the buttons for options
       const setupButtons = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
-            .setCustomId('setup_channels')
-            .setLabel('Channels & Categories')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('📁'),
+            .setCustomId('confirm_reset')
+            .setLabel('Reset & Set Up Server')
+            .setStyle(ButtonStyle.Danger)
+            .setEmoji('⚠️'),
           new ButtonBuilder()
-            .setCustomId('setup_roles')
-            .setLabel('Roles & Permissions')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('👑'),
-          new ButtonBuilder()
-            .setCustomId('setup_notifications')
-            .setLabel('Notifications')
-            .setStyle(ButtonStyle.Primary)
-            .setEmoji('🔔')
+            .setCustomId('cancel_setup')
+            .setLabel('Cancel')
+            .setStyle(ButtonStyle.Secondary)
+            .setEmoji('❌')
         );
         
-      const allInOneButton = new ActionRowBuilder()
+      const optionsButton = new ActionRowBuilder()
         .addComponents(
           new ButtonBuilder()
-            .setCustomId('setup_all')
-            .setLabel('Complete Server Setup')
-            .setStyle(ButtonStyle.Success)
-            .setEmoji('✅')
+            .setCustomId('setup_options')
+            .setLabel('Show Setup Options')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('🔧')
         );
         
       await interaction.reply({
         embeds: [welcomeEmbed],
-        components: [setupButtons, allInOneButton],
+        components: [setupButtons, optionsButton],
         ephemeral: true
       });
     } catch (error) {
@@ -189,29 +186,86 @@ module.exports = {
       const createdCategories = [];
       const createdChannels = {};
       
+      // Count how many we'll create
+      const totalCategories = categories.length;
+      const totalChannels = categories.reduce((count, cat) => count + cat.channels.length, 0);
+      
+      // Check for existing channels with the same names to avoid conflicts
+      const existingChannelNames = guild.channels.cache.filter(c => c.type === 0).map(c => c.name);
+      const existingCategoryNames = guild.channels.cache.filter(c => c.type === 4).map(c => c.name);
+      
+      // Send progress update
+      await interaction.editReply({
+        content: `Setting up server structure...\nCreating ${totalCategories} categories and ${totalChannels} channels.\n(This may take a minute)`
+      });
+      
+      // Process each category
       for (const category of categories) {
-        // Create category
-        const createdCategory = await guild.channels.create({
-          name: category.name,
-          type: 0, // GUILD_CATEGORY
-          reason: 'Server setup for Clash of Clans bot'
-        });
-        
-        createdCategories.push(createdCategory);
-        
-        // Create channels in category
-        for (const channel of category.channels) {
-          const createdChannel = await guild.channels.create({
-            name: channel.name,
-            type: 0, // GUILD_TEXT
-            parent: createdCategory.id,
-            reason: 'Server setup for Clash of Clans bot'
-          });
+        try {
+          // Check if category already exists
+          let createdCategory;
+          const existingCategory = guild.channels.cache.find(c => 
+            c.type === 4 && c.name.toLowerCase() === category.name.toLowerCase()
+          );
           
-          // Store created channels by name for later use
-          createdChannels[channel.name] = createdChannel;
+          if (existingCategory) {
+            // Use existing category
+            createdCategory = existingCategory;
+            log.info(`Using existing category: ${category.name}`);
+          } else {
+            // Create new category
+            createdCategory = await guild.channels.create({
+              name: category.name,
+              type: 4, // GUILD_CATEGORY (Discord.js v14 uses 4 instead of 0)
+              reason: 'Server setup for Clash of Clans bot'
+            });
+            log.info(`Created category: ${category.name}`);
+          }
+          
+          createdCategories.push(createdCategory);
+          
+          // Create channels in category with error handling per channel
+          for (const channel of category.channels) {
+            try {
+              // Check if channel already exists in this category
+              const existingChannel = guild.channels.cache.find(c => 
+                c.type === 0 && 
+                c.name.toLowerCase() === channel.name.toLowerCase() &&
+                c.parentId === createdCategory.id
+              );
+              
+              if (existingChannel) {
+                // Use existing channel
+                createdChannels[channel.name] = existingChannel;
+                log.info(`Using existing channel: ${channel.name}`);
+              } else {
+                // Create new channel
+                const createdChannel = await guild.channels.create({
+                  name: channel.name,
+                  type: 0, // GUILD_TEXT
+                  parent: createdCategory.id,
+                  reason: 'Server setup for Clash of Clans bot'
+                });
+                
+                // Store created channels by name for later use
+                createdChannels[channel.name] = createdChannel;
+                log.info(`Created channel: ${channel.name}`);
+              }
+            } catch (channelError) {
+              log.error(`Failed to create channel ${channel.name}:`, { error: channelError.message });
+              // Continue with next channel rather than aborting completely
+            }
+          }
+        } catch (categoryError) {
+          log.error(`Failed to create category ${category.name}:`, { error: categoryError.message });
+          // Continue with next category rather than aborting completely
         }
       }
+      
+      // Send progress update
+      await interaction.editReply({
+        content: `Created categories and channels. Now setting up roles...`
+      });
       
       // Create roles if they don't exist
       const roles = ['Leader', 'Co-Leader', 'Elder', 'Member', 'Bot Admin'];
@@ -300,7 +354,38 @@ module.exports = {
                  '3. Start using war, cwl, and capital commands!'
       });
     } catch (error) {
-      log.error('Error setting up single clan server:', { error: error.message });
+      log.error('Error setting up single clan server:', { 
+        error: error.message,
+        stack: error.stack 
+      });
+      
+      // Create more detailed error message
+      let errorMessage = 'Error setting up server: ' + error.message;
+      
+      // Add more specific guidance based on error type
+      if (error.code === 50013) {
+        errorMessage = 'Missing permissions to create channels or roles. Please check my role permissions and ensure I have "Manage Channels" and "Manage Roles" permissions.';
+      } else if (error.code === 10003) {
+        errorMessage = 'Unable to create channels. Please try again later or create them manually.';
+      } else if (error.message.includes('Missing Access')) {
+        errorMessage = 'I don\'t have permission to view or modify some channels. Please check my permissions.';
+      } else if (error.message.includes('rate limit')) {
+        errorMessage = 'Discord rate limit reached. Please wait a few minutes and try again.';
+      }
+      
+      // Send detailed message instead of throwing error
+      if (interaction.deferred && !interaction.replied) {
+        await interaction.editReply({
+          content: errorMessage + '\n\nTry creating channels and roles manually if this issue persists.'
+        });
+      } else if (!interaction.replied) {
+        await interaction.reply({
+          content: errorMessage + '\n\nTry creating channels and roles manually if this issue persists.',
+          ephemeral: true
+        });
+      }
+      
+      // Still throw the error to propagate it properly
       throw error;
     }
   },
@@ -378,29 +463,82 @@ module.exports = {
       const createdCategories = [];
       const createdChannels = {};
       
+      // Count how many we'll create
+      const totalCategories = categories.length;
+      const totalChannels = categories.reduce((count, cat) => count + cat.channels.length, 0);
+      
+      // Send progress update
+      await interaction.editReply({
+        content: `Setting up multi-clan server structure...\nCreating ${totalCategories} categories and ${totalChannels} channels for ${clanCount} clans.\n(This may take a minute)`
+      });
+      
+      // Process each category
       for (const category of categories) {
-        // Create category
-        const createdCategory = await guild.channels.create({
-          name: category.name,
-          type: 0, // GUILD_CATEGORY
-          reason: 'Server setup for Clash of Clans bot (multi-clan)'
-        });
-        
-        createdCategories.push(createdCategory);
-        
-        // Create channels in category
-        for (const channel of category.channels) {
-          const createdChannel = await guild.channels.create({
-            name: channel.name,
-            type: 0, // GUILD_TEXT
-            parent: createdCategory.id,
-            reason: 'Server setup for Clash of Clans bot (multi-clan)'
-          });
+        try {
+          // Check if category already exists
+          let createdCategory;
+          const existingCategory = guild.channels.cache.find(c => 
+            c.type === 4 && c.name.toLowerCase() === category.name.toLowerCase()
+          );
           
-          // Store created channels by name for later use
-          createdChannels[channel.name] = createdChannel;
+          if (existingCategory) {
+            // Use existing category
+            createdCategory = existingCategory;
+            log.info(`Using existing category: ${category.name}`);
+          } else {
+            // Create new category
+            createdCategory = await guild.channels.create({
+              name: category.name,
+              type: 4, // GUILD_CATEGORY (Discord.js v14 uses 4 instead of 0)
+              reason: 'Server setup for Clash of Clans bot (multi-clan)'
+            });
+            log.info(`Created category: ${category.name}`);
+          }
+          
+          createdCategories.push(createdCategory);
+          
+          // Create channels in category with error handling per channel
+          for (const channel of category.channels) {
+            try {
+              // Check if channel already exists in this category
+              const existingChannel = guild.channels.cache.find(c => 
+                c.type === 0 && 
+                c.name.toLowerCase() === channel.name.toLowerCase() &&
+                c.parentId === createdCategory.id
+              );
+              
+              if (existingChannel) {
+                // Use existing channel
+                createdChannels[channel.name] = existingChannel;
+                log.info(`Using existing channel: ${channel.name}`);
+              } else {
+                // Create new channel
+                const createdChannel = await guild.channels.create({
+                  name: channel.name,
+                  type: 0, // GUILD_TEXT
+                  parent: createdCategory.id,
+                  reason: 'Server setup for Clash of Clans bot (multi-clan)'
+                });
+                
+                // Store created channels by name for later use
+                createdChannels[channel.name] = createdChannel;
+                log.info(`Created channel: ${channel.name}`);
+              }
+            } catch (channelError) {
+              log.error(`Failed to create channel ${channel.name}:`, { error: channelError.message });
+              // Continue with next channel rather than aborting completely
+            }
+          }
+        } catch (categoryError) {
+          log.error(`Failed to create category ${category.name}:`, { error: categoryError.message });
+          // Continue with next category rather than aborting completely
         }
       }
+      
+      // Send progress update
+      await interaction.editReply({
+        content: `Created categories and channels for ${clanCount} clans. Now setting up roles...`
+      });
       
       // Create roles if they don't exist
       const roles = ['Leader', 'Co-Leader', 'Elder', 'Member', 'Visitor', 'Bot Admin'];
@@ -510,7 +648,38 @@ module.exports = {
                  '3. Start using war, cwl, and capital commands!'
       });
     } catch (error) {
-      log.error('Error setting up multi-clan server:', { error: error.message });
+      log.error('Error setting up multi-clan server:', { 
+        error: error.message,
+        stack: error.stack 
+      });
+      
+      // Create more detailed error message
+      let errorMessage = 'Error setting up server: ' + error.message;
+      
+      // Add more specific guidance based on error type
+      if (error.code === 50013) {
+        errorMessage = 'Missing permissions to create channels or roles. Please check my role permissions and ensure I have "Manage Channels" and "Manage Roles" permissions.';
+      } else if (error.code === 10003) {
+        errorMessage = 'Unable to create channels. Please try again later or create them manually.';
+      } else if (error.message.includes('Missing Access')) {
+        errorMessage = 'I don\'t have permission to view or modify some channels. Please check my permissions.';
+      } else if (error.message.includes('rate limit')) {
+        errorMessage = 'Discord rate limit reached. Please wait a few minutes and try again.';
+      }
+      
+      // Send detailed message instead of throwing error
+      if (interaction.deferred && !interaction.replied) {
+        await interaction.editReply({
+          content: errorMessage + '\n\nTry creating channels and roles manually if this issue persists.'
+        });
+      } else if (!interaction.replied) {
+        await interaction.reply({
+          content: errorMessage + '\n\nTry creating channels and roles manually if this issue persists.',
+          ephemeral: true
+        });
+      }
+      
+      // Still throw the error to propagate it properly
       throw error;
     }
   },

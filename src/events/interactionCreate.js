@@ -137,6 +137,18 @@ async function handleSetupButtons(interaction, customId) {
   }
 
   switch (customId) {
+    case 'confirm_reset':
+      // Show final confirmation with what will be lost
+      await showResetConfirmation(interaction);
+      break;
+    case 'reset_confirmed':
+      // Start the server reset process
+      await resetAndSetupServer(interaction);
+      break;
+    case 'setup_options':
+      // Show all setup options
+      await showSetupOptions(interaction);
+      break;
     case 'setup_channels':
       // Show channel setup options - this will redirect to the channel setup handler
       const channelCommand = interaction.client.commands.get('setup');
@@ -169,6 +181,214 @@ async function handleSetupButtons(interaction, customId) {
         ephemeral: true
       });
       break;
+  }
+}
+
+/**
+ * Show final confirmation before resetting server
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function showResetConfirmation(interaction) {
+  const warningEmbed = new EmbedBuilder()
+    .setTitle('⚠️ FINAL WARNING: Server Reset ⚠️')
+    .setDescription('You are about to **PERMANENTLY DELETE** all channels and categories in this server.')
+    .setColor('#e74c3c')
+    .addFields(
+      { name: 'What will be lost:', value: '• All message history\n• All channel permissions\n• All pins and attachments\n• All webhooks and integrations' },
+      { name: 'What will be kept:', value: '• Server members and their roles\n• Server emojis and stickers\n• Server boosts and settings\n• Voice channel members will be disconnected but not removed from the server' },
+      { name: '❗ THIS CANNOT BE UNDONE!', value: 'Are you absolutely sure you want to continue?' }
+    );
+    
+  const confirmButtons = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('reset_confirmed')
+        .setLabel('YES, RESET EVERYTHING')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('🗑️'),
+      new ButtonBuilder()
+        .setCustomId('cancel_setup')
+        .setLabel('NO, CANCEL')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅')
+    );
+    
+  await interaction.update({
+    embeds: [warningEmbed],
+    components: [confirmButtons],
+    ephemeral: true
+  });
+}
+
+/**
+ * Show all setup options
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function showSetupOptions(interaction) {
+  const optionsEmbed = new EmbedBuilder()
+    .setTitle('Clash of Clans Setup Options')
+    .setDescription('Choose what you want to set up:')
+    .setColor('#3498db')
+    .addFields(
+      { name: 'Channels & Categories', value: 'Create organized channels for clan management' },
+      { name: 'Roles & Permissions', value: 'Set up clan hierarchy roles with permissions' },
+      { name: 'Notifications', value: 'Configure automated notifications' },
+      { name: 'Complete Setup', value: 'Do everything at once (recommended)' }
+    );
+    
+  const setupButtons = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('setup_channels')
+        .setLabel('Channels & Categories')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('📁'),
+      new ButtonBuilder()
+        .setCustomId('setup_roles')
+        .setLabel('Roles & Permissions')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('👑'),
+      new ButtonBuilder()
+        .setCustomId('setup_notifications')
+        .setLabel('Notifications')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🔔')
+    );
+    
+  const allInOneButton = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('setup_all')
+        .setLabel('Complete Server Setup')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('✅'),
+      new ButtonBuilder()
+        .setCustomId('cancel_setup')
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('❌')
+    );
+    
+  await interaction.update({
+    embeds: [optionsEmbed],
+    components: [setupButtons, allInOneButton],
+    ephemeral: true
+  });
+}
+
+/**
+ * Reset server and set up new structure
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function resetAndSetupServer(interaction) {
+  await interaction.update({
+    content: '🚀 Starting server reset and setup process...',
+    embeds: [],
+    components: [],
+    ephemeral: true
+  });
+  
+  const guild = interaction.guild;
+  
+  try {
+    // Check if bot has Administrator permissions
+    if (!guild.members.me.permissions.has(PermissionFlagsBits.Administrator)) {
+      return interaction.editReply({
+        content: '❌ Error: I need Administrator permissions to reset the server.',
+        ephemeral: true
+      });
+    }
+    
+    // Step 1: Create backup of channel structure
+    await interaction.editReply({
+      content: '📋 Creating backup of channel structure...',
+      ephemeral: true
+    });
+    
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      serverName: guild.name,
+      channels: [],
+      categories: []
+    };
+    
+    // Gather channel and category data
+    guild.channels.cache.forEach(channel => {
+      if (channel.type === 4) { // GUILD_CATEGORY
+        backupData.categories.push({
+          name: channel.name,
+          position: channel.position,
+          id: channel.id
+        });
+      } else if (channel.type === 0) { // GUILD_TEXT
+        backupData.channels.push({
+          name: channel.name,
+          parentId: channel.parentId,
+          position: channel.position,
+          id: channel.id
+        });
+      }
+    });
+    
+    // Step 2: Delete all channels
+    await interaction.editReply({
+      content: '🗑️ Deleting all channels and categories...',
+      ephemeral: true
+    });
+    
+    // Delete channels first, then categories to avoid errors
+    const textChannels = guild.channels.cache.filter(c => c.type === 0);
+    for (const [id, channel] of textChannels) {
+      try {
+        await channel.delete('Server reset by setup wizard');
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        log.error(`Failed to delete channel ${channel.name}:`, { error: error.message });
+      }
+    }
+    
+    // Delete categories
+    const categories = guild.channels.cache.filter(c => c.type === 4);
+    for (const [id, category] of categories) {
+      try {
+        await category.delete('Server reset by setup wizard');
+        // Small delay to avoid rate limits
+        await new Promise(resolve => setTimeout(resolve, 300));
+      } catch (error) {
+        log.error(`Failed to delete category ${category.name}:`, { error: error.message });
+      }
+    }
+    
+    // Step 3: Set up new structure
+    await interaction.editReply({
+      content: '🏗️ Setting up new server structure... (This may take a minute)',
+      ephemeral: true
+    });
+    
+    // Use the setupSingleClan method from the setup command
+    const setupCommand = interaction.client.commands.get('setup');
+    if (setupCommand) {
+      await setupCommand.setupSingleClan(interaction);
+      
+      // Success message after completion
+      await interaction.editReply({
+        content: '✅ Server has been reset and set up successfully!\n\nNext steps:\n1. Link your clan with `/clan link [tag]`\n2. Set up channel permissions if needed\n3. Start using the bot commands',
+        ephemeral: true
+      });
+    } else {
+      // If setup command can't be found
+      await interaction.editReply({
+        content: '❌ Error: Could not find the setup command. Server channels have been deleted, but new structure could not be created.',
+        ephemeral: true
+      });
+    }
+  } catch (error) {
+    log.error('Error in server reset and setup:', { error: error.message, stack: error.stack });
+    await interaction.editReply({
+      content: `❌ An error occurred during server reset: ${error.message}\n\nSome channels may have been deleted. Please try setting up the server manually.`,
+      ephemeral: true
+    });
   }
 }
 
@@ -571,12 +791,36 @@ async function handleCreationButtons(interaction, customId) {
       try {
         const setupCommand = interaction.client.commands.get('setup');
         if (setupCommand) {
+          // Check if we have a linked clan
+          const clan = await Clan.findOne({ guildId: interaction.guild.id });
+          
+          // Additional permission check
+          if (!interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageChannels) ||
+              !interaction.guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+            return interaction.editReply({
+              content: 'I need both the "Manage Channels" and "Manage Roles" permissions to set up the server properly.',
+              ephemeral: true
+            });
+          }
+
+          // Proceed with setup
           await setupCommand.setupSingleClan(interaction);
+          
+          // Add an extra confirmation message
+          await interaction.followUp({
+            content: 'Server setup complete! ✅\n\nRecommended next steps:\n1. Use `/clan link [tag]` to link your clan\n2. Set appropriate permissions for each role\n3. Start using the bot commands!',
+            ephemeral: true
+          });
+        } else {
+          await interaction.editReply({
+            content: 'Could not find the setup command. Please try using `/setup single` directly.',
+            ephemeral: true
+          });
         }
       } catch (error) {
         log.error('Error in all-in-one setup:', { error: error.message });
         await interaction.editReply({
-          content: 'An error occurred during the setup process. Some components may not have been created correctly.',
+          content: `An error occurred during the setup process: ${error.message}\n\nSome components may not have been created correctly. Try running the setup command directly with \`/setup single\`.`,
           ephemeral: true
         });
       }
