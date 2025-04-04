@@ -155,7 +155,14 @@ module.exports = {
       }
       clanTag = clanTag.toUpperCase();
       
-      // Get clan data from API (now with fallback mechanisms)
+      // Before making API call, check if Webshare proxy is working
+      if (clashApiService.proxyAgent) {
+        log.info(`Using Webshare proxy for clan link operation (${clanTag})`);
+      } else {
+        log.warn(`No proxy agent available for clan link operation (${clanTag})`);
+      }
+      
+      // Get clan data from API (using Webshare proxy automatically)
       const clanData = await clashApiService.getClan(clanTag);
 
       if (!clanData) {

@@ -17,9 +17,34 @@ class ClashApiService {
     this.maxRequestsPerSecond = 10;
     this.requestDelay = 1000 / this.maxRequestsPerSecond;
 
-    // Log proxy configuration status
+    // Webshare global configuration
+    this.proxyAgent = null;
+    
+    // Setup proxy agent for global use if credentials exist
     if (process.env.PROXY_HOST && process.env.PROXY_PORT) {
-      log.info(`Proxy configuration found: ${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`);
+      try {
+        // Import the package correctly
+        const { HttpsProxyAgent } = require('https-proxy-agent');
+        
+        // Build proxy URL with authentication
+        const proxyAuth = process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD
+          ? `${process.env.PROXY_USERNAME}:${process.env.PROXY_PASSWORD}@`
+          : '';
+        const proxyUrl = `http://${proxyAuth}${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`;
+        
+        // Create the proxy agent instance
+        this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+        
+        log.info(`Webshare proxy configured: ${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`);
+        
+        // Also patch global axios to use this proxy for any direct requests
+        const axios = require('axios');
+        axios.defaults.httpsAgent = this.proxyAgent;
+        log.info('Global axios defaults updated to use Webshare proxy');
+      } catch (error) {
+        log.error('Failed to initialize Webshare proxy agent:', { error: error.message });
+        log.info('Will proceed with direct connection');
+      }
     } else {
       log.info('No proxy configuration found, using direct connection');
     }
@@ -38,28 +63,18 @@ class ClashApiService {
       }
     };
 
-    // Add proxy configuration if provided in environment variables
-    if (process.env.PROXY_HOST && process.env.PROXY_PORT) {
-      const proxyAuth = process.env.PROXY_USERNAME && process.env.PROXY_PASSWORD
-          ? `${process.env.PROXY_USERNAME}:${process.env.PROXY_PASSWORD}@`
-          : '';
-
-      const proxyUrl = `http://${proxyAuth}${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`;
+    // Use the pre-configured proxy agent if it exists
+    if (this.proxyAgent) {
+      // Use the agent we created in the constructor
+      config.proxy = false; // Disable default proxy
+      config.httpsAgent = this.proxyAgent;
       
-      // Debug proxy details (masked password)
-      const debugProxyUrl = process.env.PROXY_USERNAME 
-          ? `http://${process.env.PROXY_USERNAME}:****@${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`
-          : `http://${process.env.PROXY_HOST}:${process.env.PROXY_PORT}`;
+      // Add browser-like headers for Webshare
+      config.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
       
-      log.info(`Using proxy for Clash API requests: ${debugProxyUrl}`);
-
-      try {
-        const HttpsProxyAgent = require('https-proxy-agent');
-        config.proxy = false; // Disable default proxy
-        config.httpsAgent = new HttpsProxyAgent(proxyUrl);
-      } catch (error) {
-        log.error('Failed to create proxy agent:', { error: error.message });
-      }
+      // For debugging when making actual requests
+      const username = process.env.PROXY_USERNAME || 'no-user';
+      log.debug(`Using Webshare proxy (${username}) for Clash API request`);
     }
 
     return axios.create(config);
@@ -544,19 +559,53 @@ class ClashApiService {
     try {
       log.info('Testing API connection...');
       
-      // Get public IP for debugging (especially useful for Railway deployment)
-      try {
-        const ipResponse = await axios.get('https://api.ipify.org?format=json');
-        log.info(`Current public IP address: ${ipResponse.data.ip}`);
-        log.info('⚠️ If API calls fail, whitelist this IP in your Clash of Clans Developer account');
-      } catch (ipError) {
-        log.warn('Could not determine public IP address:', { error: ipError.message });
+      // Check if using proxy
+      if (process.env.PROXY_HOST && process.env.PROXY_PORT) {
+        log.info('Webshare proxy is configured');
+        
+        // Test proxy connection by getting IP
+        try {
+          // Create a proxy-enabled axios instance but direct it to an IP service
+          const axiosInstance = this.getAxiosInstance();
+          // Override the baseURL for this test
+          const originalBaseURL = axiosInstance.defaults.baseURL;
+          axiosInstance.defaults.baseURL = '';
+          
+          // Get IP from Webshare proxy
+          const ipResponse = await axiosInstance.get('https://api.ipify.org?format=json');
+          log.info(`✅ Webshare proxy is working! Proxy IP: ${ipResponse.data.ip}`);
+          log.info('This IP should be whitelisted in your Clash of Clans Developer account');
+          
+          // Restore original baseURL
+          axiosInstance.defaults.baseURL = originalBaseURL;
+        } catch (proxyError) {
+          log.error('❌ Failed to connect through Webshare proxy:', { error: proxyError.message });
+          // Try direct connection to see our actual IP
+          try {
+            const directIpResponse = await axios.get('https://api.ipify.org?format=json');
+            log.warn(`Your direct IP (not using proxy): ${directIpResponse.data.ip}`);
+            log.warn('The proxy is NOT working correctly');
+          } catch (directError) {
+            log.error('Could not determine any IP address');
+          }
+        }
+      } else {
+        // No proxy configured, just show the direct IP
+        try {
+          const ipResponse = await axios.get('https://api.ipify.org?format=json');
+          log.info(`Current public IP address: ${ipResponse.data.ip}`);
+          log.info('⚠️ If API calls fail, whitelist this IP in your Clash of Clans Developer account');
+        } catch (ipError) {
+          log.warn('Could not determine public IP address:', { error: ipError.message });
+        }
       }
       
+      // Now actually test the Clash API connection
       await this.getAxiosInstance().get('/locations');
-      log.info('API connection test successful');
+      log.info('✅ Clash of Clans API connection SUCCESSFUL');
       return true;
     } catch (error) {
+      log.error('❌ Clash of Clans API connection FAILED');
       this.handleRequestError(error, 'testConnection()');
       return false;
     }

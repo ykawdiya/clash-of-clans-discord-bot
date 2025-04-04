@@ -101,6 +101,14 @@ This bot can be deployed on Railway.app with a fixed IP, solving the Clash of Cl
    - `CLIENT_ID`: Your Discord application client ID
    - `CLASH_API_TOKEN`: Your Clash of Clans API token
    - `MONGODB_URI`: Your MongoDB connection string
+   
+   For IP-independent access to Clash of Clans API:
+   - `PROXY_HOST`: Your Webshare proxy host (typically p.webshare.io)
+   - `PROXY_PORT`: Your Webshare proxy port (typically 80)
+   - `PROXY_USERNAME`: Your Webshare proxy username
+   - `PROXY_PASSWORD`: Your Webshare proxy password
+   
+   See [PROXY_SETUP.md](PROXY_SETUP.md) for detailed instructions on setting up Webshare proxy.
 
 5. Deploy slash commands
    ```bash
