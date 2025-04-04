@@ -760,16 +760,31 @@ module.exports = {
         // Continue setup process even if welcome messages fail
       }
       
+      // Create buttons for next steps
+      const actionButtons = new ActionRowBuilder()
+        .addComponents(
+          new ButtonBuilder()
+            .setCustomId('sync_roles')
+            .setLabel('Sync Roles with Clan')
+            .setStyle(ButtonStyle.Primary)
+            .setEmoji('🔄'),
+          new ButtonBuilder()
+            .setCustomId('cancel_setup')
+            .setLabel('Done')
+            .setStyle(ButtonStyle.Secondary)
+        );
+      
       // Update response with setup completion
       return interaction.editReply({
         content: 'Server setup for single clan completed! Created:\n' +
                  `- ${categories.length} categories\n` +
                  `- ${categories.reduce((count, cat) => count + cat.channels.length, 0)} channels\n` +
-                 `- Verified/created ${roles.length} roles\n\n` +
+                 `- Created necessary roles for clan hierarchy\n\n` +
                  'Next steps: \n' +
                  '1. Link your clan using `/clan link [clan tag]`\n' +
-                 '2. Set up channel permissions as needed\n' +
-                 '3. Start using war, cwl, and capital commands!'
+                 '2. Use the button below to sync roles with your clan members\n' +
+                 '3. Start using war, cwl, and capital commands!',
+        components: [actionButtons]
       });
     } catch (error) {
       log.error('Error setting up single clan server:', { 
@@ -2061,6 +2076,265 @@ module.exports = {
     } catch (error) {
       log.error('Error creating welcome message:', { error: error.message });
       // Don't throw, as this is a non-critical operation
+    }
+  },
+
+  /**
+   * Synchronize Discord roles with in-game Clash of Clans roles
+   * @param {Interaction} interaction - Discord interaction
+   * @param {String} clanTag - Optional clan tag, if not provided will use linked clan
+   * @returns {Object} Status and statistics of the sync operation
+   */
+  async syncRolesWithClan(interaction, clanTag = null) {
+    try {
+      const guild = interaction.guild;
+      
+      // Check permissions
+      if (!guild.members.me.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        return { 
+          success: false, 
+          error: 'Bot missing ManageRoles permission' 
+        };
+      }
+      
+      // If no clan tag provided, try to get it from the database
+      if (!clanTag) {
+        const clan = await Clan.findOne({ guildId: guild.id });
+        if (!clan) {
+          return { 
+            success: false, 
+            error: 'No clan linked to this server' 
+          };
+        }
+        clanTag = clan.clanTag;
+      }
+      
+      // Get clan data from API
+      const clanData = await clashApiService.getClan(clanTag);
+      if (!clanData || clanData.isPlaceholder) {
+        return { 
+          success: false, 
+          error: 'Could not fetch clan data' 
+        };
+      }
+      
+      // Get all members in the clan
+      const clanMembers = clanData.memberList || [];
+      
+      // Get Discord roles
+      const roles = {
+        leader: guild.roles.cache.find(r => r.name === 'Leader'),
+        coLeader: guild.roles.cache.find(r => r.name === 'Co-Leader'),
+        elder: guild.roles.cache.find(r => r.name === 'Elder'),
+        member: guild.roles.cache.find(r => r.name === 'Member')
+      };
+      
+      // Check if roles exist
+      if (!roles.leader || !roles.coLeader || !roles.elder || !roles.member) {
+        return { 
+          success: false, 
+          error: 'Required roles not found in server' 
+        };
+      }
+      
+      // Track role assignment stats
+      const stats = { 
+        assigned: 0, 
+        removed: 0, 
+        failed: 0, 
+        notLinked: 0, 
+        totalMembers: clanMembers.length 
+      };
+      
+      // Find all users linked to this clan
+      const linkedUsers = await User.find({});
+      
+      // Map player tags to Discord IDs
+      const playerMap = {};
+      for (const user of linkedUsers) {
+        if (user.playerTag) {
+          playerMap[user.playerTag] = user.userId;
+        }
+      }
+      
+      // Process progress update
+      let progressMessage = `Synchronizing roles with clan ${clanData.name} (${clanTag})...\n`;
+      if (interaction.replied) {
+        await interaction.editReply({ content: progressMessage });
+      }
+      
+      // For each clan member, assign appropriate role
+      for (const member of clanMembers) {
+        const discordId = playerMap[member.tag];
+        
+        if (!discordId) {
+          stats.notLinked++;
+          continue;
+        }
+        
+        try {
+          // Try to fetch the guild member
+          const guildMember = await guild.members.fetch(discordId).catch(() => null);
+          if (!guildMember) {
+            stats.notLinked++;
+            continue;
+          }
+          
+          // Remove existing clan roles first
+          let rolesRemoved = false;
+          if (guildMember.roles.cache.has(roles.leader.id)) {
+            await guildMember.roles.remove(roles.leader).catch(() => {});
+            rolesRemoved = true;
+          }
+          if (guildMember.roles.cache.has(roles.coLeader.id)) {
+            await guildMember.roles.remove(roles.coLeader).catch(() => {});
+            rolesRemoved = true;
+          }
+          if (guildMember.roles.cache.has(roles.elder.id)) {
+            await guildMember.roles.remove(roles.elder).catch(() => {});
+            rolesRemoved = true;
+          }
+          if (guildMember.roles.cache.has(roles.member.id)) {
+            await guildMember.roles.remove(roles.member).catch(() => {});
+            rolesRemoved = true;
+          }
+          
+          if (rolesRemoved) {
+            stats.removed++;
+          }
+          
+          // Assign appropriate role based on in-game role
+          let roleAssigned = false;
+          switch (member.role.toLowerCase()) {
+            case 'leader':
+              await guildMember.roles.add(roles.leader).catch(e => {
+                log.error(`Failed to assign Leader role: ${e.message}`);
+                stats.failed++;
+                return;
+              });
+              roleAssigned = true;
+              break;
+              
+            case 'coleader':
+            case 'co-leader':
+              await guildMember.roles.add(roles.coLeader).catch(e => {
+                log.error(`Failed to assign Co-Leader role: ${e.message}`);
+                stats.failed++;
+                return;
+              });
+              roleAssigned = true;
+              break;
+              
+            case 'admin': // Handled as co-leader in CoC
+              await guildMember.roles.add(roles.coLeader).catch(e => {
+                log.error(`Failed to assign Co-Leader role: ${e.message}`);
+                stats.failed++;
+                return;
+              });
+              roleAssigned = true;
+              break;
+              
+            case 'elder':
+              await guildMember.roles.add(roles.elder).catch(e => {
+                log.error(`Failed to assign Elder role: ${e.message}`);
+                stats.failed++;
+                return;
+              });
+              roleAssigned = true;
+              break;
+              
+            case 'member':
+              await guildMember.roles.add(roles.member).catch(e => {
+                log.error(`Failed to assign Member role: ${e.message}`);
+                stats.failed++;
+                return;
+              });
+              roleAssigned = true;
+              break;
+          }
+          
+          if (roleAssigned) {
+            stats.assigned++;
+            log.info(`Assigned ${member.role} role to ${member.name} (${guildMember.user.tag})`);
+          }
+          
+          // Add small delay to avoid rate limits
+          await new Promise(r => setTimeout(r, 500));
+          
+          // Update progress every 5 members
+          if (stats.assigned % 5 === 0 || stats.assigned === clanMembers.length) {
+            progressMessage = `Synchronizing roles with clan ${clanData.name} (${clanTag})...\n`;
+            progressMessage += `Progress: ${stats.assigned + stats.notLinked}/${clanMembers.length} members processed`;
+            
+            if (interaction.replied) {
+              await interaction.editReply({ content: progressMessage }).catch(() => {});
+            }
+          }
+        } catch (error) {
+          log.error(`Error syncing role for member ${member.name}:`, { error: error.message });
+          stats.failed++;
+        }
+      }
+      
+      // Return success and stats
+      return { 
+        success: true, 
+        stats, 
+        clan: {
+          name: clanData.name,
+          tag: clanTag,
+          memberCount: clanMembers.length
+        }
+      };
+    } catch (error) {
+      log.error('Error in role synchronization:', { error: error.message, stack: error.stack });
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  },
+  
+  /**
+   * Handle role sync button
+   * @param {Interaction} interaction - Discord interaction
+   */
+  async handleSyncRoles(interaction) {
+    await interaction.deferUpdate();
+    
+    try {
+      const clan = await Clan.findOne({ guildId: interaction.guild.id });
+      if (!clan) {
+        return interaction.editReply({
+          content: 'No clan linked to this server. Please link a clan first with `/clan link [tag]`.',
+          components: []
+        });
+      }
+      
+      // Show progress message
+      await interaction.editReply({
+        content: `Starting role synchronization with clan ${clan.name || clan.clanTag}...`
+      });
+      
+      const result = await this.syncRolesWithClan(interaction, clan.clanTag);
+      
+      if (result.success) {
+        await interaction.editReply({
+          content: `✅ Role synchronization completed!\n\n**Clan:** ${result.clan.name} (${result.clan.tag})\n**Results:**\n• Assigned roles: ${result.stats.assigned}\n• Removed old roles: ${result.stats.removed}\n• Failed operations: ${result.stats.failed}\n• Members not linked: ${result.stats.notLinked}\n\nℹ️ Members without roles need to use \`/player link [tag]\` to link their accounts.`,
+          components: []
+        });
+      } else {
+        await interaction.editReply({
+          content: `❌ Role synchronization failed: ${result.error}`,
+          components: []
+        });
+      }
+    } catch (error) {
+      log.error('Error handling role sync:', { error: error.message, stack: error.stack });
+      await interaction.editReply({
+        content: `❌ An error occurred: ${error.message}`,
+        components: []
+      });
     }
   }
 };

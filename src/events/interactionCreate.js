@@ -104,6 +104,18 @@ async function handleButtonInteraction(interaction) {
     });
   } else if (customId.startsWith('sync_')) {
     await handleSyncButtons(interaction, customId);
+  } else if (customId === 'sync_roles') {
+    // Handle role sync button - calls the setup.js method
+    const setupCommand = interaction.client.commands.get('setup');
+    if (setupCommand) {
+      await setupCommand.handleSyncRoles(interaction);
+    } else {
+      await interaction.update({
+        content: 'Error: Could not find setup command.',
+        components: [],
+        ephemeral: true
+      });
+    }
   } else if (customId === 'confirm_reset') {
     // Handle reset confirmation button
     await resetAndSetupServer(interaction);
