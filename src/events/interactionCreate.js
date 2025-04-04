@@ -104,6 +104,19 @@ async function handleButtonInteraction(interaction) {
     });
   } else if (customId.startsWith('sync_')) {
     await handleSyncButtons(interaction, customId);
+  } else if (customId === 'confirm_reset' || customId === 'reset_confirmed') {
+    // Handle reset confirmation buttons
+    await handleSetupButtons(interaction, customId);
+  } else if (customId === 'reset_single') {
+    // Handle single clan reset
+    await performServerReset(interaction, false);
+  } else if (customId === 'reset_multi') {
+    // Show clan count selector for multi-clan setup
+    await showMultiClanOptions(interaction);
+  } else if (customId.startsWith('reset_multi_')) {
+    // Handle multi-clan reset with specific count
+    const clanCount = parseInt(customId.split('_')[2]);
+    await performServerReset(interaction, true, clanCount);
   }
 }
 
@@ -281,6 +294,50 @@ async function showSetupOptions(interaction) {
  * @param {Interaction} interaction - Discord interaction
  */
 async function resetAndSetupServer(interaction) {
+  // Show setup options (single clan or multi clan)
+  const setupEmbed = new EmbedBuilder()
+    .setTitle('Server Reset & Setup')
+    .setDescription('Choose your server setup type:')
+    .setColor('#3498db')
+    .addFields(
+      { name: 'Single Clan Server', value: 'Set up for a single clan (recommended for most servers)' },
+      { name: 'Multi-Clan Server', value: 'Set up for multiple clans (family/alliance setup)' }
+    );
+
+  const setupTypeButtons = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('reset_single')
+        .setLabel('Single Clan')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('⚔️'),
+      new ButtonBuilder()
+        .setCustomId('reset_multi')
+        .setLabel('Multi-Clan (2-5)')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🏰'),
+      new ButtonBuilder()
+        .setCustomId('cancel_setup')
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('❌')
+    );
+
+  await interaction.update({
+    content: '',
+    embeds: [setupEmbed],
+    components: [setupTypeButtons],
+    ephemeral: true
+  });
+}
+
+/**
+ * Perform server reset and setup
+ * @param {Interaction} interaction - Discord interaction
+ * @param {Boolean} isMultiClan - Whether to use multi-clan setup
+ * @param {Number} clanCount - Number of clans for multi-clan setup
+ */
+async function performServerReset(interaction, isMultiClan = false, clanCount = 2) {
   await interaction.update({
     content: '🚀 Starting server reset and setup process...',
     embeds: [],
@@ -330,26 +387,40 @@ async function resetAndSetupServer(interaction) {
       }
     });
     
+    // Log the backup for visibility
+    log.info(`Server structure backup created for ${guild.name}:`, { 
+      backupData: JSON.stringify(backupData, null, 2) 
+    });
+    
     // Step 2: Delete all channels
     await interaction.editReply({
       content: '🗑️ Deleting all channels and categories...',
       ephemeral: true
     });
     
-    // Delete channels first, then categories to avoid errors
-    const textChannels = guild.channels.cache.filter(c => c.type === 0);
-    for (const [id, channel] of textChannels) {
+    // Get all channels except system channels like rules or community
+    const allChannels = guild.channels.cache.filter(c => 
+      c.type !== 5 && // Not a guild directory
+      c.type !== 15 && // Not a forum channel
+      !c.name.includes('rules') && // Not a rules channel
+      !c.name.includes('community') // Not a community channel
+    );
+    
+    // Delete text, voice and other channels first
+    const nonCategoryChannels = allChannels.filter(c => c.type !== 4);
+    for (const [id, channel] of nonCategoryChannels) {
       try {
         await channel.delete('Server reset by setup wizard');
         // Small delay to avoid rate limits
         await new Promise(resolve => setTimeout(resolve, 300));
       } catch (error) {
         log.error(`Failed to delete channel ${channel.name}:`, { error: error.message });
+        // Continue with other channels
       }
     }
     
     // Delete categories
-    const categories = guild.channels.cache.filter(c => c.type === 4);
+    const categories = allChannels.filter(c => c.type === 4);
     for (const [id, category] of categories) {
       try {
         await category.delete('Server reset by setup wizard');
@@ -357,23 +428,28 @@ async function resetAndSetupServer(interaction) {
         await new Promise(resolve => setTimeout(resolve, 300));
       } catch (error) {
         log.error(`Failed to delete category ${category.name}:`, { error: error.message });
+        // Continue with other categories
       }
     }
     
     // Step 3: Set up new structure
     await interaction.editReply({
-      content: '🏗️ Setting up new server structure... (This may take a minute)',
+      content: `🏗️ Setting up new ${isMultiClan ? 'multi-clan' : 'single clan'} server structure... (This may take a minute)`,
       ephemeral: true
     });
     
-    // Use the setupSingleClan method from the setup command
+    // Use the setup method from the setup command
     const setupCommand = interaction.client.commands.get('setup');
     if (setupCommand) {
-      await setupCommand.setupSingleClan(interaction);
+      if (isMultiClan) {
+        await setupCommand.setupMultiClan(interaction, clanCount);
+      } else {
+        await setupCommand.setupSingleClan(interaction);
+      }
       
       // Success message after completion
       await interaction.editReply({
-        content: '✅ Server has been reset and set up successfully!\n\nNext steps:\n1. Link your clan with `/clan link [tag]`\n2. Set up channel permissions if needed\n3. Start using the bot commands',
+        content: `✅ Server has been reset and set up successfully for ${isMultiClan ? `${clanCount} clans` : 'a single clan'}!\n\nNext steps:\n1. Link your clan(s) with \`/clan link [tag]\`\n2. Set up channel permissions if needed\n3. Start using the bot commands`,
         ephemeral: true
       });
     } else {
@@ -390,6 +466,55 @@ async function resetAndSetupServer(interaction) {
       ephemeral: true
     });
   }
+}
+
+/**
+ * Show multi-clan setup options
+ * @param {Interaction} interaction - Discord interaction
+ */
+async function showMultiClanOptions(interaction) {
+  const clanCountEmbed = new EmbedBuilder()
+    .setTitle('Multi-Clan Setup')
+    .setDescription('How many clans do you want to set up?')
+    .setColor('#3498db')
+    .addFields(
+      { name: 'Important Note', value: 'This will create separate channels for each clan, while sharing war center, CWL center, etc. The server will be optimized for a clan family structure.' }
+    );
+    
+  const clanCountButtons = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('reset_multi_2')
+        .setLabel('2 Clans')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('reset_multi_3')
+        .setLabel('3 Clans')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('reset_multi_4')
+        .setLabel('4 Clans')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId('reset_multi_5')
+        .setLabel('5 Clans')
+        .setStyle(ButtonStyle.Primary)
+    );
+    
+  const cancelButton = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('cancel_setup')
+        .setLabel('Cancel')
+        .setStyle(ButtonStyle.Danger)
+        .setEmoji('❌')
+    );
+    
+  await interaction.update({
+    embeds: [clanCountEmbed],
+    components: [clanCountButtons, cancelButton],
+    ephemeral: true
+  });
 }
 
 /**
