@@ -23,7 +23,23 @@ module.exports = {
               .addStringOption(option =>
                   option.setName('tag')
                       .setDescription('Player tag')
-                      .setRequired(true))),
+                      .setRequired(true)))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('achievements')
+              .setDescription('View detailed player achievements')
+              .addStringOption(option =>
+                  option.setName('tag')
+                      .setDescription('Player tag (if not viewing your own profile)')
+                      .setRequired(false)))
+      .addSubcommand(subcommand =>
+          subcommand
+              .setName('heroes')
+              .setDescription('View hero levels and upgrade status')
+              .addStringOption(option =>
+                  option.setName('tag')
+                      .setDescription('Player tag (if not viewing your own profile)')
+                      .setRequired(false))),
 
   async execute(interaction) {
     try {
@@ -34,6 +50,12 @@ module.exports = {
       }
       else if (subcommand === 'link') {
         await this.handleLink(interaction);
+      }
+      else if (subcommand === 'achievements') {
+        await this.handleAchievements(interaction);
+      }
+      else if (subcommand === 'heroes') {
+        await this.handleHeroes(interaction);
       }
       else {
         await interaction.reply({
@@ -442,5 +464,286 @@ module.exports = {
   createProgressBar(percent, length = 10) {
     const filledBars = Math.round((percent / 100) * length);
     return '█'.repeat(filledBars) + '░'.repeat(length - filledBars);
+  },
+
+  async handleAchievements(interaction) {
+    await interaction.deferReply();
+
+    try {
+      // Get player tag
+      let playerTag = interaction.options.getString('tag');
+      
+      // If no tag provided, check if user has a linked account
+      if (!playerTag) {
+        const user = await User.findOne({ discordId: interaction.user.id });
+        
+        if (user && user.playerTag) {
+          playerTag = user.playerTag;
+        } else {
+          return interaction.editReply({
+            content: 'You have no linked Clash of Clans account. Please provide a player tag or link your account first using `/player link <tag>`'
+          });
+        }
+      }
+      
+      // Format player tag
+      if (!playerTag.startsWith('#')) {
+        playerTag = '#' + playerTag;
+      }
+      playerTag = playerTag.toUpperCase();
+      
+      // Get player data from API
+      const playerData = await clashApiService.getPlayer(playerTag);
+      
+      if (!playerData) {
+        return interaction.editReply({
+          content: 'Player not found. Please check the tag and try again.'
+        });
+      }
+      
+      // Check if the data is a placeholder due to API unavailability
+      if (playerData.isPlaceholder) {
+        return interaction.editReply({
+          content: `⚠️ **API Connection Issue**: Unable to retrieve data for player "${playerTag}" from the Clash of Clans API.\n\nTry again later or contact the bot administrator.`
+        });
+      }
+      
+      // Create a detailed achievements embed
+      const embed = new EmbedBuilder()
+        .setTitle(`${playerData.name} - Achievements`)
+        .setDescription(`Detailed achievement progress for ${playerData.name} [${playerData.tag}]`)
+        .setColor('#9b59b6');
+      
+      // Add achievements if available
+      if (playerData.achievements && playerData.achievements.length > 0) {
+        // Count total stars
+        const totalStars = playerData.achievements.reduce((total, achievement) => total + achievement.stars, 0);
+        const maxPossibleStars = playerData.achievements.length * 3;
+        
+        embed.addFields({
+          name: 'Achievement Stars',
+          value: `${totalStars}/${maxPossibleStars} stars earned (${Math.round((totalStars / maxPossibleStars) * 100)}% complete)`,
+          inline: false
+        });
+        
+        // Sort achievements by category
+        const combatAchievements = playerData.achievements.filter(a => 
+          ['Conqueror', 'Unbreakable', 'Humiliator', 'War Hero', 'War League Legend', 'Heroic Heist'].includes(a.name)
+        );
+        
+        const resourceAchievements = playerData.achievements.filter(a => 
+          ['Gold Grab', 'Elixir Escapade', 'Clan Capital Contributor', 'Aggressive Capitalism'].includes(a.name)
+        );
+        
+        const miscAchievements = playerData.achievements.filter(a => 
+          ['Friend in Need', 'Nice and Tidy', 'Games Champion', 'Well Seasoned'].includes(a.name)
+        );
+        
+        // Add combat achievements
+        if (combatAchievements.length > 0) {
+          let combatList = '';
+          
+          for (const achievement of combatAchievements) {
+            const percentComplete = Math.min(100, Math.round((achievement.value / achievement.target) * 100));
+            const progressBar = this.createProgressBar(percentComplete, 12);
+            const starsDisplay = '⭐'.repeat(achievement.stars);
+            
+            combatList += `**${achievement.name}** ${starsDisplay}\n`;
+            combatList += `${progressBar} ${percentComplete}%\n`;
+            combatList += `Progress: ${achievement.value.toLocaleString()}/${achievement.target.toLocaleString()}\n\n`;
+          }
+          
+          embed.addFields({
+            name: 'Combat Achievements',
+            value: combatList || 'None available',
+            inline: false
+          });
+        }
+        
+        // Add resource achievements
+        if (resourceAchievements.length > 0) {
+          let resourceList = '';
+          
+          for (const achievement of resourceAchievements) {
+            const percentComplete = Math.min(100, Math.round((achievement.value / achievement.target) * 100));
+            const progressBar = this.createProgressBar(percentComplete, 12);
+            const starsDisplay = '⭐'.repeat(achievement.stars);
+            
+            resourceList += `**${achievement.name}** ${starsDisplay}\n`;
+            resourceList += `${progressBar} ${percentComplete}%\n`;
+            resourceList += `Progress: ${achievement.value.toLocaleString()}/${achievement.target.toLocaleString()}\n\n`;
+          }
+          
+          embed.addFields({
+            name: 'Resource Achievements',
+            value: resourceList || 'None available',
+            inline: false
+          });
+        }
+        
+        // Add miscellaneous achievements
+        if (miscAchievements.length > 0) {
+          let miscList = '';
+          
+          for (const achievement of miscAchievements) {
+            const percentComplete = Math.min(100, Math.round((achievement.value / achievement.target) * 100));
+            const progressBar = this.createProgressBar(percentComplete, 12);
+            const starsDisplay = '⭐'.repeat(achievement.stars);
+            
+            miscList += `**${achievement.name}** ${starsDisplay}\n`;
+            miscList += `${progressBar} ${percentComplete}%\n`;
+            miscList += `Progress: ${achievement.value.toLocaleString()}/${achievement.target.toLocaleString()}\n\n`;
+          }
+          
+          embed.addFields({
+            name: 'Miscellaneous Achievements',
+            value: miscList || 'None available',
+            inline: false
+          });
+        }
+      } else {
+        embed.setDescription('No achievement information available for this player.');
+      }
+      
+      return interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      log.error('Error handling player achievements:', { error: error.message });
+      return interaction.editReply({ content: 'Error retrieving player achievements. Please try again later.' });
+    }
+  },
+
+  async handleHeroes(interaction) {
+    await interaction.deferReply();
+
+    try {
+      // Get player tag
+      let playerTag = interaction.options.getString('tag');
+      
+      // If no tag provided, check if user has a linked account
+      if (!playerTag) {
+        const user = await User.findOne({ discordId: interaction.user.id });
+        
+        if (user && user.playerTag) {
+          playerTag = user.playerTag;
+        } else {
+          return interaction.editReply({
+            content: 'You have no linked Clash of Clans account. Please provide a player tag or link your account first using `/player link <tag>`'
+          });
+        }
+      }
+      
+      // Format player tag
+      if (!playerTag.startsWith('#')) {
+        playerTag = '#' + playerTag;
+      }
+      playerTag = playerTag.toUpperCase();
+      
+      // Get player data from API
+      const playerData = await clashApiService.getPlayer(playerTag);
+      
+      if (!playerData) {
+        return interaction.editReply({
+          content: 'Player not found. Please check the tag and try again.'
+        });
+      }
+      
+      // Check if the data is a placeholder due to API unavailability
+      if (playerData.isPlaceholder) {
+        return interaction.editReply({
+          content: `⚠️ **API Connection Issue**: Unable to retrieve data for player "${playerTag}" from the Clash of Clans API.\n\nTry again later or contact the bot administrator.`
+        });
+      }
+      
+      // Create heroes embed
+      const embed = new EmbedBuilder()
+        .setTitle(`${playerData.name} - Heroes`)
+        .setDescription(`Hero levels and upgrade progress for ${playerData.name} [${playerData.tag}]`)
+        .setColor('#f1c40f');
+      
+      // Add heroes if available
+      if (playerData.heroes && playerData.heroes.length > 0) {
+        // Separate home village and builder base heroes
+        const homeHeroes = playerData.heroes.filter(hero => hero.village === 'home');
+        const builderHeroes = playerData.heroes.filter(hero => hero.village === 'builderBase');
+        
+        // Add home village heroes
+        if (homeHeroes.length > 0) {
+          let heroList = '';
+          
+          for (const hero of homeHeroes) {
+            const maxLevel = hero.maxLevel || 1;
+            const percentComplete = Math.round((hero.level / maxLevel) * 100);
+            const progressBar = this.createProgressBar(percentComplete, 15);
+            const upgradeRemaining = maxLevel - hero.level;
+            
+            heroList += `**${hero.name}** - Level ${hero.level}/${maxLevel}\n`;
+            heroList += `${progressBar} ${percentComplete}%\n`;
+            
+            if (upgradeRemaining > 0) {
+              heroList += `${upgradeRemaining} level${upgradeRemaining !== 1 ? 's' : ''} remaining to max\n\n`;
+            } else {
+              heroList += `✅ **MAXED**\n\n`;
+            }
+          }
+          
+          // Calculate overall hero progress
+          const totalLevels = homeHeroes.reduce((sum, hero) => sum + hero.level, 0);
+          const maxPossibleLevels = homeHeroes.reduce((sum, hero) => sum + hero.maxLevel, 0);
+          const overallPercent = Math.round((totalLevels / maxPossibleLevels) * 100);
+          
+          embed.addFields(
+            { 
+              name: 'Overall Hero Progress', 
+              value: `${this.createProgressBar(overallPercent, 20)} ${overallPercent}%\n${totalLevels}/${maxPossibleLevels} total levels`, 
+              inline: false 
+            },
+            { 
+              name: 'Home Village Heroes', 
+              value: heroList || 'No heroes unlocked', 
+              inline: false 
+            }
+          );
+        }
+        
+        // Add builder base heroes
+        if (builderHeroes.length > 0) {
+          let builderHeroList = '';
+          
+          for (const hero of builderHeroes) {
+            const maxLevel = hero.maxLevel || 1;
+            const percentComplete = Math.round((hero.level / maxLevel) * 100);
+            const progressBar = this.createProgressBar(percentComplete, 15);
+            const upgradeRemaining = maxLevel - hero.level;
+            
+            builderHeroList += `**${hero.name}** - Level ${hero.level}/${maxLevel}\n`;
+            builderHeroList += `${progressBar} ${percentComplete}%\n`;
+            
+            if (upgradeRemaining > 0) {
+              builderHeroList += `${upgradeRemaining} level${upgradeRemaining !== 1 ? 's' : ''} remaining to max\n\n`;
+            } else {
+              builderHeroList += `✅ **MAXED**\n\n`;
+            }
+          }
+          
+          embed.addFields({
+            name: 'Builder Base Heroes',
+            value: builderHeroList || 'No builder heroes unlocked',
+            inline: false
+          });
+        }
+        
+        // Add TH level context
+        embed.setFooter({
+          text: `Town Hall ${playerData.townHallLevel} | Builder Hall ${playerData.builderHallLevel || "N/A"}`
+        });
+      } else {
+        embed.setDescription('No hero information available for this player.');
+      }
+      
+      return interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      log.error('Error handling player heroes:', { error: error.message });
+      return interaction.editReply({ content: 'Error retrieving player heroes. Please try again later.' });
+    }
   }
 };
