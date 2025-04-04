@@ -306,26 +306,118 @@ async function resetAndSetupServer(interaction) {
     }
     
     // Create backup of channel structure
-    log.info(`Creating backup of channel structure for ${guild.name}`);
-    
-    // Delete existing channels (non-system ones)
     await interaction.editReply({
-      content: '🗑️ Deleting channels... (This may take a minute)',
+      content: '📋 Creating backup of channel structure...',
       ephemeral: true
     });
     
-    // Skip system channels
-    const nonSystemChannels = guild.channels.cache.filter(channel => 
-      channel.type !== 5 && // guild directory
-      !channel.name.includes('rules') &&
-      !channel.name.includes('community') 
+    log.info(`Creating backup of channel structure for ${guild.name}`);
+    
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      serverName: guild.name,
+      channels: [],
+      categories: [],
+      roles: []
+    };
+    
+    // Backup channel and category data
+    guild.channels.cache.forEach(channel => {
+      if (channel.type === 4) { // GUILD_CATEGORY
+        backupData.categories.push({
+          name: channel.name,
+          position: channel.position,
+          id: channel.id
+        });
+      } else if ([0, 2, 5].includes(channel.type)) { // TEXT, VOICE, ANNOUNCEMENT channels
+        backupData.channels.push({
+          name: channel.name,
+          type: channel.type,
+          parentId: channel.parentId,
+          position: channel.position,
+          id: channel.id,
+          topic: channel.topic || null
+        });
+      }
+    });
+    
+    // Backup role data
+    guild.roles.cache.forEach(role => {
+      if (!role.managed && role.id !== guild.id) { // Skip managed roles and @everyone
+        backupData.roles.push({
+          name: role.name,
+          color: role.hexColor,
+          position: role.position,
+          permissions: role.permissions.bitfield.toString(),
+          id: role.id
+        });
+      }
+    });
+    
+    // Log the backup for visibility and recovery if needed
+    log.info(`Server structure backup created for ${guild.name}`, { 
+      totalCategories: backupData.categories.length,
+      totalChannels: backupData.channels.length,
+      totalRoles: backupData.roles.length
+    });
+    
+    // Delete all guild roles except for @everyone and integrated roles
+    await interaction.editReply({
+      content: '🗑️ Deleting existing roles...',
+      ephemeral: true
+    });
+    
+    const rolesToDelete = guild.roles.cache.filter(role => 
+      !role.managed && // Not an integrated role (bot roles, etc.)
+      role.id !== guild.id && // Not @everyone
+      !role.tags?.premiumSubscriberRole // Not server booster role
     );
     
-    // Delete text/voice channels first (non-categories)
+    for (const [_, role] of rolesToDelete) {
+      try {
+        await role.delete('Server reset by setup wizard');
+        await new Promise(r => setTimeout(r, 300)); // Rate limit prevention
+      } catch (err) {
+        log.error(`Failed to delete role ${role.name}:`, { error: err.message });
+      }
+    }
+    
+    // Delete channels - skip system channels
+    await interaction.editReply({
+      content: '🗑️ Deleting existing channels... (This may take a minute)',
+      ephemeral: true
+    });
+    
+    // We need to be careful about which channels to delete
+    const nonSystemChannels = guild.channels.cache.filter(channel => 
+      channel.type !== 5 && // Not a guild directory
+      channel.type !== 15 && // Not a forum channel
+      !channel.name.toLowerCase().includes('rules') && // Not a rules channel
+      !channel.name.toLowerCase().includes('community') && // Not a community channel
+      channel.id !== guild.rulesChannelId && // Not the rules channel
+      channel.id !== guild.publicUpdatesChannelId && // Not the community updates channel
+      channel.id !== guild.systemChannelId // Not the system channel
+    );
+    
+    // Get total count for progress reporting
+    const totalChannelsToDelete = nonSystemChannels.size;
+    let deletedCount = 0;
+    
+    // Delete text and voice channels first (non-categories)
     const channelsToDelete = nonSystemChannels.filter(c => c.type !== 4);
     for (const [_, channel] of channelsToDelete) {
       try {
         await channel.delete('Server reset by setup wizard');
+        deletedCount++;
+        
+        // Update progress every 5 channels
+        if (deletedCount % 5 === 0 || deletedCount === totalChannelsToDelete) {
+          await interaction.editReply({
+            content: `🗑️ Deleting channels: ${deletedCount}/${totalChannelsToDelete}...`,
+            ephemeral: true
+          }).catch(() => {}); // Ignore errors if we can't update the message
+        }
+        
         await new Promise(r => setTimeout(r, 300)); // Rate limit prevention
       } catch (err) {
         log.error(`Failed to delete channel ${channel.name}:`, { error: err.message });
@@ -337,15 +429,16 @@ async function resetAndSetupServer(interaction) {
     for (const [_, category] of categoriesToDelete) {
       try {
         await category.delete('Server reset by setup wizard');
+        deletedCount++;
         await new Promise(r => setTimeout(r, 300)); // Rate limit prevention
       } catch (err) {
         log.error(`Failed to delete category ${category.name}:`, { error: err.message });
       }
     }
     
-    // Set up new channels
+    // Set up new channels with sophisticated structure
     await interaction.editReply({
-      content: '🏗️ Setting up new server structure...',
+      content: '🏗️ Setting up new server structure with sophisticated hierarchy...',
       ephemeral: true
     });
     
@@ -353,6 +446,12 @@ async function resetAndSetupServer(interaction) {
     const setupCommand = interaction.client.commands.get('setup');
     if (setupCommand) {
       await setupCommand.setupSingleClan(interaction);
+      
+      // Add a final message with instructions
+      await interaction.followUp({
+        content: `✅ Server reset and setup completed successfully!\n\nTo fully utilize the bot's features:\n1. Link your clan with \`/clan link [tag]\`\n2. Configure notifications in the BOT NOTIFICATIONS category\n3. Have players link their accounts with \`/player link [tag]\`\n4. Use \`/help\` to see all available commands`,
+        ephemeral: true
+      }).catch(() => {}); // Ignore errors if we can't send
     } else {
       return interaction.editReply({
         content: '❌ Error: Could not find setup command.',
@@ -360,9 +459,9 @@ async function resetAndSetupServer(interaction) {
       });
     }
   } catch (error) {
-    log.error('Server reset error:', { error: error.message });
+    log.error('Server reset error:', { error: error.message, stack: error.stack });
     await interaction.editReply({
-      content: '❌ An error occurred during reset. Some channels may have been deleted but not recreated.',
+      content: '❌ An error occurred during reset. Some channels may have been deleted but not recreated.\n\nError: ' + error.message,
       ephemeral: true
     }).catch(e => {
       log.error('Failed to send error message:', { error: e.message });
