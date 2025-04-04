@@ -130,16 +130,10 @@ module.exports = {
         }
       }
 
-      // Add explanatory notes
+      // Simplify explanatory notes
       embed.addFields({
         name: 'Medal Distribution',
-        value: [
-          '**Co-Leaders & Leader**: 100% of earned medals',
-          '**Elders in Wars**: 100% of earned medals',
-          '**Members in Wars**: 100% of earned medals',
-          '**Roster not in Wars**: 20% of earned medals',
-          '**Not in Roster**: 0% of earned medals'
-        ].join('\n')
+        value: 'Participated in wars: **100%** of medals\nIn roster but didn\'t participate: **20%** of medals'
       });
 
       await interaction.editReply({ embeds: [embed] });
@@ -194,43 +188,20 @@ module.exports = {
    * @returns {Array} - Array of embed fields
    */
   formatLeagueTier(medalTable, leagues, title) {
-    const fields = [];
-    
-    // Add title field
-    fields.push({ name: title, value: '\u200B', inline: false });
-    
-    // For each league, generate a compact string showing position->rewards
-    const leagueData = [];
+    // Create a single field with all leagues in this tier
+    let content = `**${title}**\n`;
     
     for (const league of leagues) {
       if (medalTable[league]) {
         const medals = medalTable[league];
-        const positions = Array.from({length: medals.length}, (_, i) => i + 1);
         
-        let text = `**${league}**\n`;
-        
-        // First add position:rewards in compact format
-        for (let i = 0; i < positions.length; i++) {
-          text += `${positions[i]}: ${medals[i]} | `;
-          
-          // Break into two lines for readability
-          if (i === 3) {
-            text = text.slice(0, -3) + '\n'; // Remove the last " | "
-          }
-        }
-        
-        // Remove the last " | "
-        text = text.slice(0, -3);
-        
-        leagueData.push(text);
+        // Just show top 3 and bottom positions to save space
+        content += `**${league}**\n`;
+        content += `1st: ${medals[0]} | 2nd: ${medals[1]} | 3rd: ${medals[2]} medals\n`;
       }
     }
     
-    // Add the league data to fields
-    for (const data of leagueData) {
-      fields.push({ name: '\u200B', value: data, inline: true });
-    }
-    
-    return fields;
+    // Return as a single field to save space
+    return [{ name: title, value: content, inline: false }];
   }
 };

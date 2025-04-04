@@ -70,75 +70,19 @@ module.exports = {
   
   async handleAPIStats(interaction, clan, cwlGroup) {
     try {
-      // Create an embed with CWL group information
+      // Create an embed with essential CWL information
       const embed = new EmbedBuilder()
-        .setTitle(`CWL Statistics - ${clan.name}`)
-        .setDescription(`Current CWL Season Statistics`)
+        .setTitle(`CWL Status - ${clan.name}`)
         .setColor('#9b59b6');
         
-      // Add league information
+      // Basic season info
+      const seasonInfo = [`League: ${cwlGroup.state || 'Active'}`];
       if (cwlGroup.season) {
-        embed.addFields({ 
-          name: 'Season', 
-          value: cwlGroup.season 
-        });
+        seasonInfo.push(`Season: ${cwlGroup.season}`);
       }
+      embed.setDescription(seasonInfo.join(' • '));
       
-      // Find our clan in the group
-      const ourClan = cwlGroup.clans.find(c => c.tag === clan.clanTag);
-      
-      if (ourClan) {
-        embed.addFields({ 
-          name: 'Clan', 
-          value: `${ourClan.name} (${ourClan.tag})`,
-          inline: true 
-        });
-        
-        if (ourClan.clanLevel) {
-          embed.addFields({ 
-            name: 'Clan Level', 
-            value: ourClan.clanLevel.toString(),
-            inline: true 
-          });
-        }
-      }
-      
-      // Add group clans information
-      if (cwlGroup.clans && cwlGroup.clans.length > 0) {
-        let clanList = '';
-        cwlGroup.clans.forEach((groupClan, index) => {
-          const isCurrent = groupClan.tag === clan.clanTag;
-          clanList += `${isCurrent ? '➡️ ' : ''}${index + 1}. ${groupClan.name}\n`;
-        });
-        
-        embed.addFields({ 
-          name: 'CWL Group (8 Clans)', 
-          value: clanList 
-        });
-      }
-      
-      // Add round/war information
-      if (cwlGroup.rounds && cwlGroup.rounds.length > 0) {
-        let warsList = '';
-        
-        for (let i = 0; i < cwlGroup.rounds.length; i++) {
-          const round = cwlGroup.rounds[i];
-          const day = i + 1;
-          
-          if (round.warTags && round.warTags.length > 0) {
-            warsList += `**Day ${day}**: ${round.warTags.length} wars scheduled\n`;
-          } else {
-            warsList += `**Day ${day}**: War pairings not yet determined\n`;
-          }
-        }
-        
-        embed.addFields({ 
-          name: 'War Schedule', 
-          value: warsList || 'No war schedule available yet' 
-        });
-      }
-      
-      // Process current/recent wars
+      // Process current/recent wars - focus on results
       if (cwlGroup.rounds) {
         const wars = [];
         
@@ -148,24 +92,23 @@ module.exports = {
             for (const warTag of round.warTags) {
               if (warTag !== '#0') {
                 try {
-                  // We need to check each war to see if our clan is participating
                   const warData = await clashApiService.getCWLWar(warTag);
-                  
                   if (warData && 
                      (warData.clan.tag === clan.clanTag || warData.opponent.tag === clan.clanTag)) {
                     wars.push(warData);
                   }
-                } catch (warError) {
-                  log.warn(`Could not get war data for ${warTag}: ${warError.message}`);
+                } catch (error) {
+                  // Silently skip failed war data 
                 }
               }
             }
           }
         }
         
-        // If we found wars, add them to the embed
+        // If we found wars, show a simplified war summary
         if (wars.length > 0) {
-          let warResults = '';
+          let warSummary = '';
+          let wins = 0, losses = 0, ongoing = 0;
           
           for (const war of wars) {
             // Determine if we're clan or opponent
@@ -174,37 +117,36 @@ module.exports = {
             const opponentData = isOurClanAttacking ? war.opponent : war.clan;
             
             // Determine result if available
-            let result = 'In Progress';
             if (war.state === 'warEnded') {
-              if (ourClanData.stars > opponentData.stars) {
-                result = '🏆 Win';
-              } else if (ourClanData.stars < opponentData.stars) {
-                result = '❌ Loss';
-              } else if (ourClanData.destructionPercentage > opponentData.destructionPercentage) {
-                result = '🏆 Win (%)';
-              } else if (ourClanData.destructionPercentage < opponentData.destructionPercentage) {
-                result = '❌ Loss (%)';
+              const didWin = ourClanData.stars > opponentData.stars || 
+                (ourClanData.stars === opponentData.stars && 
+                 ourClanData.destructionPercentage > opponentData.destructionPercentage);
+                 
+              if (didWin) {
+                warSummary += `✅ vs ${opponentData.name}: ${ourClanData.stars}⭐\n`;
+                wins++;
               } else {
-                result = '🤝 Draw';
+                warSummary += `❌ vs ${opponentData.name}: ${ourClanData.stars}⭐\n`;
+                losses++;
               }
+            } else if (war.state === 'inWar') {
+              warSummary += `⚔️ vs ${opponentData.name}: ${ourClanData.stars}⭐ (in progress)\n`;
+              ongoing++;
             }
-            
-            warResults += `vs **${opponentData.name}**: ${result}\n`;
-            warResults += `Stars: ${ourClanData.stars}⭐ - ${opponentData.stars}⭐\n`;
-            warResults += `Destruction: ${ourClanData.destructionPercentage.toFixed(2)}% - ${opponentData.destructionPercentage.toFixed(2)}%\n\n`;
           }
           
+          // Add summary stats at the top
+          embed.addFields(
+            { name: 'Current Record', value: `${wins} wins, ${losses} losses, ${ongoing} ongoing`, inline: false },
+            { name: 'Matches', value: warSummary || 'No completed matches yet' }
+          );
+        } else {
           embed.addFields({ 
-            name: 'CWL War Results', 
-            value: warResults || 'No war results available yet' 
+            name: 'Status', 
+            value: 'CWL is active but no matches found yet. War pairings may still be determined.' 
           });
         }
       }
-      
-      // Add note for members
-      embed.setFooter({ 
-        text: 'Data from Clash of Clans API - Use /cwl medals to see medal rewards' 
-      });
       
       return interaction.editReply({ embeds: [embed] });
     } catch (error) {

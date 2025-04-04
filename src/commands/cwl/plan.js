@@ -358,23 +358,29 @@ module.exports = {
               }
             }
             
-            // Add summary
-            embed.addFields(
-              { name: 'Attack Status', value: `${attacksUsed}/${attacksAvailable} attacks used`, inline: false },
-              { name: 'Member Attacks', value: attacksSummary || 'No attack data available', inline: false }
-            );
+            // Add simplified summary - focus on who hasn't attacked yet
+            const remainingAttacks = attacksAvailable - attacksUsed;
+            if (remainingAttacks > 0 && warData.state === 'inWar') {
+              const pendingMembers = sortedMembers
+                .filter(m => !(m.attacks && m.attacks.length > 0))
+                .map(m => m.name)
+                .join(', ');
+              
+              embed.addFields(
+                { name: 'Attacks Remaining', value: `${remainingAttacks} members still need to attack:\n${pendingMembers}`, inline: false }
+              );
+            } else {
+              embed.addFields(
+                { name: 'Attack Status', value: `${attacksUsed}/${attacksAvailable} attacks used`, inline: false }
+              );
+            }
           }
           
-          // Add CWL tips
-          if (warData.state === 'inWar') {
+          // Simplified CWL tips (only show if in war and attacks remaining)
+          if (warData.state === 'inWar' && (attacksAvailable - attacksUsed > 0)) {
             embed.addFields({
-              name: 'CWL Attack Tips',
-              value: [
-                '• You only get ONE attack - make it count!',
-                '• Prioritize stars over percentage',
-                '• Attack bases you can 3-star rather than reaching too high',
-                '• Coordinate with teammates to maximize stars'
-              ].join('\n')
+              name: 'Reminder',
+              value: '• ONE attack per player in CWL\n• Prioritize stars over percentage'
             });
           }
           

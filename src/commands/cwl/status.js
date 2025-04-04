@@ -8,8 +8,9 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('status')
+      .setName('cwl__status')
       .setDescription('Show current CWL status'),
+      // Double underscore to avoid conflicts; this is meant to be used as a subcommand
 
   async execute(interaction) {
     try {
@@ -47,7 +48,7 @@ module.exports = {
       });
       
       if (!cwlTracking) {
-        // If no active CWL in API or database, show calendar-based status
+        // If no active CWL in API or database, show simplified calendar-based status
         const now = new Date();
         const dayOfMonth = now.getDate();
         
@@ -58,55 +59,22 @@ module.exports = {
             .setDescription(`No active CWL data found for ${clan.name}.`)
             .setColor('#f1c40f')
             .addFields({
-              name: 'Possible CWL Period',
-              value: 'It\'s the first week of the month, which is typically when CWL occurs. Check in-game to see if CWL is active.'
-            })
-            .addFields({
-              name: '⚠️ API Limitations',
-              value: 'The Clash of Clans API only provides CWL data when:\n1. CWL is active in-game\n2. War log is public\n3. The clan is registered for CWL'
-            })
-            .addFields({
-              name: 'Manual Tracking',
-              value: 'You can still use `/cwl roster` commands to manage your CWL roster manually.'
-            })
-            .setFooter({ text: 'Refer to API_REFERENCE.md for more information on API limitations' });
+              name: 'Status',
+              value: 'It\'s the first week of the month - CWL may be active. Check in-game or ensure your war log is public.'
+            });
           
           return interaction.editReply({ embeds: [embed] });
         }
         
-        // End of month might be upcoming CWL
-        if (dayOfMonth >= 28) {
-          const embed = new EmbedBuilder()
-            .setTitle('CWL Status: Not Active')
-            .setDescription(`No active CWL found for ${clan.name}.`)
-            .setColor('#7289da')
-            .addFields({
-              name: 'CWL Schedule',
-              value: 'CWL typically runs during the first week of each month. Signup usually begins around the 1st day of the month.'
-            })
-            .addFields({
-              name: 'Get Ready',
-              value: 'Use `/cwl roster` commands to prepare your roster for the upcoming CWL season.'
-            })
-            .setFooter({ text: 'Based on typical CWL schedule, not live data' });
-            
-          return interaction.editReply({ embeds: [embed] });
-        }
-        
-        // Mid-month, definitely not CWL period
+        // End of month or mid-month, simplified message
         const embed = new EmbedBuilder()
           .setTitle('CWL Status: Not Active')
-          .setDescription(`There is no active CWL season for ${clan.name} at this time.`)
+          .setDescription(`No active CWL for ${clan.name} at this time.`)
           .setColor('#95a5a6')
           .addFields({
             name: 'Next CWL',
-            value: `CWL typically begins on the 1st of each month. The next CWL season should start in approximately ${30 - dayOfMonth} days.`
-          })
-          .addFields({
-            name: 'Preparation',
-            value: 'You can use this time to:\n• Upgrade heroes and troops\n• Practice war attacks\n• Plan your CWL roster using `/cwl roster` commands'
-          })
-          .setFooter({ text: 'Based on typical CWL schedule, not live data' });
+            value: 'CWL typically begins on the 1st of each month.'
+          });
             
         return interaction.editReply({ embeds: [embed] });
       }

@@ -38,7 +38,7 @@ module.exports = {
       if ((subcommand === 'add' || subcommand === 'remove') && 
           !(await userPermission(interaction, ['Co-Leader', 'Leader']))) {
         return interaction.reply({
-          content: 'You need to be a Co-Leader or Leader to modify the CWL roster.',
+          content: 'You need Leader or Co-Leader role to modify the roster.',
           ephemeral: true
         });
       }
@@ -48,7 +48,7 @@ module.exports = {
       
       if (!clan) {
         return interaction.reply({
-          content: 'No clan is linked to this server. Ask an admin to set up the clan first.',
+          content: 'No clan linked to this server. Use /clan link first.',
           ephemeral: true
         });
       }
@@ -65,7 +65,7 @@ module.exports = {
           break;
         default:
           return interaction.reply({
-            content: 'Unknown subcommand. Please use a valid roster command.',
+            content: 'Unknown subcommand.',
             ephemeral: true
           });
       }
@@ -74,11 +74,11 @@ module.exports = {
       
       if (interaction.deferred) {
         return interaction.editReply({
-          content: 'An error occurred while managing the CWL roster. Please try again later.'
+          content: 'Error managing roster. Try again later.'
         });
       } else {
         return interaction.reply({
-          content: 'An error occurred while managing the CWL roster. Please try again later.',
+          content: 'Error managing roster. Try again later.',
           ephemeral: true
         });
       }

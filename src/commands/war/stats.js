@@ -8,8 +8,9 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('war_stats')
+      .setName('war__stats')
       .setDescription('Show attack statistics'),
+      // Double underscore to avoid conflicts; this is meant to be used as a subcommand
   
   async execute(interaction) {
     try {

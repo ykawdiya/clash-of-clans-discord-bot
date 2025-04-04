@@ -6,8 +6,9 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('war_call')
-      .setDescription('Call a base in war')
+      .setName('war__call')
+      .setDescription('Call a base in war') 
+      // Double underscore to avoid conflicts; this is meant to be used as a subcommand
       .addIntegerOption(option =>
           option.setName('base')
               .setDescription('Base number to call')

@@ -6,8 +6,9 @@ const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('status')
+      .setName('capital__status')
       .setDescription('View Clan Capital status'),
+      // Double underscore to avoid conflicts; this is meant to be used as a subcommand
 
   async execute(interaction) {
     try {

@@ -6,8 +6,9 @@ const {SlashCommandBuilder} = require("discord.js");
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('war_map')
+      .setName('war__map')
       .setDescription('Show the war map with calls'),
+      // Double underscore to avoid conflicts; this is meant to be used as a subcommand
   
   async execute(interaction) {
     try {
