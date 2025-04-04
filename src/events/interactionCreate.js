@@ -433,15 +433,17 @@ async function resetAndSetupServer(interaction) {
     });
     
     // We need to be careful about which channels to delete
-    const nonSystemChannels = guild.channels.cache.filter(channel => 
-      channel.type !== 5 && // Not a guild directory
-      channel.type !== 15 && // Not a forum channel
-      !channel.name.toLowerCase().includes('rules') && // Not a rules channel
-      !channel.name.toLowerCase().includes('community') && // Not a community channel
-      channel.id !== guild.rulesChannelId && // Not the rules channel
-      channel.id !== guild.publicUpdatesChannelId && // Not the community updates channel
-      channel.id !== guild.systemChannelId // Not the system channel
-    );
+    const nonSystemChannels = guild.channels.cache.filter(channel => {
+      // Save only essential system channels
+      const isSystemChannel = 
+        channel.type === 5 || // Guild directory
+        channel.id === guild.publicUpdatesChannelId || // Community updates channel
+        channel.id === guild.systemChannelId; // System channel
+      
+      // Do NOT save rules channels anymore
+      
+      return !isSystemChannel;
+    });
     
     // Get total count for progress reporting
     const totalChannelsToDelete = nonSystemChannels.size;
@@ -500,6 +502,9 @@ async function resetAndSetupServer(interaction) {
       log.info('Starting setupSingleClan execution');
       await setupCommand.setupSingleClan(interaction);
       log.info('Completed setupSingleClan execution');
+      
+      // No longer automatically setting up community channels
+      log.info('Skipping community channels setup - use /setupcommunity if needed');
       
       // Add a final message with instructions
       await interaction.followUp({
