@@ -367,19 +367,51 @@ async function resetAndSetupServer(interaction) {
       ephemeral: true
     });
     
+    // Get bot's highest role position
+    const botMember = guild.members.me;
+    const botHighestRole = botMember.roles.highest;
+    
+    // Filter roles that can be deleted (below bot's highest role)
     const rolesToDelete = guild.roles.cache.filter(role => 
       !role.managed && // Not an integrated role (bot roles, etc.)
       role.id !== guild.id && // Not @everyone
-      !role.tags?.premiumSubscriberRole // Not server booster role
+      !role.tags?.premiumSubscriberRole && // Not server booster role
+      role.position < botHighestRole.position // Bot can manage this role (below bot's highest role)
     );
     
-    for (const [_, role] of rolesToDelete) {
+    let deletedRoleCount = 0;
+    let totalRolesToDelete = rolesToDelete.size;
+    
+    // Sort roles by position (highest first) to avoid hierarchy issues
+    const sortedRoles = [...rolesToDelete.values()].sort((a, b) => b.position - a.position);
+    
+    // Delete roles one by one
+    for (const role of sortedRoles) {
       try {
         await role.delete('Server reset by setup wizard');
-        await new Promise(r => setTimeout(r, 300)); // Rate limit prevention
+        deletedRoleCount++;
+        
+        // Update progress every few roles
+        if (deletedRoleCount % 5 === 0 || deletedRoleCount === totalRolesToDelete) {
+          await interaction.editReply({
+            content: `🗑️ Deleting roles: ${deletedRoleCount}/${totalRolesToDelete}...`,
+            ephemeral: true
+          }).catch(() => {}); // Ignore errors if we can't update
+        }
+        
+        await new Promise(r => setTimeout(r, 500)); // Increased rate limit prevention
       } catch (err) {
         log.error(`Failed to delete role ${role.name}:`, { error: err.message });
       }
+    }
+    
+    // If we couldn't delete all roles, let the user know but continue
+    if (deletedRoleCount < totalRolesToDelete) {
+      log.warn(`Could not delete all roles (${deletedRoleCount}/${totalRolesToDelete})`);
+      await interaction.editReply({
+        content: `⚠️ Could only delete ${deletedRoleCount} out of ${totalRolesToDelete} roles due to permission issues. Continuing with channel deletion...`,
+        ephemeral: true
+      }).catch(() => {}); // Ignore errors if we can't update
     }
     
     // Delete channels - skip system channels
@@ -442,20 +474,39 @@ async function resetAndSetupServer(interaction) {
       ephemeral: true
     });
     
-    // Use setup command's single clan setup
-    const setupCommand = interaction.client.commands.get('setup');
-    if (setupCommand) {
+    try {
+      // Use setup command's single clan setup
+      const setupCommand = interaction.client.commands.get('setup');
+      if (!setupCommand) {
+        return interaction.editReply({
+          content: '❌ Error: Could not find setup command.',
+          ephemeral: true
+        });
+      }
+      
+      // Call setupSingleClan method explicitly
+      log.info('Starting setupSingleClan execution');
       await setupCommand.setupSingleClan(interaction);
+      log.info('Completed setupSingleClan execution');
       
       // Add a final message with instructions
       await interaction.followUp({
         content: `✅ Server reset and setup completed successfully!\n\nTo fully utilize the bot's features:\n1. Link your clan with \`/clan link [tag]\`\n2. Configure notifications in the BOT NOTIFICATIONS category\n3. Have players link their accounts with \`/player link [tag]\`\n4. Use \`/help\` to see all available commands`,
         ephemeral: true
-      }).catch(() => {}); // Ignore errors if we can't send
-    } else {
-      return interaction.editReply({
-        content: '❌ Error: Could not find setup command.',
+      }).catch((e) => {
+        log.error('Failed to send follow-up message:', { error: e.message });
+      });
+    } catch (setupError) {
+      log.error('Error in setupSingleClan:', { 
+        error: setupError.message,
+        stack: setupError.stack
+      });
+      
+      await interaction.editReply({
+        content: `❌ Error during channel setup: ${setupError.message}\n\nServer reset was completed, but channel creation failed. You may need to set up channels manually.`,
         ephemeral: true
+      }).catch((e) => {
+        log.error('Failed to send error message:', { error: e.message });
       });
     }
   } catch (error) {

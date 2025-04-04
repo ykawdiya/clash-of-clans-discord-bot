@@ -469,9 +469,22 @@ module.exports = {
         content: `Setting up sophisticated server structure...\nCreating ${totalCategories} categories and ${totalChannels} channels with proper permissions.\n(This may take a minute)`
       });
       
-      // Process each category
+      // Track progress
+      let categoryCount = 0;
+      const totalCategories = categories.length;
+      let channelCount = 0;
+      const totalChannels = categories.reduce((count, cat) => count + cat.channels.length, 0);
+      
+      // Update the interaction with progress
+      await interaction.editReply({
+        content: `Setting up sophisticated server structure...\nCreating category 1/${totalCategories}`
+      });
+      
+      // Process each category one by one
       for (const category of categories) {
         try {
+          categoryCount++;
+          
           // Create permission overwrites for the category
           const permissionOverwrites = [];
           
@@ -496,6 +509,13 @@ module.exports = {
           
           log.info(`Created category: ${category.name} with custom permissions`);
           createdCategories.push(createdCategory);
+          
+          // Update progress
+          await interaction.editReply({
+            content: `Setting up sophisticated server structure...\n` + 
+                    `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                    `Creating channels for this category...`
+          }).catch(() => {}); // Ignore errors if we can't update
           
           // Create channels in category with custom permissions
           for (const channel of category.channels) {
@@ -533,21 +553,57 @@ module.exports = {
               
               // Store created channels by name for later use
               createdChannels[channel.name] = createdChannel;
+              channelCount++;
+              
               log.info(`Created ${channel.type === 0 ? 'text' : 'voice'} channel: ${channel.name} with custom permissions`);
               
+              // Update progress every few channels or on the last channel
+              if (channelCount % 5 === 0 || channelCount === totalChannels) {
+                await interaction.editReply({
+                  content: `Setting up sophisticated server structure...\n` + 
+                          `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                          `Created channels: ${channelCount}/${totalChannels}`
+                }).catch(() => {}); // Ignore errors if we can't update
+              }
+              
               // Small delay to avoid rate limits
-              await new Promise(r => setTimeout(r, 300));
+              await new Promise(r => setTimeout(r, 500));
             } catch (channelError) {
-              log.error(`Failed to create channel ${channel.name}:`, { error: channelError.message });
+              log.error(`Failed to create channel ${channel.name}:`, { 
+                error: channelError.message,
+                stack: channelError.stack
+              });
               // Continue with next channel rather than aborting completely
             }
           }
           
           // Small delay between categories to avoid rate limits
-          await new Promise(r => setTimeout(r, 300));
+          await new Promise(r => setTimeout(r, 750));
+          
+          // Update progress before moving to next category
+          if (categoryCount < totalCategories) {
+            await interaction.editReply({
+              content: `Setting up sophisticated server structure...\n` + 
+                      `Completed category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                      `Moving to next category...`
+            }).catch(() => {}); // Ignore errors if we can't update
+          }
         } catch (categoryError) {
-          log.error(`Failed to create category ${category.name}:`, { error: categoryError.message });
+          log.error(`Failed to create category ${category.name}:`, { 
+            error: categoryError.message,
+            stack: categoryError.stack
+          });
           // Continue with next category rather than aborting completely
+          
+          // Still increment category count for progress tracking
+          categoryCount++;
+          
+          // Update progress after error
+          await interaction.editReply({
+            content: `Setting up sophisticated server structure...\n` + 
+                    `⚠️ Failed to create category ${category.name} (${categoryCount}/${totalCategories})\n` +
+                    `Continuing with next category...`
+          }).catch(() => {}); // Ignore errors if we can't update
         }
       }
       
@@ -1225,14 +1281,20 @@ module.exports = {
       const totalCategories = categories.length;
       const totalChannels = categories.reduce((count, cat) => count + cat.channels.length, 0);
       
+      // Track progress
+      let categoryCount = 0;
+      let channelCount = 0;
+      
       // Send progress update
       await interaction.editReply({
-        content: `Setting up sophisticated multi-clan server structure...\nCreating ${totalCategories} categories and ${totalChannels} channels with proper permissions.\n(This may take a minute)`
+        content: `Setting up sophisticated multi-clan server structure...\nCreating ${totalCategories} categories and ${totalChannels} channels with proper permissions.\nStarting with category 1/${totalCategories}`
       });
       
-      // Process each category
+      // Process each category one by one
       for (const category of categories) {
         try {
+          categoryCount++;
+          
           // Create permission overwrites for the category
           const permissionOverwrites = [];
           
@@ -1247,6 +1309,12 @@ module.exports = {
             }
           }
           
+          // Update progress
+          await interaction.editReply({
+            content: `Setting up sophisticated multi-clan server structure...\n` + 
+                    `Creating category ${categoryCount}/${totalCategories}: ${category.name}`
+          }).catch(() => {}); // Ignore errors if we can't update
+          
           // Create new category with permissions
           const createdCategory = await guild.channels.create({
             name: category.name,
@@ -1257,6 +1325,13 @@ module.exports = {
           
           log.info(`Created category: ${category.name} with custom permissions`);
           createdCategories.push(createdCategory);
+          
+          // Update progress again to show we're creating channels
+          await interaction.editReply({
+            content: `Setting up sophisticated multi-clan server structure...\n` + 
+                    `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                    `Creating channels for this category...`
+          }).catch(() => {}); // Ignore errors if we can't update
           
           // Create channels in category with custom permissions
           for (const channel of category.channels) {
@@ -1294,20 +1369,54 @@ module.exports = {
               
               // Store created channels by name for later use
               createdChannels[channel.name] = createdChannel;
+              channelCount++;
+              
               log.info(`Created ${channel.type === 0 ? 'text' : 'voice'} channel: ${channel.name} with custom permissions`);
               
-              // Small delay to avoid rate limits
-              await new Promise(r => setTimeout(r, 300));
+              // Update progress periodically
+              if (channelCount % 5 === 0 || channelCount === totalChannels) {
+                await interaction.editReply({
+                  content: `Setting up sophisticated multi-clan server structure...\n` + 
+                          `Created category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                          `Created channels: ${channelCount}/${totalChannels}`
+                }).catch(() => {}); // Ignore errors if we can't update
+              }
+              
+              // Small delay to avoid rate limits - increased to be safer
+              await new Promise(r => setTimeout(r, 500));
             } catch (channelError) {
-              log.error(`Failed to create channel ${channel.name}:`, { error: channelError.message });
+              log.error(`Failed to create channel ${channel.name}:`, { 
+                error: channelError.message,
+                stack: channelError.stack
+              });
               // Continue with next channel rather than aborting completely
             }
           }
           
-          // Small delay between categories to avoid rate limits
-          await new Promise(r => setTimeout(r, 300));
+          // Small delay between categories to avoid rate limits - increased to be safer
+          await new Promise(r => setTimeout(r, 750));
+          
+          // Update progress between categories
+          if (categoryCount < totalCategories) {
+            await interaction.editReply({
+              content: `Setting up sophisticated multi-clan server structure...\n` + 
+                      `Completed category ${categoryCount}/${totalCategories}: ${category.name}\n` +
+                      `Moving to next category...`
+            }).catch(() => {}); // Ignore errors if we can't update
+          }
         } catch (categoryError) {
-          log.error(`Failed to create category ${category.name}:`, { error: categoryError.message });
+          log.error(`Failed to create category ${category.name}:`, { 
+            error: categoryError.message,
+            stack: categoryError.stack
+          });
+          
+          // Update progress after error
+          await interaction.editReply({
+            content: `Setting up sophisticated multi-clan server structure...\n` + 
+                    `⚠️ Failed to create category ${category.name} (${categoryCount}/${totalCategories})\n` +
+                    `Continuing with next category...`
+          }).catch(() => {}); // Ignore errors if we can't update
+          
           // Continue with next category rather than aborting completely
         }
       }
