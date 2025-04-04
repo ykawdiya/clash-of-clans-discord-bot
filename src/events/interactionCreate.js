@@ -438,9 +438,8 @@ async function resetAndSetupServer(interaction) {
       const isSystemChannel = 
         channel.type === 5 || // Guild directory
         channel.id === guild.publicUpdatesChannelId || // Community updates channel
-        channel.id === guild.systemChannelId; // System channel
-      
-      // Do NOT save rules channels anymore
+        channel.id === guild.systemChannelId || // System channel
+        channel.id === interaction.channelId; // Current channel where command was issued
       
       return !isSystemChannel;
     });
@@ -500,8 +499,45 @@ async function resetAndSetupServer(interaction) {
       
       // Call setupSingleClan method explicitly
       log.info('Starting setupSingleClan execution');
-      await setupCommand.setupSingleClan(interaction);
-      log.info('Completed setupSingleClan execution');
+      try {
+        await setupCommand.setupSingleClan(interaction);
+        log.info('Completed setupSingleClan execution');
+      } catch (error) {
+        log.error('Error in setupSingleClan, trying again with modified parameters:', { error: error.message });
+        
+        // If it failed, try a more basic setup approach
+        try {
+          // Fallback to manual setup of basic channels
+          const everyoneRole = guild.roles.everyone;
+          
+          // Create WAR CENTER category
+          const warCategory = await guild.channels.create({
+            name: 'WAR CENTER',
+            type: 4, // GUILD_CATEGORY
+            reason: 'Server setup fallback'
+          });
+          
+          // Create basic channels
+          await guild.channels.create({
+            name: 'general',
+            type: 0, // TEXT
+            parent: warCategory.id,
+            reason: 'Server setup fallback'
+          });
+          
+          await guild.channels.create({
+            name: 'announcements',
+            type: 0, // TEXT
+            parent: warCategory.id,
+            reason: 'Server setup fallback'
+          });
+          
+          log.info('Created fallback channels');
+        } catch (fallbackError) {
+          log.error('Failed even with fallback approach:', { error: fallbackError.message });
+          throw fallbackError;
+        }
+      }
       
       // No longer automatically setting up community channels
       log.info('Skipping community channels setup - use /setupcommunity if needed');
