@@ -3,13 +3,14 @@ const { EmbedBuilder, SlashCommandBuilder} = require('discord.js');
 const cwlTrackingService = require('../../services/cwlTrackingService');
 const { Clan, User } = require('../../models');
 const CWLTracking = require('../../models/CWLTracking');
+const clashApiService = require('../../services/clashApiService');
 const { userPermission } = require('../../utils/permissions');
 const { command: log } = require('../../utils/logger');
 
 module.exports = {
   data: new SlashCommandBuilder()
       .setName('plan')
-      .setDescription('View/create CWL war plan')
+      .setDescription('View CWL war plan and attack status')
       .addIntegerOption(option =>
           option.setName('day')
               .setDescription('CWL war day (1-7)')
@@ -20,9 +21,6 @@ module.exports = {
   
   async execute(interaction) {
     try {
-      // Check permissions
-      const hasPermission = await userPermission(interaction, ['Elder', 'Co-Leader', 'Leader']);
-      
       // Get clan for this guild
       const clan = await Clan.findOne({ guildId: interaction.guild.id });
       
@@ -36,7 +34,19 @@ module.exports = {
       // Defer reply as this might take time
       await interaction.deferReply();
       
-      // Get CWL tracking
+      // Try to get CWL data from API first
+      try {
+        const cwlGroup = await clashApiService.getCWLGroup(clan.clanTag);
+        
+        if (cwlGroup && cwlGroup.clans) {
+          // API data is available - use it
+          return await this.handleApiWarPlan(interaction, clan, cwlGroup);
+        }
+      } catch (apiError) {
+        log.warn(`Could not get CWL data from API: ${apiError.message}. Falling back to database.`);
+      }
+      
+      // If API data not available, fall back to database
       const cwlTracking = await CWLTracking.findOne({
         clanTag: clan.clanTag,
         isActive: true
@@ -175,6 +185,215 @@ module.exports = {
           ephemeral: true
         });
       }
+    }
+  },
+  
+  /**
+   * Handle API-based CWL war plan display
+   * @param {Interaction} interaction - Discord interaction
+   * @param {Object} clan - Clan document
+   * @param {Object} cwlGroup - CWL group data from API
+   */
+  async handleApiWarPlan(interaction, clan, cwlGroup) {
+    try {
+      // Get day parameter
+      let requestedDay = interaction.options.getInteger('day');
+      
+      // If we have rounds data, look for wars
+      if (cwlGroup.rounds && cwlGroup.rounds.length > 0) {
+        // Current day is based on rounds with war tags
+        let currentDay = 0;
+        let warData = null;
+        
+        // If a specific day is requested, try to get that war
+        if (requestedDay && requestedDay > 0 && requestedDay <= cwlGroup.rounds.length) {
+          // Get the requested day's round
+          const round = cwlGroup.rounds[requestedDay - 1];
+          
+          // Check if this round has war tags
+          if (round.warTags && round.warTags.length > 0) {
+            // Look for a war involving our clan
+            for (const warTag of round.warTags) {
+              if (warTag !== '#0') { // Skip placeholder tags
+                try {
+                  const war = await clashApiService.getCWLWar(warTag);
+                  if (war && (war.clan.tag === clan.clanTag || war.opponent.tag === clan.clanTag)) {
+                    // Found our war for this day
+                    warData = war;
+                    currentDay = requestedDay;
+                    break;
+                  }
+                } catch (error) {
+                  log.warn(`Error getting CWL war data for ${warTag}: ${error.message}`);
+                }
+              }
+            }
+          }
+        }
+        
+        // If no specific day requested or not found, find the current/most recent war
+        if (!warData) {
+          // Look through all rounds for wars
+          for (let i = 0; i < cwlGroup.rounds.length; i++) {
+            const round = cwlGroup.rounds[i];
+            const day = i + 1;
+            
+            if (round.warTags && round.warTags.length > 0) {
+              // Look for a war involving our clan
+              for (const warTag of round.warTags) {
+                if (warTag !== '#0') { // Skip placeholder tags
+                  try {
+                    const war = await clashApiService.getCWLWar(warTag);
+                    if (war && (war.clan.tag === clan.clanTag || war.opponent.tag === clan.clanTag)) {
+                      // Found a war
+                      warData = war;
+                      currentDay = day;
+                      
+                      // If the war is in progress, this is the current day
+                      if (war.state === 'inWar') {
+                        break; // Stop looking, we found the active war
+                      }
+                    }
+                  } catch (error) {
+                    log.warn(`Error getting CWL war data for ${warTag}: ${error.message}`);
+                  }
+                }
+              }
+              
+              // If we found an in-progress war, stop looking
+              if (warData && warData.state === 'inWar') {
+                break;
+              }
+            }
+          }
+        }
+        
+        // If we found a war, display it
+        if (warData) {
+          // Make sure we know which side is our clan
+          const isOurClanAttacking = warData.clan.tag === clan.clanTag;
+          const ourClan = isOurClanAttacking ? warData.clan : warData.opponent;
+          const opponentClan = isOurClanAttacking ? warData.opponent : warData.clan;
+          
+          // Create embed
+          const embed = new EmbedBuilder()
+            .setTitle(`CWL Day ${currentDay} War: ${ourClan.name} vs ${opponentClan.name}`)
+            .setColor('#9b59b6');
+          
+          // Add war status
+          let statusText = '';
+          
+          switch (warData.state) {
+            case 'preparation':
+              statusText = '⏳ Preparation Phase';
+              break;
+            case 'inWar':
+              statusText = '⚔️ Battle Day';
+              break;
+            case 'warEnded':
+              statusText = '🏁 War Ended';
+              break;
+            default:
+              statusText = warData.state;
+          }
+          
+          embed.setDescription(`Status: ${statusText}`);
+          
+          // Add team size and score
+          embed.addFields(
+            { name: 'Team Size', value: `${warData.teamSize}v${warData.teamSize}`, inline: true },
+            { name: 'Stars', value: `${ourClan.stars || 0}⭐ - ${opponentClan.stars || 0}⭐`, inline: true },
+            { name: 'Destruction', value: `${ourClan.destructionPercentage?.toFixed(2) || 0}% - ${opponentClan.destructionPercentage?.toFixed(2) || 0}%`, inline: true }
+          );
+          
+          // Add time information
+          if (warData.startTime && warData.endTime) {
+            const startTime = new Date(warData.startTime);
+            const endTime = new Date(warData.endTime);
+            const now = new Date();
+            
+            if (warData.state === 'inWar' && now < endTime) {
+              // Calculate time remaining
+              const timeRemaining = endTime - now;
+              const hoursRemaining = Math.floor(timeRemaining / (1000 * 60 * 60));
+              const minutesRemaining = Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60));
+              
+              embed.addFields({
+                name: 'Time Remaining',
+                value: `${hoursRemaining}h ${minutesRemaining}m`
+              });
+            } else if (warData.state === 'preparation') {
+              // Calculate time until war starts
+              const timeUntilStart = startTime - now;
+              const hoursUntil = Math.floor(timeUntilStart / (1000 * 60 * 60));
+              const minutesUntil = Math.floor((timeUntilStart % (1000 * 60 * 60)) / (1000 * 60));
+              
+              embed.addFields({
+                name: 'War Starts In',
+                value: `${hoursUntil}h ${minutesUntil}m`
+              });
+            }
+          }
+          
+          // Add member information
+          if (ourClan.members && ourClan.members.length > 0) {
+            let attacksUsed = 0;
+            let attacksAvailable = ourClan.members.length;
+            let attacksSummary = '';
+            
+            // Sort members by position (map number)
+            const sortedMembers = [...ourClan.members].sort((a, b) => a.mapPosition - b.mapPosition);
+            
+            for (const member of sortedMembers) {
+              const hasAttacked = member.attacks && member.attacks.length > 0;
+              
+              if (hasAttacked) {
+                attacksUsed++;
+                
+                // Get the attack details
+                const attack = member.attacks[0]; // CWL only has 1 attack per person
+                attacksSummary += `${member.mapPosition}. ✅ **${member.name}** (TH${member.townhallLevel}) → ${attack.stars}⭐ (${attack.destructionPercentage}%)\n`;
+              } else {
+                attacksSummary += `${member.mapPosition}. ⏳ **${member.name}** (TH${member.townhallLevel}) → Attack not used yet\n`;
+              }
+            }
+            
+            // Add summary
+            embed.addFields(
+              { name: 'Attack Status', value: `${attacksUsed}/${attacksAvailable} attacks used`, inline: false },
+              { name: 'Member Attacks', value: attacksSummary || 'No attack data available', inline: false }
+            );
+          }
+          
+          // Add CWL tips
+          if (warData.state === 'inWar') {
+            embed.addFields({
+              name: 'CWL Attack Tips',
+              value: [
+                '• You only get ONE attack - make it count!',
+                '• Prioritize stars over percentage',
+                '• Attack bases you can 3-star rather than reaching too high',
+                '• Coordinate with teammates to maximize stars'
+              ].join('\n')
+            });
+          }
+          
+          // Send the embed
+          return interaction.editReply({ embeds: [embed] });
+        }
+      }
+      
+      // If we got here, we couldn't find a war to display
+      return interaction.editReply({
+        content: 'No CWL war found for this clan. War pairings may not be determined yet, or the CWL season has ended.'
+      });
+    } catch (error) {
+      log.error(`Error handling API war plan: ${error.message}`);
+      
+      // Fall back to a generic message
+      return interaction.editReply({
+        content: 'An error occurred while retrieving CWL war information. Please try again later.'
+      });
     }
   }
 };

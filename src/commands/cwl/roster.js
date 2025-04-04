@@ -7,7 +7,7 @@ const {SlashCommandBuilder} = require("discord.js");
 
 module.exports = {
   data: new SlashCommandBuilder()
-      .setName('cwl_roster')
+      .setName('roster')
       .setDescription('Manage CWL roster')
       .addSubcommand(subcommand =>
           subcommand

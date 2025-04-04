@@ -6,7 +6,7 @@ const { command: log } = require('../../utils/logger');
 module.exports = {
   data: new SlashCommandBuilder()
       .setName('medals')
-      .setDescription('View CWL medal calculator'),
+      .setDescription('View CWL medal calculator and rewards'),
 
   async execute(interaction) {
     try {
@@ -29,33 +29,57 @@ module.exports = {
           .setDescription(`Clan War League medal rewards are based on your league and final position.`)
           .setColor('#9b59b6');
 
-      // Add medal table
+      // Add medal table based on tiers
       const medalTable = this.getCWLMedalTable();
 
-      // Format medal table by league
-      let medalText = '';
-
-      for (const league in medalTable) {
-        medalText += `**${league}**\n`;
-
-        // Format positions and medals
-        let positionText = '';
-        let medalText = '';
-
-        for (let i = 0; i < medalTable[league].length; i++) {
-          const position = i + 1;
-          const medals = medalTable[league][i];
-
-          positionText += `Rank ${position}\n`;
-          medalText += `${medals} medals\n`;
-        }
-
-        embed.addFields(
-            { name: 'Position', value: positionText, inline: true },
-            { name: 'Medals', value: medalText, inline: true },
-            { name: '\u200B', value: '\u200B', inline: true }
-        );
-      }
+      // Display medals by league tiers for better readability
+      // Champions
+      const champLeagueFields = this.formatLeagueTier(
+        medalTable, 
+        ['Champion League I', 'Champion League II', 'Champion League III'],
+        '👑 Champion Leagues'
+      );
+      
+      // Master
+      const masterLeagueFields = this.formatLeagueTier(
+        medalTable,
+        ['Master League I', 'Master League II', 'Master League III'],
+        '🔶 Master Leagues'  
+      );
+      
+      // Crystal
+      const crystalLeagueFields = this.formatLeagueTier(
+        medalTable,
+        ['Crystal League I', 'Crystal League II', 'Crystal League III'],
+        '💎 Crystal Leagues'
+      );
+      
+      // Gold, Silver, Bronze in one table to save space
+      const goldLeagueFields = this.formatLeagueTier(
+        medalTable,
+        ['Gold League I', 'Gold League II', 'Gold League III'],
+        '🥇 Gold Leagues'
+      );
+      
+      const silverLeagueFields = this.formatLeagueTier(
+        medalTable,
+        ['Silver League I', 'Silver League II', 'Silver League III'],
+        '🥈 Silver Leagues'
+      );
+      
+      const bronzeLeagueFields = this.formatLeagueTier(
+        medalTable,
+        ['Bronze League I', 'Bronze League II', 'Bronze League III'],
+        '🥉 Bronze Leagues'
+      );
+      
+      // Add the formatted fields to the embed
+      champLeagueFields.forEach(field => embed.addFields(field));
+      masterLeagueFields.forEach(field => embed.addFields(field));
+      crystalLeagueFields.forEach(field => embed.addFields(field));
+      goldLeagueFields.forEach(field => embed.addFields(field));
+      silverLeagueFields.forEach(field => embed.addFields(field));
+      bronzeLeagueFields.forEach(field => embed.addFields(field));
 
       // Get active CWL season
       const cwlTracking = await CWLTracking.findOne({
@@ -160,5 +184,53 @@ module.exports = {
       'Champion League II': [320, 300, 280, 260, 240, 220, 200, 180],
       'Champion League I': [340, 320, 300, 280, 260, 240, 220, 200]
     };
+  },
+  
+  /**
+   * Format a tier of leagues into embed fields
+   * @param {Object} medalTable - The medal table
+   * @param {Array} leagues - Array of league names
+   * @param {String} title - Title for the group
+   * @returns {Array} - Array of embed fields
+   */
+  formatLeagueTier(medalTable, leagues, title) {
+    const fields = [];
+    
+    // Add title field
+    fields.push({ name: title, value: '\u200B', inline: false });
+    
+    // For each league, generate a compact string showing position->rewards
+    const leagueData = [];
+    
+    for (const league of leagues) {
+      if (medalTable[league]) {
+        const medals = medalTable[league];
+        const positions = Array.from({length: medals.length}, (_, i) => i + 1);
+        
+        let text = `**${league}**\n`;
+        
+        // First add position:rewards in compact format
+        for (let i = 0; i < positions.length; i++) {
+          text += `${positions[i]}: ${medals[i]} | `;
+          
+          // Break into two lines for readability
+          if (i === 3) {
+            text = text.slice(0, -3) + '\n'; // Remove the last " | "
+          }
+        }
+        
+        // Remove the last " | "
+        text = text.slice(0, -3);
+        
+        leagueData.push(text);
+      }
+    }
+    
+    // Add the league data to fields
+    for (const data of leagueData) {
+      fields.push({ name: '\u200B', value: data, inline: true });
+    }
+    
+    return fields;
   }
 };

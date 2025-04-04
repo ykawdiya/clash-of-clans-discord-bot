@@ -6,15 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="a31140c2-daa6-4a37-a345-5d16878fba79" name="Changes" comment="new features">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/admin/apitest.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/admin/apitest.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/capital.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/capital.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/capital/status.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/capital/status.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/cwl/status.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/status.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/player.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/player.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/war/status.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/war/status.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/clashApiService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/clashApiService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/cwlTrackingService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/cwlTrackingService.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/cwl/medals.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/medals.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/cwl/plan.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/plan.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/cwl/roster.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/roster.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/cwl/stats.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/cwl/stats.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -115,23 +110,7 @@
       <workItem from="1743633092891" duration="210000" />
       <workItem from="1743633305397" duration="224000" />
       <workItem from="1743633533323" duration="15099000" />
-      <workItem from="1743711525123" duration="13742000" />
-    </task>
-    <task id="LOCAL-00130" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743347121789</created>
-      <option name="number" value="00130" />
-      <option name="presentableId" value="LOCAL-00130" />
-      <option name="project" value="LOCAL" />
-      <updated>1743347121789</updated>
-    </task>
-    <task id="LOCAL-00131" summary="new features">
-      <option name="closed" value="true" />
-      <created>1743347330319</created>
-      <option name="number" value="00131" />
-      <option name="presentableId" value="LOCAL-00131" />
-      <option name="project" value="LOCAL" />
-      <updated>1743347330319</updated>
+      <workItem from="1743711525123" duration="15909000" />
     </task>
     <task id="LOCAL-00132" summary="new features">
       <option name="closed" value="true" />
@@ -509,7 +488,23 @@
       <option name="project" value="LOCAL" />
       <updated>1743768253085</updated>
     </task>
-    <option name="localTasksCounter" value="179" />
+    <task id="LOCAL-00179" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743792009405</created>
+      <option name="number" value="00179" />
+      <option name="presentableId" value="LOCAL-00179" />
+      <option name="project" value="LOCAL" />
+      <updated>1743792009405</updated>
+    </task>
+    <task id="LOCAL-00180" summary="new features">
+      <option name="closed" value="true" />
+      <created>1743792817164</created>
+      <option name="number" value="00180" />
+      <option name="presentableId" value="LOCAL-00180" />
+      <option name="project" value="LOCAL" />
+      <updated>1743792817164</updated>
+    </task>
+    <option name="localTasksCounter" value="181" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
